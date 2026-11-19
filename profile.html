@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Profile | BAS Warehouse</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+    <header class="navbar">
+        <a href="index.html" class="logo-area">
+            <div class="logo">BA</div>
+            <div class="logo-text">
+                <h2>BI ARCHI ANGELOUS</h2>
+                <span>BAS WAREHOUSE SYSTEM</span>
+            </div>
+        </a>
+        <nav class="nav-links">
+            <a href="index.html#inventory">Inventory</a>
+            <a href="reservations.html" data-approved-only hidden>My Reservations</a>
+            <a href="profile.html">My Profile</a>
+            <a href="team.html" data-admin-only hidden>Team Portal</a>
+        </nav>
+        <div class="nav-account" id="navAccount"></div>
+    </header>
+
+    <main class="app-page" style="max-width:760px">
+        <div class="page-head">
+            <div>
+                <p class="section-label">YOUR ACCOUNT</p>
+                <h1>My <span>Profile</span></h1>
+            </div>
+        </div>
+        <div id="view"><div class="empty">Loading…</div></div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script src="common.js"></script>
+    <script>
+    "use strict";
+    const $ = id => document.getElementById(id);
+    let TRANSFERS = [];
+
+    (async function () {
+        await BAS.init();
+        if (!BAS.requireApproved()) return;
+        await load();
+    })();
+
+    async function load() {
+        const t = await supabaseClient.from("transfer_requests").select("*").eq("profile_id", BAS.user.id).order("created_at", { ascending: false });
+        TRANSFERS = t.error ? [] : t.data;
+        render();
+    }
+
+    function render() {
+        const p = BAS.profile;
+        const waiting = TRANSFERS.find(x => x.status === "Pending");
+        let h = '<div class="panel">' +
+            '<div class="field"><label for="pName">Full name</label><input id="pName" value="' + BAS.esc(p.full_name) + '"></div>' +
+            '<div class="field"><label>Email</label><input value="' + BAS.esc(BAS.user.email || "") + '" disabled></div>' +
+            '<div class="grid2"><div class="field"><label>Stage</label><input value="' + BAS.esc(p.section_id ? BAS.sectionName(p.section_id) : "—") + '" disabled></div>' +
+            '<div class="field"><label>Account</label><input value="' + (p.role === "admin" ? "Ma5zan team" : "Leader") + " · " + BAS.esc(p.approval_status) + '" disabled></div></div>' +
+            '<div id="nErr" class="msg err" hidden></div><div class="actions"><button class="btn ok" id="saveName">Save name</button></div></div>';
+
+        h += '<div class="group-title">MOVE TO ANOTHER STAGE</div><div class="panel">';
+        if (waiting) {
+            h += '<p class="meta">You asked to move to <b>' + BAS.secHTML(waiting.to_section) + "</b> on " + BAS.esc(BAS.fmtDate(waiting.created_at)) +
+                ". The ma5zan team will approve or reject it.</p>" +
+                '<div class="actions"><button class="btn danger sm" id="withdraw">Withdraw request</button></div>';
+        } else {
+            h += '<p class="meta" style="margin-bottom:10px">Your old requests stay with the stage you had when you made them.</p>' +
+                '<div class="field"><label for="tTo">New stage</label><select id="tTo">' +
+                BAS.sections.filter(s => s.id !== p.section_id).map(s => '<option value="' + s.id + '">' + BAS.esc(s.name_ar) + " · " + BAS.esc(s.name_en) + "</option>").join("") + "</select></div>" +
+                '<div class="field"><label for="tNote">Why (optional)</label><input id="tNote"></div>' +
+                '<div id="tErr" class="msg err" hidden></div><div class="actions"><button class="btn gold" id="askMove">Ask to move</button></div>';
+        }
+        h += "</div>";
+        const past = TRANSFERS.filter(x => x.status !== "Pending");
+        if (past.length) {
+            h += '<div class="group-title">PAST TRANSFER REQUESTS</div>' + past.map(x =>
+                '<div class="person"><div><h4>' + BAS.secHTML(x.from_section) + " → " + BAS.secHTML(x.to_section) + '</h4><div class="meta">' + BAS.esc(BAS.fmtDate(x.created_at)) + "</div></div>" +
+                '<span class="pill ' + (x.status === "Approved" ? "paid" : "late") + '">' + BAS.esc(x.status.toUpperCase()) + "</span></div>").join("");
+        }
+        $("view").innerHTML = h;
+
+        $("saveName").onclick = async () => {
+            const name = $("pName").value.trim();
+            if (!name) { $("nErr").textContent = "Write your name."; $("nErr").hidden = false; return; }
+            const { error } = await supabaseClient.rpc("update_my_name", { p_full_name: name });
+            if (error) { $("nErr").textContent = BAS.errText(error); $("nErr").hidden = false; return; }
+            BAS.profile.full_name = name; BAS.renderNav(); BAS.toast("Name saved");
+        };
+        if ($("askMove")) $("askMove").onclick = async () => {
+            const { error } = await supabaseClient.rpc("request_transfer", { p_to_section: Number($("tTo").value), p_note: $("tNote").value });
+            if (error) { $("tErr").textContent = BAS.errText(error); $("tErr").hidden = false; return; }
+            BAS.toast("Request sent to the ma5zan team"); load();
+        };
+        if ($("withdraw")) $("withdraw").onclick = async () => {
+            if (!confirm("Withdraw your transfer request?")) return;
+            const { error } = await supabaseClient.rpc("decide_transfer", { p_id: waiting.id, p_approve: false });
+            if (error) { BAS.toast(BAS.errText(error), "err"); return; }
+            BAS.toast("Withdrawn"); load();
+        };
+    }
+    </script>
+</body>
+</html>

@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login | BAS Warehouse System</title>
+
+    <link rel="stylesheet" href="style.css">
+
+    <style>
+        body {
+            min-height: 100vh;
+            margin: 0;
+            background: #F3F0E7;
+            color: #203C36;
+            font-family: Arial, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 25px;
+            box-sizing: border-box;
+        }
+
+        .auth-container {
+            width: 100%;
+            max-width: 460px;
+            background: #FFFFFF;
+            padding: 38px;
+            border-radius: 18px;
+            box-shadow: 0 12px 40px rgba(32, 60, 54, 0.09);
+            box-sizing: border-box;
+        }
+
+        .brand {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .brand-logo {
+            width: 60px;
+            height: 60px;
+            background: #203C36;
+            color: #D8C394;
+            border-radius: 15px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0 auto 15px;
+            font-weight: 900;
+            font-size: 20px;
+        }
+
+        .brand h1 {
+            font-size: 21px;
+            margin: 0 0 8px;
+        }
+
+        .brand p {
+            color: #78847B;
+            font-size: 12px;
+            letter-spacing: 1px;
+        }
+
+        .tabs {
+            display: flex;
+            background: #F3F0E7;
+            padding: 5px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+        }
+
+            .tabs button {
+                flex: 1;
+                border: none;
+                padding: 12px;
+                border-radius: 8px;
+                background: transparent;
+                color: #58685E;
+                cursor: pointer;
+                font-weight: bold;
+            }
+
+                .tabs button.active {
+                    background: #203C36;
+                    color: white;
+                }
+
+        .auth-form {
+            display: none;
+        }
+
+            .auth-form.active {
+                display: block;
+            }
+
+        .field {
+            margin-bottom: 17px;
+        }
+
+            .field label {
+                display: block;
+                margin-bottom: 8px;
+                font-size: 13px;
+                font-weight: bold;
+            }
+
+            .field input,
+            .field select {
+                width: 100%;
+                padding: 13px;
+                border: 1px solid #DCE1D9;
+                border-radius: 8px;
+                box-sizing: border-box;
+                font-size: 14px;
+                outline: none;
+                background: #FFFFFF;
+            }
+
+                .field input:focus,
+                .field select:focus {
+                    border-color: #A4864E;
+                }
+
+        .submit-btn {
+            width: 100%;
+            padding: 14px;
+            background: #203C36;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+
+            .submit-btn:hover {
+                background: #2D5148;
+            }
+
+            .submit-btn:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
+
+        .message {
+            display: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            line-height: 1.6;
+            margin-bottom: 18px;
+        }
+
+            .message.success {
+                display: block;
+                background: #E8F3E9;
+                color: #28613A;
+            }
+
+            .message.error {
+                display: block;
+                background: #FBEAEA;
+                color: #A12D2D;
+            }
+
+        .forgot-link {
+            display: block;
+            text-align: right;
+            margin-top: -5px;
+            margin-bottom: 16px;
+            color: #A4864E;
+            font-size: 12px;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+            .forgot-link:hover {
+                text-decoration: underline;
+            }
+
+        .back-link {
+            display: block;
+            text-align: center;
+            margin-top: 25px;
+            color: #78847B;
+            font-size: 12px;
+            text-decoration: none;
+        }
+
+            .back-link:hover {
+                color: #A4864E;
+            }
+
+        .note {
+            text-align: center;
+            color: #78847B;
+            font-size: 11px;
+            line-height: 1.7;
+            margin-top: 18px;
+        }
+
+        .text-btn {
+            display: block;
+            width: 100%;
+            border: none;
+            background: none;
+            color: #A4864E;
+            font-size: 13px;
+            cursor: pointer;
+            margin-top: 18px;
+        }
+
+            .text-btn:hover {
+                text-decoration: underline;
+            }
+
+        @media(max-width: 500px) {
+            .auth-container {
+                padding: 25px 20px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <main class="auth-container">
+
+        <div class="brand">
+            <div class="brand-logo">BAS</div>
+            <h1>Scout Warehouse System</h1>
+            <p>ST. MICHAEL CHURCH · MOSTAFA KAMEL</p>
+        </div>
+
+        <div class="tabs" id="tabs">
+            <button type="button" id="loginTab" class="active">
+                Login
+            </button>
+
+            <button type="button" id="signupTab">
+                Create Account
+            </button>
+        </div>
+
+        <div id="message" class="message"></div>
+
+        <!-- LOGIN FORM -->
+
+        <form id="loginForm" class="auth-form active">
+
+            <div class="field">
+                <label for="loginEmail">Email Address</label>
+                <input type="email"
+                       id="loginEmail"
+                       required
+                       placeholder="Enter your email">
+            </div>
+
+            <div class="field">
+                <label for="loginPassword">Password</label>
+                <input type="password"
+                       id="loginPassword"
+                       required
+                       placeholder="Enter your password">
+            </div>
+
+            <a href="#" id="forgotPasswordLink" class="forgot-link">
+                Forgot Password?
+            </a>
+
+            <button type="submit" class="submit-btn" id="loginBtn">
+                Login to Warehouse
+            </button>
+
+        </form>
+
+        <!-- SIGNUP FORM -->
+
+        <form id="signupForm" class="auth-form">
+
+            <div class="field">
+                <label for="fullName">Full Name</label>
+                <input type="text"
+                       id="fullName"
+                       required
+                       placeholder="Enter your full name">
+            </div>
+
+            <div class="field">
+                <label for="signupEmail">Email Address</label>
+                <input type="email"
+                       id="signupEmail"
+                       required
+                       placeholder="Enter your email">
+            </div>
+
+            <div class="field">
+                <label for="signupSection">Your Section</label>
+                <select id="signupSection" required dir="rtl">
+                    <option value="">Loading sections...</option>
+                </select>
+            </div>
+
+            <div class="field">
+                <label for="signupPassword">Password</label>
+                <input type="password"
+                       id="signupPassword"
+                       required
+                       minlength="6"
+                       placeholder="At least 6 characters">
+            </div>
+
+            <button type="submit" class="submit-btn" id="signupBtn">
+                Create Account
+            </button>
+
+            <p class="note">
+                New accounts need approval from the ma5zan team
+                before they can request equipment.
+            </p>
+
+        </form>
+
+        <!-- FORGOT PASSWORD FORM -->
+
+        <form id="forgotForm" class="auth-form">
+
+            <div class="field">
+                <label for="resetEmail">Email Address</label>
+                <input type="email"
+                       id="resetEmail"
+                       required
+                       placeholder="Enter your registered email">
+            </div>
+
+            <button type="submit" class="submit-btn" id="resetBtn">
+                Send Reset Link
+            </button>
+
+            <button type="button" class="text-btn" id="backToLoginBtn">
+                Back to Login
+            </button>
+
+            <p class="note">
+                We will send you an email with a secure link
+                to reset your password.
+            </p>
+
+        </form>
+
+        <a href="index.html" class="back-link">
+            ← Back to Homepage
+        </a>
+
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+
+    <script>
+                // @ts-nocheck
+
+                const loginTab = document.getElementById("loginTab");
+                const signupTab = document.getElementById("signupTab");
+                const tabs = document.getElementById("tabs");
+
+                const loginForm = document.getElementById("loginForm");
+                const signupForm = document.getElementById("signupForm");
+                const forgotForm = document.getElementById("forgotForm");
+
+                const messageBox = document.getElementById("message");
+
+                const forgotPasswordLink =
+                    document.getElementById("forgotPasswordLink");
+
+                const backToLoginBtn =
+                    document.getElementById("backToLoginBtn");
+
+                function showMessage(message, type) {
+                    messageBox.textContent = message;
+                    messageBox.className = "message " + type;
+                }
+
+                function clearMessage() {
+                    messageBox.textContent = "";
+                    messageBox.className = "message";
+                }
+
+                function showForm(formName) {
+                    loginForm.classList.remove("active");
+                    signupForm.classList.remove("active");
+                    forgotForm.classList.remove("active");
+
+                    tabs.style.display = "flex";
+
+                    loginTab.classList.remove("active");
+                    signupTab.classList.remove("active");
+
+                    if (formName === "login") {
+                        loginForm.classList.add("active");
+                        loginTab.classList.add("active");
+                    }
+
+                    if (formName === "signup") {
+                        signupForm.classList.add("active");
+                        signupTab.classList.add("active");
+                    }
+
+                    if (formName === "forgot") {
+                        forgotForm.classList.add("active");
+                        tabs.style.display = "none";
+
+                        const loginEmail =
+                            document.getElementById("loginEmail").value.trim();
+
+                        document.getElementById("resetEmail").value = loginEmail;
+                    }
+
+                    clearMessage();
+                }
+
+                loginTab.addEventListener("click", function () {
+                    showForm("login");
+                });
+
+                signupTab.addEventListener("click", function () {
+                    showForm("signup");
+                });
+
+                forgotPasswordLink.addEventListener("click", function (event) {
+                    event.preventDefault();
+                    showForm("forgot");
+                });
+
+                backToLoginBtn.addEventListener("click", function () {
+                    showForm("login");
+                });
+
+                async function loadSections() {
+                    const sectionSelect =
+                        document.getElementById("signupSection");
+
+                    const { data, error } = await supabaseClient
+                        .from("sections")
+                        .select("*");
+
+                    if (error) {
+                        sectionSelect.innerHTML =
+                            '<option value="">Could not load sections</option>';
+
+                        console.error("Sections Error:", error);
+                        return;
+                    }
+
+                    const sectionOrder = [
+                        "براعم",
+                        "أشبال و زهرات",
+                        "كشاف و مرشدات",
+                        "متقدم و رائدات",
+                        "مرشح جوالة"
+                    ];
+
+                    data.sort(function (a, b) {
+                        const nameA = a.name_ar || a.name;
+                        const nameB = b.name_ar || b.name;
+
+                        const indexA = sectionOrder.indexOf(nameA);
+                        const indexB = sectionOrder.indexOf(nameB);
+
+                        return (indexA === -1 ? 999 : indexA) -
+                               (indexB === -1 ? 999 : indexB);
+                    });
+
+                    sectionSelect.innerHTML =
+                        '<option value="" selected disabled>Choose your section</option>';
+
+                    data.forEach(function (section) {
+                        const option = document.createElement("option");
+
+                        option.value = section.id;
+                        option.textContent = section.name_ar || section.name;
+
+                        sectionSelect.appendChild(option);
+                    });
+                }
+
+                // LOGIN
+
+                loginForm.addEventListener("submit", async function (event) {
+                    event.preventDefault();
+
+                    clearMessage();
+
+                    const button = document.getElementById("loginBtn");
+
+                    const email =
+                        document.getElementById("loginEmail").value.trim();
+
+                    const password =
+                        document.getElementById("loginPassword").value;
+
+                    button.disabled = true;
+                    button.textContent = "Logging in...";
+
+                    try {
+                        const { data, error } =
+                            await supabaseClient.auth.signInWithPassword({
+                                email: email,
+                                password: password
+                            });
+
+                        if (error) {
+                            throw error;
+                        }
+
+                        const { data: profile, error: profileError } =
+                            await supabaseClient
+                                .from("profiles")
+                                .select("full_name, role, approval_status, section_id")
+                                .eq("id", data.user.id)
+                                .single();
+
+                        if (profileError) {
+                            await supabaseClient.auth.signOut();
+
+                            throw new Error(
+                                "Your profile could not be loaded. Contact an administrator."
+                            );
+                        }
+
+                        if (profile.approval_status !== "approved") {
+                            await supabaseClient.auth.signOut();
+
+                            if (profile.approval_status === "rejected") {
+                                throw new Error(
+                                    "Your account has been rejected. Contact an administrator."
+                                );
+                            }
+
+                            showMessage(
+                                "Your account is waiting for administrator approval.",
+                                "success"
+                            );
+
+                            return;
+                        }
+
+                        showMessage(
+                            "Login successful! Redirecting...",
+                            "success"
+                        );
+
+                        var next = new URLSearchParams(location.search).get("next");
+                        var target = (next && /^[a-z0-9_-]+\.html$/i.test(next)) ? next
+                            : (profile.role === "admin" ? "team.html" : "index.html");
+
+                        setTimeout(function () {
+                            window.location.href = target;
+                        }, 700);
+
+                    } catch (error) {
+                        showMessage(error.message, "error");
+
+                    } finally {
+                        button.disabled = false;
+                        button.textContent = "Login to Warehouse";
+                    }
+                });
+
+                // SIGN UP
+
+                signupForm.addEventListener("submit", async function (event) {
+                    event.preventDefault();
+
+                    clearMessage();
+
+                    const button = document.getElementById("signupBtn");
+
+                    const fullName =
+                        document.getElementById("fullName").value.trim();
+
+                    const email =
+                        document.getElementById("signupEmail").value.trim();
+
+                    const password =
+                        document.getElementById("signupPassword").value;
+
+                    const sectionId =
+                        document.getElementById("signupSection").value;
+
+                    if (!sectionId) {
+                        showMessage("Please choose your section.", "error");
+                        return;
+                    }
+
+                    button.disabled = true;
+                    button.textContent = "Creating Account...";
+
+                    try {
+                        const { data, error } =
+                            await supabaseClient.auth.signUp({
+                                email: email,
+                                password: password,
+                                options: {
+                                    data: {
+                                        full_name: fullName,
+                                        section_id: sectionId
+                                    }
+                                }
+                            });
+
+                        if (error) {
+                            throw error;
+                        }
+
+                        showMessage(
+                            "Account created successfully! Your account is waiting for administrator approval. If email confirmation is enabled, check your inbox to confirm your email.",
+                            "success"
+                        );
+
+                        signupForm.reset();
+
+                    } catch (error) {
+                        showMessage(error.message, "error");
+
+                    } finally {
+                        button.disabled = false;
+                        button.textContent = "Create Account";
+                    }
+                });
+
+                // FORGOT PASSWORD
+
+                forgotForm.addEventListener("submit", async function (event) {
+                    event.preventDefault();
+
+                    clearMessage();
+
+                    const button = document.getElementById("resetBtn");
+
+                    const email =
+                        document.getElementById("resetEmail").value.trim();
+
+                    button.disabled = true;
+                    button.textContent = "Sending...";
+
+                    try {
+                        const redirectUrl =
+                            window.location.origin + "/reset-password.html";
+
+                        const { error } =
+                            await supabaseClient.auth.resetPasswordForEmail(
+                                email,
+                                {
+                                    redirectTo: redirectUrl
+                                }
+                            );
+
+                        if (error) {
+                            throw error;
+                        }
+
+                        showMessage(
+                            "If an account exists for this email, a password reset link will be sent. Please check your inbox and spam folder.",
+                            "success"
+                        );
+
+                    } catch (error) {
+                        showMessage(error.message, "error");
+
+                    } finally {
+                        button.disabled = false;
+                        button.textContent = "Send Reset Link";
+                    }
+                });
+
+                loadSections();
+
+                if (new URLSearchParams(location.search).get("pending")) {
+                    showMessage("Your account is waiting for approval from the ma5zan team.", "success");
+                }
+
+                // already logged in? go straight in
+                supabaseClient.auth.getSession().then(function (r) {
+                    if (r.data.session && !new URLSearchParams(location.search).get("pending")) {
+                        showMessage("You're already logged in. Going to the warehouse…", "success");
+                        setTimeout(function () { window.location.href = "index.html"; }, 800);
+                    }
+                });
+    </script>
+
+</body>
+</html>

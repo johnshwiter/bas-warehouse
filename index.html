@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Bi Archi Angelous | Scout Warehouse</title>
+
+    <link rel="stylesheet" href="style.css">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="app.css">
+</head>
+
+<body>
+
+    <!-- NAVIGATION -->
+
+    <header class="navbar">
+
+        <div class="logo-area">
+            <div class="logo">BA</div>
+
+            <div class="logo-text">
+                <h2>BI ARCHI ANGELOUS</h2>
+                <span>BAS WAREHOUSE SYSTEM</span>
+            </div>
+        </div>
+
+        <nav class="nav-links">
+            <a href="#home">Home</a>
+            <a href="#inventory">Inventory</a>
+            <a href="#sections">Sections</a>
+            <a href="reservations.html" data-approved-only hidden>My Reservations</a>
+            <a href="profile.html" data-approved-only hidden>My Profile</a>
+            <a href="team.html" data-admin-only hidden>Team Portal</a>
+            <a href="#final-message">Our Philosophy</a>
+        </nav>
+
+        <div class="nav-account" id="navAccount"></div>
+
+    </header>
+
+
+    <main>
+
+        <!-- HERO -->
+
+        <section class="hero" id="home">
+
+            <div class="hero-content">
+
+                <div class="hero-label">
+                    <span class="status-dot"></span>
+                    ST. MICHAEL CHURCH · MOSTAFA KAMEL
+                </div>
+
+                <p class="hero-small-title">
+                    MORE THAN A WAREHOUSE.
+                </p>
+
+                <h1>
+                    Every Item Has<br>
+                    <span>Its Own Story.</span>
+                </h1>
+
+                <p class="hero-description">
+                    A smarter way to organize, manage and preserve
+                    our scout equipment. Because every little detail
+                    matters when preparing for the next adventure.
+                </p>
+
+                <div class="hero-buttons">
+
+                    <a href="#inventory" class="primary-btn">
+                        Request Equipment <span>↗</span>
+                    </a>
+
+                    <a href="#final-message" class="secondary-btn">
+                        Our Philosophy
+                    </a>
+
+                </div>
+
+                <div class="hero-note">
+                    <span>01</span>
+                    <p>TAKE CARE. KEEP TRACK. BE PREPARED.</p>
+                </div>
+
+            </div>
+
+
+            <div class="hero-art">
+
+                <div class="art-circle circle-one"></div>
+                <div class="art-circle circle-two"></div>
+
+                <div class="art-card">
+
+                    <div class="art-top">
+                        <span>WAREHOUSE</span>
+                        <span>EST. SCOUT SPIRIT</span>
+                    </div>
+
+                    <div class="art-bottom">
+                        <h3>READY FOR<br>WHAT'S NEXT.</h3>
+                        <p>ST. MICHAEL SCOUTS</p>
+                    </div>
+
+                </div>
+
+                <div class="floating-note">
+
+                    <div>
+                        <strong>Every Item Matters</strong>
+                        <small>Every Detail Counts</small>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- INVENTORY OVERVIEW -->
+
+        <section class="inventory-overview" id="overview">
+
+            <div class="overview-heading">
+
+                <div>
+                    <p class="section-label">THE BIG PICTURE</p>
+                    <h2>Warehouse Overview</h2>
+                </div>
+
+                <span class="live-label">
+                    <span class="status-dot"></span>
+                    SYSTEM OVERVIEW
+                </span>
+
+            </div>
+
+
+            <div class="stats-grid">
+
+                <div class="stat-card">
+                    <div class="stat-icon">▦</div>
+                    <p>TOTAL EQUIPMENT</p>
+                    <h3 id="statTotal">—</h3>
+                    <span>Items registered in inventory</span>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon">✓</div>
+                    <p>AVAILABLE ITEMS</p>
+                    <h3 id="statAvail">—</h3>
+                    <span>Ready for reservation</span>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon">◤</div>
+                    <p>ACTIVE RESERVATIONS</p>
+                    <h3 id="statActive">—</h3>
+                    <span>Currently being managed</span>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon">↻</div>
+                    <p>ITEMS NEEDING ATTENTION</p>
+                    <h3 id="statAttention">—</h3>
+                    <span>Missing or damaged equipment</span>
+                </div>
+
+            </div>
+
+            <p class="stats-note" id="statsNote">
+                * Log in to see live numbers.
+            </p>
+
+        </section>
+
+
+        <!-- SCOUT SECTIONS -->
+
+        <section class="sections" id="sections">
+
+            <div class="sections-heading">
+
+                <div>
+                    <p class="section-label">ORGANIZED BY SECTION</p>
+
+                    <h2>
+                        One Warehouse.<br>
+                        <span>Five Scout Sections.</span>
+                    </h2>
+                </div>
+
+                <p class="heading-description">
+                    Each section has its own equipment,
+                    reservations and meeting history.
+                    Everything organized in one place.
+                </p>
+
+            </div>
+
+
+            <div class="section-grid">
+
+                <div class="section-card" data-section="براعم">
+
+                    <div class="section-card-top">
+                        <span class="section-index">01 / 05</span>
+                    </div>
+
+                    <div class="section-illustration">🌱</div>
+
+                    <h3>براعم</h3>
+                    <p>The beginning of something great.</p>
+
+                    <div class="card-footer">
+                        <span>EXPLORE SECTION</span>
+                        <span>↗</span>
+                    </div>
+
+                </div>
+
+
+                <div class="section-card" data-section="أشبال وزهرات">
+
+                    <div class="section-card-top">
+                        <span class="section-index">02 / 05</span>
+                    </div>
+
+                    <div class="section-illustration">🐺</div>
+
+                    <h3>أشبال وزهرات</h3>
+                    <p>Growing together through adventure.</p>
+
+                    <div class="card-footer">
+                        <span>EXPLORE SECTION</span>
+                        <span>↗</span>
+                    </div>
+
+                </div>
+
+
+                <div class="section-card" data-section="كشاف ومرشدات">
+
+                    <div class="section-card-top">
+                        <span class="section-index">03 / 05</span>
+                    </div>
+
+                    <div class="section-illustration">🧭</div>
+
+                    <h3>كشاف ومرشدات</h3>
+                    <p>Discovering more with every step.</p>
+
+                    <div class="card-footer">
+                        <span>EXPLORE SECTION</span>
+                        <span>↗</span>
+                    </div>
+
+                </div>
+
+
+                <div class="section-card" data-section="متقدم ورائدات">
+
+                    <div class="section-card-top">
+                        <span class="section-index">04 / 05</span>
+                    </div>
+
+                    <div class="section-illustration">🏕️</div>
+
+                    <h3>متقدم ورائدات</h3>
+                    <p>Leading with purpose and courage.</p>
+
+                    <div class="card-footer">
+                        <span>EXPLORE SECTION</span>
+                        <span>↗</span>
+                    </div>
+
+                </div>
+
+
+                <div class="section-card" data-section="مرشح جوالة">
+
+                    <div class="section-card-top">
+                        <span class="section-index">05 / 05</span>
+                    </div>
+
+                    <div class="section-illustration">⛰️</div>
+
+                    <h3>مرشح جوالة</h3>
+                    <p>Built on responsibility and leadership.</p>
+
+                    <div class="card-footer">
+                        <span>EXPLORE SECTION</span>
+                        <span>↗</span>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- RESPONSIBILITY -->
+
+        <section class="responsibility" id="responsibility">
+
+            <div class="responsibility-content">
+
+                <p class="section-label">MORE THAN MANAGING EQUIPMENT</p>
+
+                <h2>
+                    Take Care of What We Have,<br>
+                    <span>So We're Ready for What's Next.</span>
+                </h2>
+
+                <p>
+                    Our equipment is a shared responsibility.
+                    Every item we preserve today helps prepare
+                    the next generation for tomorrow's adventures.
+                </p>
+
+                <div class="responsibility-values">
+
+                    <div>
+                        <strong>01</strong>
+                        <span>RESPECT</span>
+                    </div>
+
+                    <div>
+                        <strong>02</strong>
+                        <span>RESPONSIBILITY</span>
+                    </div>
+
+                    <div>
+                        <strong>03</strong>
+                        <span>PRESERVATION</span>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- WAREHOUSE INVENTORY -->
+
+        <section class="inventory-section" id="inventory">
+
+            <div class="inventory-heading">
+
+                <span class="inventory-label">OUR WAREHOUSE</span>
+
+                <h2>Warehouse <span>Inventory</span></h2>
+
+                <p>
+                    Explore our equipment, check availability,
+                    and keep our shared resources organized.
+                </p>
+
+            </div>
+
+
+            <div class="inventory-search">
+
+                <input type="text"
+                       id="inventorySearch"
+                       placeholder="Search equipment in Arabic or English..."
+                       autocomplete="off">
+
+                <span>SEARCH</span>
+
+            </div>
+
+
+            <div class="inventory-filters" id="inventoryFilters"></div>
+
+
+            <div class="inventory-items" id="inventoryItems">
+                <!-- Equipment cards will appear here -->
+            </div>
+
+
+            <p class="no-results" id="noResults" hidden>
+                No equipment found. Try another name or category.
+            </p>
+
+            <div class="login-note" id="loginNote" hidden></div>
+
+        </section>
+
+
+        <!-- MY RESERVATIONS -->
+
+        <section class="reservations-section" id="reservations">
+
+            <div class="reservations-heading">
+
+                <span class="inventory-label">YOUR SECTION'S REQUESTS</span>
+
+                <h2>Latest <span>Reservations</span></h2>
+
+                <p>
+                    Keep track of the equipment you have requested
+                    and follow the status of each reservation.
+                </p>
+
+            </div>
+
+
+            <div class="reservations-list" id="reservationsList"></div>
+
+            <div class="actions" style="justify-content:center">
+                <a href="reservations.html" class="secondary-btn" data-approved-only hidden>See all my section's requests</a>
+            </div>
+
+        </section>
+
+
+        <!-- FINAL MESSAGE -->
+
+        <section class="final-message" id="final-message">
+
+            <p>ONE TEAM. ONE RESPONSIBILITY.</p>
+
+            <h2>Leave It Better Than You Found It.</h2>
+
+            <span>BI ARCHI ANGELOUS BAS WAREHOUSE SYSTEM</span>
+
+        </section>
+
+    </main>
+
+
+    <!-- FOOTER -->
+
+    <footer class="footer">
+
+        <div>
+            <h3>BI ARCHI ANGELOUS</h3>
+            <p>BAS WAREHOUSE SYSTEM</p>
+        </div>
+
+        <span>
+            ST. MICHAEL CHURCH · MOSTAFA KAMEL
+        </span>
+
+        <span>
+            © 2026 ALL RIGHTS RESERVED
+        </span>
+
+    </footer>
+
+    <!-- cart bar + checkout -->
+    <div class="cart-bar" id="cartBar" hidden>
+        <div><strong id="cartCount">0 items</strong><span>READY TO REQUEST</span></div>
+        <button class="btn gold" type="button" id="cartOpen">Review request ↗</button>
+    </div>
+    <div class="overlay" id="checkout" hidden></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script src="common.js"></script>
+    <script src="script.js"></script>
+
+</body>
+</html>

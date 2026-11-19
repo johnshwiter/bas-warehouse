@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Reservations | BAS Warehouse</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+    <header class="navbar">
+        <a href="index.html" class="logo-area">
+            <div class="logo">BA</div>
+            <div class="logo-text">
+                <h2>BI ARCHI ANGELOUS</h2>
+                <span>BAS WAREHOUSE SYSTEM</span>
+            </div>
+        </a>
+        <nav class="nav-links">
+            <a href="index.html#inventory">Inventory</a>
+            <a href="reservations.html">My Reservations</a>
+            <a href="profile.html">My Profile</a>
+            <a href="team.html" data-admin-only hidden>Team Portal</a>
+        </nav>
+        <div class="nav-account" id="navAccount"></div>
+    </header>
+
+    <main class="app-page">
+
+        <div class="page-head">
+            <div>
+                <p class="section-label">YOUR STAGE</p>
+                <h1 id="title">My <span>Reservations</span></h1>
+                <p>Your stage's requests, what's out, and what's owed.</p>
+            </div>
+            <a href="index.html#inventory" class="primary-btn">New request ↗</a>
+        </div>
+
+        <div class="kpis">
+            <div class="kpi"><p>WAITING / PREPARING</p><h3 id="kWait">—</h3></div>
+            <div class="kpi"><p>READY TO COLLECT</p><h3 id="kReady">—</h3></div>
+            <div class="kpi"><p>OUT WITH US</p><h3 id="kOut">—</h3></div>
+            <div class="kpi"><p>STILL OWED (EGP)</p><h3 id="kDue">—</h3></div>
+        </div>
+
+        <div class="tabs" id="tabs"></div>
+        <div id="view"><div class="empty">Loading…</div></div>
+
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script src="common.js"></script>
+    <script>
+    "use strict";
+    let RES = [], LOSSES = [], PAYMENTS = [], STOCKBY = {}, TAB = "active", Q = "", STATUS = "All";
+    const $ = id => document.getElementById(id);
+    const OPEN = ["Pending", "Preparing", "Ready", "Issued", "Partially Returned"];
+
+    (async function () {
+        await BAS.init();
+        if (!BAS.requireApproved()) return;
+        if (BAS.isAdmin()) { location.href = "team.html"; return; }
+        $("title").innerHTML = BAS.secHTML(BAS.profile.section_id) + " <span>Reservations</span>";
+        await load();
+    })();
+
+    async function load() {
+        try {
+            const st = await BAS.loadStock();
+            STOCKBY = st.byId;
+            RES = (await BAS.loadReservations(STOCKBY)).filter(r => r.section_id === BAS.profile.section_id);
+            const l = await supabaseClient.from("losses").select("*").order("created_at", { ascending: false });
+            if (l.error) throw l.error;
+            const p = await supabaseClient.from("payments").select("*").order("paid_on", { ascending: false });
+            if (p.error) throw p.error;
+            LOSSES = l.data.filter(x => x.section_id === BAS.profile.section_id);
+            PAYMENTS = p.data.filter(x => x.section_id === BAS.profile.section_id);
+            render();
+        } catch (e) {
+            $("view").innerHTML = '<div class="msg err">' + BAS.esc(BAS.errText(e)) + "</div>";
+        }
+    }
+
+    function owed() {
+        return LOSSES.reduce((t, x) => t + Number(x.amount), 0) - PAYMENTS.reduce((t, x) => t + Number(x.amount), 0);
+    }
+
+    function render() {
+        $("kWait").textContent = RES.filter(r => r.status === "Pending" || r.status === "Preparing").length;
+        $("kReady").textContent = RES.filter(r => r.status === "Ready").length;
+        $("kOut").textContent = RES.filter(r => r.status === "Issued" || r.status === "Partially Returned").length;
+        $("kDue").textContent = Math.max(0, owed());
+        const tabs = [["active", "Active", RES.filter(r => OPEN.indexOf(r.status) >= 0).length], ["history", "History", 0], ["money", "Missing & compensation", LOSSES.length]];
+        $("tabs").innerHTML = tabs.map(t => '<button class="tab' + (TAB === t[0] ? " on" : "") + '" data-t="' + t[0] + '">' + t[1] + (t[2] ? "<b>" + t[2] + "</b>" : "") + "</button>").join("");
+        $("tabs").querySelectorAll(".tab").forEach(b => b.onclick = () => { TAB = b.dataset.t; render(); });
+        if (TAB === "money") { $("view").innerHTML = moneyHTML(); return; }
+
+        let list = TAB === "active" ? RES.filter(r => OPEN.indexOf(r.status) >= 0) : RES.filter(r => OPEN.indexOf(r.status) < 0);
+        let tools = "";
+        if (TAB === "history") {
+            tools = '<div class="toolbar"><input id="hq" placeholder="Search item, place or date (e.g. Shoum, Roof, 2026-11)" value="' + BAS.esc(Q) + '">' +
+                '<select id="hs">' + ["All", "Returned", "Completed", "Cancelled", "Rejected"].map(s => "<option" + (s === STATUS ? " selected" : "") + ">" + s + "</option>").join("") + "</select></div>";
+            const q = Q.trim().toLowerCase();
+            if (q) list = list.filter(r => (r.place || "").toLowerCase().includes(q) || (r.meeting_date || "").includes(q) ||
+                r.items.some(i => BAS.lineName(i).toLowerCase().includes(q)));
+            if (STATUS !== "All") list = list.filter(r => r.status === STATUS);
+        }
+        list.sort((a, b) => TAB === "active" ? (a.meeting_date > b.meeting_date ? 1 : -1) : (a.meeting_date < b.meeting_date ? 1 : -1));
+        $("view").innerHTML = tools + (list.length ? list.map(card).join("") :
+            '<div class="empty"><h3>Nothing here</h3><p>' + (TAB === "active" ? "No open requests. Make one from the inventory." : "No finished requests match.") + "</p></div>");
+        if ($("hq")) { $("hq").oninput = e => { Q = e.target.value; const pos = e.target.selectionStart; render(); $("hq").focus(); $("hq").setSelectionRange(pos, pos); }; $("hs").onchange = e => { STATUS = e.target.value; render(); }; }
+        $("view").querySelectorAll("[data-cancel]").forEach(b => b.onclick = () => cancel(Number(b.dataset.cancel)));
+    }
+
+    function lineCells(i, issued) {
+        if (!issued) return "<td>" + i.quantity + "</td>";
+        return "<td>" + i.quantity + "</td><td>" + (i.issued_qty == null ? "—" : i.issued_qty) + "</td><td>" + i.returned_qty + "</td>" +
+            "<td" + (i.missing_qty ? ' style="color:var(--bad);font-weight:700"' : "") + ">" + i.missing_qty + "</td>" +
+            "<td" + (i.damaged_qty ? ' style="color:var(--warn);font-weight:700"' : "") + ">" + i.damaged_qty + "</td>";
+    }
+
+    function card(r) {
+        const issued = ["Issued", "Partially Returned", "Returned", "Completed"].indexOf(r.status) >= 0;
+        const mine = r.requested_by === BAS.user.id;
+        return '<div class="req ' + BAS.statusSlug(r.status) + '">' +
+            '<div class="req-top"><h3>#' + r.id + " · " + BAS.esc(BAS.fmtDate(r.meeting_date, true)) +
+            "<small>" + BAS.esc(r.meeting_time || "") + " · " + BAS.esc(r.place || "") + "</small></h3>" +
+            "<div>" + (BAS.isOverdue(r) ? '<span class="pill late">OVERDUE</span> ' : "") + (BAS.isLate(r) && OPEN.indexOf(r.status) >= 0 && !issued ? '<span class="pill late">LATE</span> ' : "") + BAS.statusBadge(r.status) + "</div></div>" +
+            '<div class="meta">Sent ' + BAS.esc(BAS.fmtDateTime(r.created_at)) + (r.requester ? " by " + BAS.esc(r.requester) : "") +
+            (r.issued_at ? " · issued " + BAS.esc(BAS.fmtDateTime(r.issued_at)) + (r.received_by_name ? " to " + BAS.esc(r.received_by_name) : "") : "") +
+            (r.return_by && !r.returned_at ? " · return by " + BAS.esc(BAS.fmtDate(r.return_by)) : "") +
+            (r.returned_at ? " · back " + BAS.esc(BAS.fmtDateTime(r.returned_at)) : "") + "</div>" +
+            '<div class="tscroll"><table class="ltable"><tr><th>Item</th>' + (issued ? "<th>Asked</th><th>Issued</th><th>Back</th><th>Missing</th><th>Damaged</th>" : "<th>Asked</th>") + "</tr>" +
+            r.items.map(i => "<tr><td>" + BAS.esc(BAS.lineName(i)) + "</td>" + lineCells(i, issued) + "</tr>").join("") + "</table></div>" +
+            (r.notes ? '<div class="msg warn">' + BAS.esc(r.notes) + "</div>" : "") +
+            (r.closed_reason ? '<div class="meta">Reason: ' + BAS.esc(r.closed_reason) + "</div>" : "") +
+            (r.status === "Pending" && mine ? '<div class="actions"><button class="btn danger sm" data-cancel="' + r.id + '">Cancel request</button></div>' : "") +
+            "</div>";
+    }
+
+    function moneyHTML() {
+        const total = LOSSES.reduce((t, x) => t + Number(x.amount), 0), paid = PAYMENTS.reduce((t, x) => t + Number(x.amount), 0);
+        let h = '<div class="kpis"><div class="kpi"><p>TOTAL OWED</p><h3>' + total + ' EGP</h3></div><div class="kpi"><p>PAID</p><h3>' + paid +
+            ' EGP</h3></div><div class="kpi"><p>REMAINING</p><h3>' + Math.max(0, total - paid) + ' EGP</h3></div></div>' +
+            '<p class="meta" style="margin-bottom:12px">Compensation belongs to the whole stage, not to one leader.</p>';
+        h += '<div class="group-title">MISSING AND DAMAGED</div>' + (LOSSES.length ? '<div class="panel tscroll"><table class="ltable"><tr><th>Date</th><th>Item</th><th>Kind</th><th>Qty</th><th>Price</th><th>Total</th><th>Request</th></tr>' +
+            LOSSES.map(x => "<tr><td>" + BAS.esc(BAS.fmtDate(x.occurred_on)) + "</td><td>" + BAS.esc(itemName(x)) + "</td><td>" + (x.kind === "missing" ? "Missing" : "Damaged") +
+                "</td><td>" + x.qty + "</td><td>" + Number(x.unit_price) + "</td><td><b>" + Number(x.amount) + "</b></td><td>" + (x.reservation_id ? "#" + x.reservation_id : "—") + "</td></tr>").join("") + "</table></div>"
+            : '<div class="empty">Nothing missing or damaged. Keep it that way.</div>');
+        h += '<div class="group-title">PAYMENTS</div>' + (PAYMENTS.length ? '<div class="panel tscroll"><table class="ltable"><tr><th>Date</th><th>Amount</th><th>Note</th></tr>' +
+            PAYMENTS.map(p => "<tr><td>" + BAS.esc(BAS.fmtDate(p.paid_on)) + "</td><td><b>" + Number(p.amount) + " EGP</b></td><td>" + BAS.esc(p.note || "") + "</td></tr>").join("") + "</table></div>"
+            : '<div class="empty">No payments yet.</div>');
+        return h;
+    }
+
+    function itemName(x) {
+        const it = STOCKBY[x.item_id];
+        if (!it) return "Item #" + x.item_id;
+        const v = x.variant_id ? (it.variants || []).find(y => y.id === x.variant_id) : null;
+        return it.name_en + (v ? " (" + v.name + ")" : "");
+    }
+
+    async function cancel(id) {
+        if (!confirm("Cancel request #" + id + "? The items go back to available.")) return;
+        const { error } = await supabaseClient.rpc("close_reservation", { p_id: id, p_status: "Cancelled", p_reason: "Cancelled by leader" });
+        if (error) { BAS.toast(BAS.errText(error), "err"); return; }
+        BAS.toast("Request cancelled");
+        load();
+    }
+    </script>
+</body>
+</html>
