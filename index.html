@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BAS Warehouse</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="bas.css">
+</head>
+<body>
+<div class="loading" style="padding-top:30vh"><img src="logo.png" alt="" style="width:70px"><p>Opening the warehouse…</p></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="common.js"></script>
+<script>
+// Everyone starts here: logged out -> login page, team -> overview, leaders -> their stage
+(async function () {
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) { location.replace("auth.html"); return; }
+    BAS.user = session.user;
+    const p = await supabaseClient.from("profiles").select("id, role, approval_status, section_id").eq("id", session.user.id).single();
+    BAS.profile = p.error ? null : p.data;
+    location.replace(BAS.profile ? BAS.homeURL() : "auth.html");
+  } catch (e) { location.replace("auth.html"); }
+})();
+</script>
+</body>
+</html>

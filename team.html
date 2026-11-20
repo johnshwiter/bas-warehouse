@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Warehouse team | BAS Warehouse</title>
+<link rel="icon" href="logo.png">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="bas.css">
+</head>
+<body>
+<main class="page">
+  <div class="head">
+    <div><p class="eyebrow">Warehouse team</p><h1 id="title">Overview of <em>all stages</em></h1>
+      <p class="sub">Prepare, issue, receive returns, keep the stock right, and see every stage and service at once.</p></div>
+    <a class="btn gold" href="book.html">+ Book for a stage or service</a>
+  </div>
+  <div class="tabs" id="tabs"></div>
+  <div id="view"><div class="loading">Loading…</div></div>
+</main>
+<div class="overlay" id="sheet" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="common.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const esc = s => BAS.esc(s);
+let STOCK = [], BY = {}, RES = [], LOSSES = [], PAYMENTS = [], PEOPLE = [], TRANSFERS = [], MAINT = [], WAIT = [], ANN = [], CHANGES = [];
+let TAB = "overview", SUB = "prepare", FORM = null, OPEN = null, ADDING = false, SQ = "", SCAT = "All", MSUB = "open";
+const TITLES = { overview: "Overview of <em>all stages</em>", requests: "Requests", money: "Missing & <em>compensation</em>", stock: "Stock", maint: "Under <em>maintenance</em>",
+  wait: "Waitlist", news: "Announcements", people: "Accounts", log: "Activity log", settings: "Settings" };
+
+function readHash() { const h = (location.hash || "#overview").slice(1); TAB = TITLES[h] ? h : "overview"; }
+window.addEventListener("hashchange", () => { readHash(); FORM = null; OPEN = null; ADDING = false; render(); });
+
+(async function () {
+  readHash();
+  await BAS.init(TAB === "stock" ? "stock" : TAB === "requests" ? "requests" : "overview");
+  if (!BAS.requireAdmin()) return;
+  await loadAll();
+})();
+
+async function loadAll() {
+  try {
+    const st = await BAS.loadStock(); STOCK = st.list; BY = st.byId;
+    RES = await BAS.loadReservations(BY);
+    LOSSES = await BAS.q(supabaseClient.from("loss_status").select("*").order("created_at", { ascending: false }));
+    PAYMENTS = await BAS.q(supabaseClient.from("payments").select("*").order("paid_on", { ascending: false }));
+    PEOPLE = await BAS.q(supabaseClient.from("profiles").select("id, full_name, email, role, approval_status, section_id, created_at").order("created_at"));
+    TRANSFERS = await BAS.q(supabaseClient.from("transfer_requests").select("*").order("created_at", { ascending: false }));
+    MAINT = await BAS.q(supabaseClient.from("maintenance").select("*").order("created_at", { ascending: false }));
+    WAIT = await BAS.q(supabaseClient.from("waitlist").select("*").in("status", ["Waiting", "Available"]).order("created_at"));
+    ANN = await BAS.q(supabaseClient.from("announcements").select("*").order("created_at", { ascending: false }).limit(100));
+    BAS.services = await BAS.q(supabaseClient.from("services").select("*").order("id"));
+    CHANGES = RES.filter(r => r.change);
+    render();
+  } catch (e) { $("view").innerHTML = '<div class="msg err">' + esc(BAS.errText(e)) + "</div>"; }
+}
+
+async function rpc(fn, args, ok) {
+  document.querySelectorAll("#view button, #sheet button").forEach(b => b.disabled = true);
+  const { data, error } = await supabaseClient.rpc(fn, args);
+  if (error) { BAS.toast(BAS.errText(error), "err"); render(); return null; }
+  if (ok) BAS.toast(typeof ok === "function" ? ok(data) : ok);
+  FORM = null; $("sheet").hidden = true;
+  await loadAll();
+  return data === null ? true : data;
+}
+const person = id => { const p = PEOPLE.find(x => x.id === id); return p ? p.full_name : ""; };
+const availOf = (itemId, varId) => { const i = BY[itemId]; if (!i || !i.counted) return 0; if (varId) { const v = (i.variants || []).find(x => x.id === varId); return v ? v.available : 0; } return i.available || 0; };
+
+// ---------- tabs ----------
+function render() {
+  const n = s => RES.filter(r => s.indexOf(r.status) >= 0).length;
+  const tabs = [["overview", "Overview", CHANGES.length], ["requests", "Requests", n(["Pending", "Preparing"]) + CHANGES.length], ["money", "Compensation", 0],
+    ["stock", "Stock", STOCK.filter(i => !i.counted && i.is_active).length], ["maint", "Maintenance", MAINT.filter(m => m.status === "Open").length],
+    ["wait", "Waitlist", WAIT.filter(w => availOf(w.item_id, w.variant_id) > 0).length], ["news", "Announcements", 0],
+    ["people", "Accounts", PEOPLE.filter(p => p.approval_status === "pending").length + TRANSFERS.filter(t => t.status === "Pending").length], ["log", "Activity", 0], ["settings", "Settings", 0]];
+  $("tabs").innerHTML = tabs.map(t => '<button class="tab' + (TAB === t[0] ? " on" : "") + '" data-t="' + t[0] + '">' + t[1] + (t[2] ? "<b>" + t[2] + "</b>" : "") + "</button>").join("");
+  $("tabs").querySelectorAll(".tab").forEach(b => b.onclick = () => { location.hash = b.dataset.t; });
+  $("title").innerHTML = TITLES[TAB];
+  document.querySelectorAll(".nav a").forEach(a => a.classList.toggle("on", a.dataset.nav === (TAB === "stock" ? "stock" : TAB === "requests" ? "requests" : TAB === "overview" ? "overview" : "")));
+  ({ overview, requests: requestsView, money: moneyView, stock: stockView, maint: maintView, wait: waitView, news: newsView, people: peopleView, log: logView, settings: settingsView }[TAB] || overview)();
+}
+
+// ---------- overview: every stage and service ----------
+function overview() {
+  const active = STOCK.filter(i => i.is_active);
+  const n = s => RES.filter(r => s.indexOf(r.status) >= 0).length;
+  const owed = LOSSES.reduce((t, l) => t + Number(l.remaining || 0), 0);
+  const k = (label, val, go, cls) => '<div class="kpi ' + (cls || "") + '" data-go="' + go + '"><p>' + label + "</p><h3>" + val + "</h3></div>";
+  const stats = (secId, svcId) => {
+    const R = RES.filter(r => svcId ? r.service_id === svcId : r.section_id === secId);
+    const L = LOSSES.filter(l => svcId ? l.service_id === svcId : l.section_id === secId);
+    return { open: R.filter(r => BAS.PRE.indexOf(r.status) >= 0).length, out: R.filter(r => BAS.OUT.indexOf(r.status) >= 0).length, late: R.filter(r => BAS.isOverdue(r)).length,
+      missing: L.filter(l => l.kind === "missing").reduce((t, l) => t + l.qty, 0), damaged: L.filter(l => l.kind === "damaged").reduce((t, l) => t + l.qty, 0),
+      owed: L.reduce((t, l) => t + Number(l.remaining || 0), 0), total: R.length };
+  };
+  const scard = (name, en, url, s, svc) => '<a class="stage' + (svc ? " svc" : "") + '" href="' + url + '"><h4><bdi>' + esc(name) + "</bdi></h4>" + (en && en !== name ? '<div class="en">' + esc(en) + "</div>" : "") +
+    "<dl><dt>To prepare</dt><dd>" + s.open + "</dd><dt>Out now</dt><dd>" + s.out + "</dd><dt>Overdue</dt><dd" + (s.late ? ' class="bad"' : "") + ">" + s.late + "</dd><dt>Missing / damaged</dt><dd" + (s.missing + s.damaged ? ' class="bad"' : "") + ">" + s.missing + " / " + s.damaged +
+    "</dd><dt>Still owed</dt><dd" + (s.owed ? ' class="bad"' : "") + ">" + BAS.money(s.owed) + "</dd><dt>All requests</dt><dd>" + s.total + "</dd></dl></a>";
+  const usedSvc = BAS.services.filter(v => v.is_active || RES.some(r => r.service_id === v.id));
+  let h = '<div class="kpis">' + k("To prepare", n(["Pending", "Preparing"]), "requests", "warn") + k("Ready to collect", n(["Ready"]), "requests") + k("Issued now", n(BAS.OUT), "requests") +
+    k("Overdue", RES.filter(r => BAS.isOverdue(r)).length, "requests", "bad") + k("Changes to approve", CHANGES.length, "requests", "gold") +
+    k("Missing pieces", LOSSES.filter(l => l.kind === "missing").reduce((t, l) => t + l.qty, 0), "money", "bad") + k("Damaged pieces", LOSSES.filter(l => l.kind === "damaged").reduce((t, l) => t + l.qty, 0), "money", "warn") +
+    k("Still owed", BAS.money(owed), "money", owed ? "bad" : "ok") + k("In maintenance", MAINT.filter(m => m.status === "Open").reduce((t, m) => t + m.qty, 0), "maint", "fix") +
+    k("Need recount", active.filter(i => !i.counted).length, "stock") + "</div>";
+  h += '<div class="group-title">Scout stages</div><div class="stages">' + BAS.sections.map(s => scard(s.name_ar, s.name_en, BAS.borrowerURL(s.id), stats(s.id, null))).join("") + "</div>";
+  h += '<div class="group-title">Other church services</div><div class="stages">' + usedSvc.map(v => scard(v.name_ar, v.name_en, BAS.borrowerURL(null, v.id), stats(null, v.id), true)).join("") + "</div>";
+  const next = RES.filter(r => BAS.PRE.indexOf(r.status) >= 0).sort((a, b) => a.meeting_date > b.meeting_date ? 1 : -1).slice(0, 5);
+  h += '<div class="group-title">Next up</div>' + (next.length ? '<div class="panel tscroll"><table class="ltable"><tr><th>Meeting</th><th>For</th><th>Items</th><th>Status</th></tr>' + next.map(r => '<tr class="click" data-req="' + r.id + '"><td class="nowrap"><b>' + esc(BAS.fmtDate(r.meeting_date, true)) + "</b> " + esc(r.meeting_time || "") + "</td><td>" + BAS.borrowerHTML(r) + " · #" + r.id + "</td><td>" + r.items.map(i => esc(BAS.lineName(i)) + " ×" + i.quantity).join(", ") + "</td><td>" + (r.change ? '<span class="pill svc">CHANGE ASKED</span> ' : "") + BAS.statusBadge(r.status) + "</td></tr>").join("") + "</table></div>" : '<div class="empty">Nothing to prepare.</div>');
+  $("view").innerHTML = h;
+  $("view").querySelectorAll("[data-go]").forEach(el => el.onclick = () => { if (el.dataset.go === "requests") SUB = "prepare"; location.hash = el.dataset.go; });
+  $("view").querySelectorAll("[data-req]").forEach(el => el.onclick = () => { const r = RES.find(x => x.id === Number(el.dataset.req)); SUB = r.change ? "changes" : r.status === "Ready" ? "ready" : "prepare"; location.hash = "requests"; });
+}
+
+// ---------- requests ----------
+const GROUPS = { prepare: ["Pending", "Preparing"], ready: ["Ready"], out: ["Issued", "Partially Returned"], returned: ["Returned"], done: ["Completed", "Cancelled", "Rejected"] };
+function requestsView() {
+  const subs = [["changes", "Changes to approve", CHANGES.length], ["prepare", "To prepare"], ["ready", "Ready"], ["out", "Issued / out"], ["returned", "Returned"], ["done", "Closed"]];
+  const cnt = s => s[0] === "changes" ? s[2] : s[0] === "done" ? 0 : RES.filter(r => GROUPS[s[0]].indexOf(r.status) >= 0).length;
+  let h = '<div class="tabs sub">' + subs.map(s => '<button class="tab' + (SUB === s[0] ? " on" : "") + '" data-sub="' + s[0] + '">' + s[1] + (cnt(s) ? "<b>" + cnt(s) + "</b>" : "") + "</button>").join("") + "</div>";
+  if (SUB === "changes") {
+    h += CHANGES.length ? CHANGES.map(card).join("") : '<div class="empty">No change requests waiting.</div>';
+  } else {
+    let list = RES.filter(r => GROUPS[SUB].indexOf(r.status) >= 0);
+    if (SUB === "done") { list.sort((a, b) => a.meeting_date < b.meeting_date ? 1 : -1); h += list.slice(0, 80).map(card).join("") || '<div class="empty">Nothing here.</div>'; }
+    else {
+      list.sort((a, b) => a.meeting_date > b.meeting_date ? 1 : -1);
+      const groups = {}, order = [];
+      list.forEach(r => { const g = whenGroup(r); if (!groups[g]) { groups[g] = []; order.push(g); } groups[g].push(r); });
+      h += list.length ? order.map(g => '<div class="group-title">' + g + "</div>" + groups[g].map(card).join("")).join("") : '<div class="empty">Nothing here. 👌</div>';
+    }
+  }
+  $("view").innerHTML = h;
+  $("view").querySelectorAll("[data-sub]").forEach(b => b.onclick = () => { SUB = b.dataset.sub; FORM = null; render(); });
+  bindRequestButtons();
+}
+function whenGroup(r) {
+  if (BAS.isOverdue(r)) return "Overdue";
+  const days = BAS.daysFromToday(r.meeting_date);
+  if (days < 0) return "Past date";
+  if (days === 0) return "Today";
+  const toFri = (5 - new Date().getDay() + 7) % 7;
+  if (days <= toFri) return "This week";
+  if (days <= toFri + 7) return "Next week";
+  return "Later";
+}
+
+function card(r) {
+  const pre = BAS.PRE.indexOf(r.status) >= 0, out = BAS.OUT.indexOf(r.status) >= 0;
+  let h = '<div class="req ' + BAS.statusSlug(r.status) + '"><div class="req-top"><h3><a href="' + BAS.borrowerURL(r.section_id, r.service_id) + '">' + BAS.borrowerHTML(r) + "</a>" +
+    "<small>#" + r.id + " · " + esc(BAS.fmtDate(r.meeting_date, true)) + " · " + esc(r.meeting_time || "") + " · " + esc(r.place || "") + "</small></h3>" +
+    "<div>" + (BAS.isOverdue(r) ? '<span class="pill late">OVERDUE</span> ' : "") + (pre && BAS.isLate(r) ? '<span class="pill late">LATE</span> ' : "") + BAS.statusBadge(r.status) + "</div></div>" +
+    '<div class="meta">' + esc(r.requester || "") + " · sent " + esc(BAS.fmtDateTime(r.created_at)) +
+    (r.issued_at ? " · issued " + esc(BAS.fmtDateTime(r.issued_at)) + (r.received_by_name ? " to " + esc(r.received_by_name) : "") : "") +
+    (r.return_by && out ? " · return by " + esc(BAS.fmtDate(r.return_by)) : "") + (r.returned_at ? " · back " + esc(BAS.fmtDateTime(r.returned_at)) : "") + "</div>" +
+    (r.notes ? '<div class="msg warn">' + esc(r.notes) + "</div>" : "") + (r.closed_reason ? '<div class="meta">Reason: ' + esc(r.closed_reason) + "</div>" : "");
+  if (r.change) h += '<div class="change-box">✏️ <b>' + esc(person(r.change.requested_by) || "A leader") + "</b> asks to change: " + BAS.changeSummary(r, r.change, BY) + (r.change.reason ? " · <i>" + esc(r.change.reason) + "</i>" : "") +
+    '<div class="actions"><button class="btn ok sm" data-act="chok" data-cid="' + r.change.id + '">Approve change</button><button class="btn danger sm" data-act="chno" data-cid="' + r.change.id + '">Reject change</button></div></div>';
+  if (FORM && FORM.id === r.id && FORM.kind === "issue") return h + issueForm(r) + "</div>";
+  if (FORM && FORM.id === r.id && FORM.kind === "return") return h + returnForm(r) + "</div>";
+  if (pre) {
+    h += '<div class="tscroll"><table class="ltable"><tr><th>Item</th><th class="num">Asked</th><th>Prepared</th><th>Note if short</th><th></th></tr>' +
+      r.items.map(i => '<tr><td><a class="lnk" href="item.html?id=' + i.item_id + '">' + esc(BAS.lineName(i)) + "</a>" + (i.kind === "Consumable" ? ' <small class="mut">(used up)</small>' : "") + '</td><td class="num">' + i.quantity + "</td>" +
+        '<td><input type="number" min="0" max="' + i.quantity + '" value="' + i.prepared_qty + '" data-pq="' + i.id + '"></td>' +
+        '<td><input class="wide" value="' + esc(i.prep_note || "") + '" data-pn="' + i.id + '" placeholder="e.g. only 8 clean"></td>' +
+        '<td><button class="btn line sm" data-act="prep" data-line="' + i.id + '">Save</button></td></tr>').join("") + "</table></div>" +
+      '<div class="actions"><button class="btn line" data-act="prepall" data-id="' + r.id + '">Prepare all ✓</button><button class="btn ok" data-act="issue" data-id="' + r.id + '">Issue…</button>' +
+      '<a class="btn line sm" href="book.html?edit=' + r.id + '">✏️ Edit</a><button class="btn danger sm" data-act="cancel" data-id="' + r.id + '">Cancel</button><button class="btn danger sm" data-act="reject" data-id="' + r.id + '">Reject</button></div>';
+  } else {
+    h += '<div class="tscroll"><table class="ltable"><tr><th>Item</th><th class="num">Asked</th><th class="num">Issued</th><th class="num">Back</th><th class="num">Missing</th><th class="num">Damaged</th><th class="num">Still out</th></tr>' +
+      r.items.map(i => '<tr><td><a class="lnk" href="item.html?id=' + i.item_id + '">' + esc(BAS.lineName(i)) + '</a></td><td class="num">' + i.quantity + '</td><td class="num">' + (i.issued_qty == null ? "—" : i.issued_qty) + '</td><td class="num">' + i.returned_qty +
+        '</td><td class="num">' + i.missing_qty + '</td><td class="num">' + i.damaged_qty + '</td><td class="num">' + (i.kind === "Consumable" && r.status !== "Issued" ? "used" : i.out) + "</td></tr>").join("") + "</table></div>";
+    if (out) h += '<div class="actions"><button class="btn ok" data-act="allback" data-id="' + r.id + '">All back OK</button><button class="btn line" data-act="return" data-id="' + r.id + '">Receive return…</button></div>';
+    if (r.status === "Returned") h += '<div class="actions"><button class="btn line" data-act="complete" data-id="' + r.id + '">Mark completed</button></div>';
+  }
+  return h + "</div>";
+}
+
+function issueForm(r) {
+  return '<div class="panel" style="margin-top:12px;border-color:var(--gold)"><h3>Issue request #' + r.id + "</h3>" +
+    '<div class="field"><label>Who is receiving the equipment?</label><input id="fRecv" value="' + esc(r.requester || "") + '"></div>' +
+    '<div class="tscroll"><table class="ltable"><tr><th>Item</th><th class="num">Asked</th><th class="num">Prepared</th><th>Issuing now</th></tr>' +
+    r.items.map(i => "<tr><td>" + esc(BAS.lineName(i)) + '</td><td class="num">' + i.quantity + '</td><td class="num">' + i.prepared_qty + "</td>" +
+      '<td><input type="number" min="0" max="' + i.quantity + '" value="' + (i.prepared_qty || i.quantity) + '" data-iq="' + i.id + '"></td></tr>').join("") + "</table></div>" +
+    '<div id="fErr" class="msg err" hidden></div><div class="actions"><button class="btn ok" data-act="doissue" data-id="' + r.id + '">Confirm issue</button><button class="btn line" data-act="close">Back</button></div></div>';
+}
+function returnForm(r) {
+  const lines = r.items.filter(i => i.out > 0);
+  return '<div class="panel" style="margin-top:12px;border-color:var(--gold)"><h3>Receive return · #' + r.id + '</h3><p class="meta" style="margin-bottom:8px">Type what came back this time. You can do it in several goes. Consumables: put leftovers in "Back"; the rest counts as used. Missing and damaged are charged to the whole ' + (r.service_id ? "service" : "stage") + ".</p>" +
+    '<div class="tscroll"><table class="ltable"><tr><th>Item</th><th class="num">Still out</th><th>Back OK</th><th>Missing</th><th>Damaged</th><th>Price per piece (EGP)</th></tr>' +
+    lines.map(i => "<tr><td>" + esc(BAS.lineName(i)) + '</td><td class="num">' + i.out + "</td>" +
+      '<td><input type="number" min="0" max="' + i.out + '" value="' + (i.kind === "Consumable" ? 0 : i.out) + '" data-rr="' + i.id + '"></td>' +
+      '<td><input type="number" min="0" value="0" data-rm="' + i.id + '"></td><td><input type="number" min="0" value="0" data-rd="' + i.id + '"></td>' +
+      '<td><input type="number" min="0" value="0" data-rp="' + i.id + '"></td></tr>').join("") + "</table></div>" +
+    '<div class="field" style="margin-top:10px"><label>What happened (optional)</label><input id="fNote"></div>' +
+    '<div id="fErr" class="msg err" hidden></div><div class="actions"><button class="btn ok" data-act="doreturn" data-id="' + r.id + '">Save return</button><button class="btn line" data-act="close">Back</button></div></div>';
+}
+function fail(m) { const e = $("fErr"); if (e) { e.textContent = m; e.hidden = false; } else BAS.toast(m, "err"); }
+const num = sel => { const el = document.querySelector(sel); return el ? Number(el.value || 0) : 0; };
+
+function bindRequestButtons() {
+  $("view").querySelectorAll("[data-act]").forEach(b => b.onclick = () => {
+    const id = Number(b.dataset.id), a = b.dataset.act, r = RES.find(x => x.id === id);
+    if (a === "prep") {
+      const line = Number(b.dataset.line);
+      rpc("prepare_line", { p_line_id: line, p_prepared: num('[data-pq="' + line + '"]'), p_note: document.querySelector('[data-pn="' + line + '"]').value }, s => s === "Ready" ? "All prepared: ready to collect" : "Saved");
+    }
+    if (a === "prepall") rpc("prepare_all", { p_id: id }, "Ready to collect");
+    if (a === "issue" || a === "return") { FORM = { id, kind: a }; render(); }
+    if (a === "close") { FORM = null; render(); }
+    if (a === "chok" || a === "chno") {
+      const note = a === "chno" ? prompt("Reject this change? Write a short reason (the leader sees it):") : "";
+      if (note === null) return;
+      rpc("decide_change", { p_change_id: Number(b.dataset.cid), p_approve: a === "chok", p_note: note }, a === "chok" ? "Change approved: request updated" : "Change rejected");
+    }
+    if (a === "cancel" || a === "reject") {
+      const reason = prompt((a === "cancel" ? "Cancel" : "Reject") + " request #" + id + "? Write a short reason:");
+      if (reason === null) return;
+      rpc("close_reservation", { p_id: id, p_status: a === "cancel" ? "Cancelled" : "Rejected", p_reason: reason }, a === "cancel" ? "Cancelled" : "Rejected");
+    }
+    if (a === "complete") rpc("close_reservation", { p_id: id, p_status: "Completed", p_reason: null }, "Completed");
+    if (a === "doissue") {
+      const recv = $("fRecv").value.trim();
+      if (!recv) return fail("Write who is receiving the equipment.");
+      let bad = "";
+      const lines = r.items.map(i => { const n = num('[data-iq="' + i.id + '"]'); if (!Number.isInteger(n) || n < 0 || n > i.quantity) bad = "Issued for " + BAS.lineName(i) + " must be 0 to " + i.quantity + "."; return { line_id: i.id, issued: n }; });
+      if (bad) return fail(bad);
+      rpc("issue_reservation", { p_id: id, p_lines: lines, p_received_by: recv }, "Issued");
+    }
+    if (a === "allback") {
+      if (!confirm("Everything still out came back in good condition?")) return;
+      rpc("receive_return", { p_id: id, p_lines: r.items.filter(i => i.out > 0).map(i => ({ line_id: i.id, returned: i.kind === "Consumable" ? 0 : i.out })), p_note: null }, s => s === "Returned" ? "Returned ✓" : "Saved");
+    }
+    if (a === "doreturn") {
+      let bad = "", any = false;
+      const lines = r.items.filter(i => i.out > 0).map(i => {
+        const x = { line_id: i.id, returned: num('[data-rr="' + i.id + '"]'), missing: num('[data-rm="' + i.id + '"]'), damaged: num('[data-rd="' + i.id + '"]'), unit_price: num('[data-rp="' + i.id + '"]') };
+        if ([x.returned, x.missing, x.damaged].some(v => !Number.isInteger(v) || v < 0)) bad = "Use whole numbers, 0 or more.";
+        if (x.returned + x.missing + x.damaged > i.out) bad = BAS.lineName(i) + ": only " + i.out + " still out.";
+        if ((x.missing || x.damaged) && x.unit_price <= 0 && !bad) x.noPrice = true;
+        if (x.returned + x.missing + x.damaged) any = true;
+        return x;
+      });
+      if (bad) return fail(bad);
+      if (!any && !r.items.every(i => i.kind === "Consumable")) return fail("Enter what came back, or use Back.");
+      if (lines.some(x => x.noPrice) && !confirm("Some missing/damaged items have no price. Save anyway? You can set the price later in Compensation.")) return;
+      lines.forEach(x => delete x.noPrice);
+      rpc("receive_return", { p_id: id, p_lines: lines, p_note: $("fNote").value }, s => s === "Returned" ? "Returned ✓" : "Partly returned: saved");
+    }
+  });
+}
+
+// ---------- compensation ----------
+function moneyView() {
+  const rows = [];
+  BAS.sections.forEach(s => rows.push({ sec: s.id, svc: null, name: s.name_ar }));
+  BAS.services.forEach(v => rows.push({ sec: null, svc: v.id, name: v.name_ar, isSvc: true }));
+  const sum = (r, f) => LOSSES.filter(l => r.svc ? l.service_id === r.svc : l.section_id === r.sec).reduce((t, l) => t + Number(l[f] || 0), 0);
+  const paidOf = r => PAYMENTS.filter(p => r.svc ? p.service_id === r.svc : p.section_id === r.sec).reduce((t, p) => t + Number(p.amount), 0);
+  const shown = rows.filter(r => sum(r, "amount") > 0 || paidOf(r) > 0);
+  let h = '<p class="meta" style="margin-bottom:12px">Compensation belongs to the whole stage or service, not to one leader. Press <b>Paid ✓</b> when a missing or damaged item is settled.</p>' +
+    '<div class="panel tscroll"><table class="ltable"><tr><th>Stage / service</th><th class="num">Charged</th><th class="num">Paid</th><th class="num">Remaining</th></tr>' +
+    (shown.length ? shown.map(r => '<tr class="click" data-href="' + BAS.borrowerURL(r.sec, r.svc) + '#money"><td><bdi>' + esc(r.name) + "</bdi>" + (r.isSvc ? ' <span class="pill svc">SERVICE</span>' : "") + '</td><td class="num">' + BAS.money(sum(r, "amount")) + '</td><td class="num">' + BAS.money(paidOf(r)) +
+      '</td><td class="num"><b' + (sum(r, "remaining") ? ' class="bad"' : "") + ">" + BAS.money(sum(r, "remaining")) + "</b></td></tr>").join("") : '<tr><td colspan="4">Nothing charged yet.</td></tr>') + "</table></div>";
+  h += '<div class="group-title">Missing and damaged</div>' + BAS.lossTable(LOSSES, BY, { admin: true, who: true });
+  h += '<div class="group-title">Record a general payment</div><div class="panel"><div class="grid2"><div class="field"><label>From</label><select id="pWho">' +
+    BAS.sections.map(s => '<option value="s' + s.id + '">' + esc(s.name_ar) + "</option>").join("") + BAS.services.map(v => '<option value="v' + v.id + '">' + esc(v.name_ar) + " (service)</option>").join("") + "</select></div>" +
+    '<div class="field"><label>Amount (EGP)</label><input id="pAmt" type="number" min="1" inputmode="decimal"></div></div>' +
+    '<div class="grid2"><div class="field"><label>Date paid</label><input id="pDate" type="date" value="' + BAS.todayISO() + '"></div><div class="field"><label>Note</label><input id="pNote"></div></div>' +
+    '<div id="fErr" class="msg err" hidden></div><button class="btn ok" id="pSave">Save payment</button><p class="meta">A general payment is applied to that stage\'s oldest unpaid items first.</p></div>';
+  h += '<div class="group-title">Payments</div>' + (PAYMENTS.length ? '<div class="panel tscroll"><table class="ltable"><tr><th>Date</th><th>From</th><th class="num">Amount</th><th>For</th><th>Note</th><th>By</th><th></th></tr>' +
+    PAYMENTS.map(p => { const l = p.loss_id ? LOSSES.find(x => x.id === p.loss_id) : null;
+      return "<tr><td>" + esc(BAS.fmtDate(p.paid_on)) + "</td><td><bdi>" + esc(BAS.borrowerName(p.section_id, p.service_id)) + '</bdi></td><td class="num"><b>' + BAS.money(p.amount) + "</b></td><td>" + (l ? esc(BAS.itemLabel(BY, l.item_id, l.variant_id)) : "general") + "</td><td>" + esc(p.note || "") +
+      "</td><td>" + esc(person(p.recorded_by)) + '</td><td><button class="btn danger sm" data-pdel="' + p.id + '">Delete</button></td></tr>'; }).join("") + "</table></div>" : '<div class="empty">No payments yet.</div>');
+  $("view").innerHTML = h;
+  $("view").querySelectorAll("[data-href]").forEach(tr => tr.onclick = () => { location.href = tr.dataset.href; });
+  $("pSave").onclick = () => {
+    const who = $("pWho").value, amt = Number($("pAmt").value);
+    if (!(amt > 0)) return fail("Write an amount more than 0.");
+    rpc("record_payment", { p_section_id: who[0] === "s" ? Number(who.slice(1)) : null, p_service_id: who[0] === "v" ? Number(who.slice(1)) : null, p_amount: amt, p_paid_on: $("pDate").value || null, p_note: $("pNote").value, p_loss_id: null }, "Payment saved");
+  };
+  $("view").querySelectorAll("[data-lsave]").forEach(b => b.onclick = () => {
+    const id = Number(b.dataset.lsave), v = num('[data-lp="' + id + '"]');
+    if (v < 0) return BAS.toast("Price can't be negative", "err");
+    rpc("set_loss_price", { p_id: id, p_unit_price: v }, "Price saved");
+  });
+  $("view").querySelectorAll("[data-lpaid]").forEach(b => b.onclick = () => {
+    const l = LOSSES.find(x => x.id === Number(b.dataset.lpaid));
+    if (confirm("Mark " + BAS.itemLabel(BY, l.item_id, l.variant_id) + " (" + BAS.borrowerName(l.section_id, l.service_id) + ") as paid? This records " + BAS.money(l.remaining) + ".")) rpc("settle_loss", { p_loss_id: l.id, p_note: null }, "Marked as paid");
+  });
+  $("view").querySelectorAll("[data-pdel]").forEach(b => b.onclick = () => { if (confirm("Delete this payment? It stays in the activity log.")) rpc("delete_payment", { p_id: Number(b.dataset.pdel) }, "Payment deleted"); });
+}
+
+// ---------- stock ----------
+function cats() {
+  const c = []; STOCK.forEach(i => { const k = i.category || "Other"; if (c.indexOf(k) < 0) c.push(k); });
+  ["Kashfy", "Crafts", "Games", "Kitchen", "Flags", "Camping", "Uniform", "Tools"].forEach(k => { if (c.indexOf(k) < 0) c.push(k); });
+  return c;
+}
+function level(i) {
+  if (!i.counted) return '<span class="pill rc">RECOUNT</span>';
+  const total = i.quantity + i.repaired_found;
+  if (i.available <= 0) return '<span class="pill out">OUT</span>';
+  if (total && i.available <= total * (BAS.settings.low_pct || 20) / 100) return '<span class="pill low">LOW</span>';
+  return "";
+}
+function stockView() {
+  const active = STOCK.filter(i => i.is_active);
+  const chips = ["All", "Needs recount", "Low / out", "In maintenance", "Hidden"].concat(cats());
+  $("view").innerHTML = '<div class="kpis"><div class="kpi"><p>Items</p><h3>' + active.length + '</h3></div><div class="kpi warn"><p>Need recount</p><h3>' + active.filter(i => !i.counted).length +
+    '</h3></div><div class="kpi bad"><p>Low or out</p><h3>' + active.filter(i => i.counted && level(i)).length + '</h3></div><div class="kpi fix"><p>Pieces in maintenance</p><h3>' + active.reduce((t, i) => t + Number(i.maintenance || 0), 0) +
+    '</h3></div><div class="kpi"><p>Missing + damaged</p><h3>' + active.reduce((t, i) => t + Number(i.missing) + Number(i.damaged), 0) + "</h3></div></div>" +
+    '<div class="toolbar"><input id="sq" placeholder="Search stock" value="' + esc(SQ) + '"><button class="btn gold" id="addBtn">+ Add item</button></div>' +
+    '<div class="chips">' + chips.map(c => '<button class="tab' + (c === SCAT ? " on" : "") + '" data-c="' + esc(c) + '">' + esc(c) + "</button>").join("") + "</div><div id=\"slist\"></div>";
+  $("sq").oninput = e => { SQ = e.target.value; drawStock(); };
+  $("addBtn").onclick = () => { ADDING = true; OPEN = null; drawStock(); };
+  $("view").querySelectorAll("[data-c]").forEach(b => b.onclick = () => { SCAT = b.dataset.c; OPEN = null; stockView(); });
+  drawStock();
+}
+function drawStock() {
+  const s = SQ.trim().toLowerCase();
+  const L = STOCK.filter(i => {
+    if (s && !(i.name_en || "").toLowerCase().includes(s) && !(i.name_ar || "").includes(s)) return false;
+    if (SCAT === "Hidden") return !i.is_active;
+    if (!i.is_active) return false;
+    if (SCAT === "Needs recount") return !i.counted;
+    if (SCAT === "Low / out") return i.counted && !!level(i);
+    if (SCAT === "In maintenance") return Number(i.maintenance) > 0;
+    return SCAT === "All" || (i.category || "Other") === SCAT;
+  });
+  let h = ADDING ? itemForm(null) : "";
+  h += L.length ? L.map(i => {
+    const nv = (i.variants || []).filter(v => v.is_active).length;
+    const line = !i.counted ? "Not counted yet · last year: " + esc(i.last_year || "?")
+      : "Available " + i.available + " of " + (i.quantity + i.repaired_found) + " · out " + i.out_now + (Number(i.maintenance) ? " · 🔧 " + i.maintenance : "") + (Number(i.missing) ? " · missing " + i.missing : "") + (Number(i.damaged) ? " · damaged " + i.damaged : "") + (nv ? " · " + nv + " colours" : "");
+    return '<div class="srow' + (i.is_active ? "" : " off") + '" data-open="' + i.id + '"><div class="thumb"' + (i.image_url ? ' style="background-image:url(\'' + esc(i.image_url) + '\')"' : "") + ">" + (i.image_url ? "" : BAS.icon(i.category)) + "</div>" +
+      '<div class="sinfo"><strong>' + esc(i.name_en) + " " + level(i) + "</strong><span>" + line + (i.location ? " · 📍 " + esc(i.location) : "") + '</span></div><a class="btn line sm" href="item.html?id=' + i.id + '" data-stop>History</a></div>' + (OPEN === i.id ? itemForm(i) : "");
+  }).join("") : '<div class="empty">No items here.</div>';
+  $("slist").innerHTML = h;
+  $("slist").querySelectorAll("[data-stop]").forEach(a => a.onclick = e => e.stopPropagation());
+  $("slist").querySelectorAll("[data-open]").forEach(r => r.onclick = () => { const id = Number(r.dataset.open); OPEN = OPEN === id ? null : id; ADDING = false; drawStock(); });
+  if ($("itemForm")) bindItemForm($("itemForm"));
+}
+function opt(list, sel) { return list.map(x => "<option" + (x === sel ? " selected" : "") + ">" + esc(x) + "</option>").join(""); }
+function itemForm(i) {
+  const n = !i;
+  i = i || { name_en: "", name_ar: "", description: "", category: (cats().indexOf(SCAT) >= 0 ? SCAT : "Kashfy"), kind: "Returnable", quantity: "", repaired_found: 0, counted: false, location: "", notes: "", is_active: true, variants: [] };
+  const vars = i.variants || [];
+  return '<div class="edit" id="itemForm" data-id="' + (n ? "" : i.id) + '"><h3 style="margin-bottom:10px">' + (n ? "New item" : esc(i.name_en)) + "</h3>" +
+    (n ? "" : '<div class="nums"><div>Total<b>' + (i.counted ? i.quantity + i.repaired_found : "?") + "</b></div><div>Out<b>" + i.out_now + "</b></div><div>Maintenance<b>" + (i.maintenance || 0) + "</b></div><div>Missing / damaged<b>" + (Number(i.missing) + Number(i.damaged)) + "</b></div><div>Available<b>" + (i.counted ? i.available : "?") + "</b></div></div>") +
+    '<div class="grid2"><div class="field"><label>Name (English / Franco)</label><input id="fName" value="' + esc(i.name_en) + '"></div><div class="field"><label>Name (Arabic)</label><input id="fAr" dir="rtl" value="' + esc(i.name_ar || "") + '"></div></div>' +
+    '<div class="field"><label>Description</label><input id="fDesc" value="' + esc(i.description || "") + '"></div>' +
+    '<div class="grid2"><div class="field"><label>Category</label><select id="fCat">' + opt(cats().concat(["+ New category"]), i.category) + '</select><input id="fCatNew" class="inline-in" placeholder="New category name" style="margin-top:8px" hidden></div>' +
+    '<div class="field"><label>Type</label><select id="fKind">' + opt(["Returnable", "Consumable"], i.kind) + "</select></div></div>" +
+    (vars.length ? '<p class="meta">This item has colours, so its total is the sum of the colours below.</p>' :
+      '<div class="grid2"><div class="field"><label>Counted total' + (n || i.counted ? "" : " (last year: " + esc(i.last_year || "?") + ")") + '</label><input id="fQty" type="number" min="0" inputmode="numeric" value="' + (i.counted ? i.quantity : "") + '" placeholder="Count it, then type it"></div>' +
+      '<div class="field"><label>Repaired / found (+)</label><input id="fFound" type="number" min="0" inputmode="numeric" value="' + (i.repaired_found || 0) + '"></div></div>') +
+    '<div class="grid2"><div class="field"><label>Where in the warehouse</label><input id="fLoc" value="' + esc(i.location || "") + '" placeholder="Shelf B, cupboard 1…"></div><div class="field"><label>Notes</label><input id="fNotes" value="' + esc(i.notes || "") + '"></div></div>' +
+    (n ? "" : '<div class="group-title" style="margin-top:6px">Colours / variants</div><div class="tscroll"><table class="ltable"><tr><th>Colour</th><th>Count</th><th>Repaired/found</th><th class="num">Available</th><th>Active</th><th></th></tr>' +
+      vars.map(v => '<tr><td><input class="wide" value="' + esc(v.name) + '" data-vn="' + v.id + '"></td><td><input type="number" min="0" value="' + v.quantity + '" data-vq="' + v.id + '"></td>' +
+        '<td><input type="number" min="0" value="' + v.repaired_found + '" data-vf="' + v.id + '"></td><td class="num">' + v.available + '</td><td><input type="checkbox" ' + (v.is_active ? "checked" : "") + ' data-va="' + v.id + '" style="width:auto"></td>' +
+        '<td><button class="btn line sm" data-vsave="' + v.id + '">Save</button></td></tr>').join("") +
+      '<tr><td><input class="wide" id="vNewName" placeholder="New colour, e.g. Red"></td><td><input type="number" min="0" id="vNewQty" value="0"></td><td></td><td></td><td></td><td><button class="btn gold sm" id="vAdd">Add</button></td></tr></table></div>') +
+    (n ? "" : '<div class="field" style="margin-top:10px"><label>Photo</label><div class="actions" style="margin-top:0"><label class="btn line sm" style="margin:0">' + (i.image_url ? "Change photo" : "📷 Take / choose photo") +
+      '<input type="file" accept="image/*" capture="environment" id="fPhoto" hidden></label>' + (i.image_url ? '<button class="btn danger sm" id="fNoPhoto">Remove photo</button>' : "") + '</div><div class="meta" id="fPMsg"></div></div>') +
+    '<div id="fErr" class="msg err" hidden></div><div class="actions"><button class="btn ok" id="fSave">' + (n ? "Add item" : "Save") + '</button><button class="btn line" id="fClose">Close</button>' +
+    (n ? "" : '<a class="btn line sm" href="item.html?id=' + i.id + '">History / 🔧 maintenance</a><button class="btn line sm" id="fHide">' + (i.is_active ? "Mark unavailable" : "Make available") + '</button><button class="btn danger sm" id="fDelete">Delete item</button>') + "</div></div>";
+}
+function bindItemForm(f) {
+  f.onclick = e => e.stopPropagation();
+  const id = f.dataset.id ? Number(f.dataset.id) : null, item = id ? BY[id] : null;
+  $("fCat").onchange = () => { $("fCatNew").hidden = $("fCat").value !== "+ New category"; };
+  $("fClose").onclick = () => { OPEN = null; ADDING = false; drawStock(); };
+  $("fSave").onclick = () => saveItem(id, item);
+  if (!item) return;
+  $("fHide").onclick = () => updateItem(id, { is_active: !item.is_active }, item.is_active ? "Marked unavailable" : "Available again");
+  $("fDelete").onclick = () => { if (confirm("Delete " + item.name_en + "? Its history stays; it just disappears from stock and booking.")) updateItem(id, { archived: true, is_active: false }, "Item deleted"); };
+  $("fPhoto").onchange = e => uploadPhoto(id, e.target.files[0]);
+  if ($("fNoPhoto")) $("fNoPhoto").onclick = () => updateItem(id, { image_url: null }, "Photo removed");
+  $("vAdd").onclick = async () => {
+    const name = $("vNewName").value.trim(), qty = Number($("vNewQty").value || 0);
+    if (!name) return fail("Write the colour name.");
+    if (!Number.isInteger(qty) || qty < 0) return fail("Count must be a whole number.");
+    const { error } = await supabaseClient.from("item_variants").insert({ item_id: id, name, quantity: qty });
+    if (error) return fail(/unique|duplicate/i.test(error.message) ? "That colour already exists." : BAS.errText(error));
+    if (!item.counted) await supabaseClient.from("items").update({ counted: true }).eq("id", id);
+    BAS.toast("Colour added"); await loadAll();
+  };
+  f.querySelectorAll("[data-vsave]").forEach(b => b.onclick = async () => {
+    const v = Number(b.dataset.vsave);
+    const row = { name: f.querySelector('[data-vn="' + v + '"]').value.trim(), quantity: num('[data-vq="' + v + '"]'), repaired_found: num('[data-vf="' + v + '"]'), is_active: f.querySelector('[data-va="' + v + '"]').checked };
+    if (!row.name) return fail("Colour name can't be empty.");
+    if (![row.quantity, row.repaired_found].every(x => Number.isInteger(x) && x >= 0)) return fail("Use whole numbers, 0 or more.");
+    const { error } = await supabaseClient.from("item_variants").update(row).eq("id", v);
+    if (error) return fail(BAS.errText(error));
+    BAS.toast("Colour saved"); await loadAll();
+  });
+}
+async function saveItem(id) {
+  $("fErr").hidden = true;
+  const name = $("fName").value.trim(), cat = $("fCat").value === "+ New category" ? $("fCatNew").value.trim() : $("fCat").value;
+  if (!name) return fail("Write the item name.");
+  if (!cat) return fail("Choose or write a category.");
+  const row = { name_en: name, name_ar: $("fAr").value.trim() || null, description: $("fDesc").value.trim() || null, category: cat, kind: $("fKind").value,
+    location: $("fLoc").value.trim() || null, notes: $("fNotes").value.trim() || null, updated_at: new Date().toISOString() };
+  if ($("fQty")) {
+    const qt = $("fQty").value.trim(), found = Number($("fFound").value || 0);
+    if (qt !== "" && !/^\d+$/.test(qt)) return fail("Counted total must be a whole number.");
+    if (!Number.isInteger(found) || found < 0) return fail("Repaired / found must be a whole number.");
+    row.repaired_found = found;
+    if (qt !== "") { row.quantity = Number(qt); row.counted = true; }
+  }
+  if (id) return updateItem(id, row, "Saved");
+  if (row.counted === undefined) { row.quantity = 0; row.counted = false; }
+  row.last_year = "new";
+  const { error } = await supabaseClient.from("items").insert(row);
+  if (error) return fail(/unique|duplicate/i.test(error.message) ? "An item with that name already exists." : BAS.errText(error));
+  BAS.toast("Item added"); ADDING = false; await loadAll();
+}
+async function updateItem(id, row, ok) {
+  const { error } = await supabaseClient.from("items").update(row).eq("id", id);
+  if (error) { BAS.toast(/unique|duplicate/i.test(error.message) ? "An item with that name already exists." : BAS.errText(error), "err"); return; }
+  BAS.toast(ok); if (row.archived) OPEN = null; await loadAll();
+}
+function uploadPhoto(id, file) {
+  if (!file) return;
+  $("fPMsg").textContent = "Uploading photo…";
+  const rd = new FileReader(), img = new Image();
+  rd.onload = () => {
+    img.onload = () => {
+      const k = Math.min(1, 1000 / Math.max(img.width, img.height)), c = document.createElement("canvas");
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      c.toBlob(async blob => {
+        const path = id + "-" + Date.now() + ".jpg";
+        const up = await supabaseClient.storage.from("item-photos").upload(path, blob, { contentType: "image/jpeg" });
+        if (up.error) { $("fPMsg").textContent = "Upload failed: " + BAS.errText(up.error); return; }
+        updateItem(id, { image_url: supabaseClient.storage.from("item-photos").getPublicUrl(path).data.publicUrl }, "Photo saved");
+      }, "image/jpeg", 0.82);
+    };
+    img.onerror = () => { $("fPMsg").textContent = "That file is not a photo."; };
+    img.src = rd.result;
+  };
+  rd.readAsDataURL(file);
+}
+
+// ---------- maintenance ----------
+function maintView() {
+  const open = MAINT.filter(m => m.status === "Open"), closed = MAINT.filter(m => m.status !== "Open");
+  const L = MSUB === "open" ? open : closed;
+  const totalCost = MAINT.reduce((t, m) => t + Number(m.cost || 0), 0);
+  let h = '<div class="kpis"><div class="kpi fix"><p>Pieces in maintenance</p><h3>' + open.reduce((t, m) => t + m.qty, 0) + '</h3></div><div class="kpi bad"><p>Late coming back</p><h3>' + open.filter(m => m.expected_back && m.expected_back < BAS.todayISO()).length +
+    '</h3></div><div class="kpi"><p>Repair costs so far</p><h3>' + BAS.money(totalCost) + "</h3></div></div>" +
+    '<div class="toolbar"><select id="mItem"><option value="">Send an item to maintenance…</option>' + STOCK.filter(i => i.is_active && i.counted).map(i => '<option value="' + i.id + '">' + esc(i.name_en) + " (" + i.available + " available)</option>").join("") + "</select></div>" +
+    '<div class="tabs sub"><button class="tab' + (MSUB === "open" ? " on" : "") + '" data-ms="open">In maintenance<b>' + open.length + '</b></button><button class="tab' + (MSUB === "closed" ? " on" : "") + '" data-ms="closed">Fixed / written off</button></div>';
+  h += L.length ? '<div class="panel tscroll"><table class="ltable"><tr><th>Item</th><th class="num">Pieces</th><th>Reason / problem</th><th>Since</th><th>Back by</th><th class="num">Cost</th><th>Responsible</th><th>' + (MSUB === "open" ? "" : "Result") + "</th></tr>" +
+    L.map(m => '<tr><td><a class="lnk" href="item.html?id=' + m.item_id + '">' + esc(BAS.itemLabel(BY, m.item_id, m.variant_id)) + '</a></td><td class="num"><b>' + m.qty + "</b></td><td>" + esc(m.reason) + (m.problem ? '<br><small class="mut">' + esc(m.problem) + "</small>" : "") +
+      '</td><td class="nowrap">' + esc(BAS.fmtDate(m.started_on)) + '</td><td class="nowrap' + (m.status === "Open" && m.expected_back && m.expected_back < BAS.todayISO() ? " bad" : "") + '">' + esc(m.expected_back ? BAS.fmtDate(m.expected_back) : "—") +
+      '</td><td class="num">' + (m.cost == null ? "—" : BAS.money(m.cost)) + "</td><td>" + esc(m.responsible || "") + '</td><td class="nowrap">' +
+      (m.status === "Open" ? '<button class="btn ok sm" data-mfix="' + m.id + '">Fixed ✓</button> <button class="btn danger sm" data-mwo="' + m.id + '">Write off</button>'
+        : (m.status === "Fixed" ? '<span class="pill ok">FIXED</span>' : '<span class="pill bad">WRITTEN OFF</span>') + " " + esc(BAS.fmtDate(m.closed_on)) + (m.close_note ? '<br><small class="mut">' + esc(m.close_note) + "</small>" : "")) + "</td></tr>").join("") + "</table></div>"
+    : '<div class="empty">' + (MSUB === "open" ? "Nothing is under maintenance." : "Nothing closed yet.") + "</div>";
+  $("view").innerHTML = h;
+  $("view").querySelectorAll("[data-ms]").forEach(b => b.onclick = () => { MSUB = b.dataset.ms; maintView(); });
+  $("mItem").onchange = e => { if (e.target.value) location.href = "item.html?id=" + e.target.value + "#maint"; };
+  const close = (id, status) => {
+    const v = prompt(status === "Fixed" ? "Repair cost in EGP (leave empty to keep it as is):" : "Why is it written off? (optional)", "");
+    if (v === null) return;
+    if (status === "Fixed" && v.trim() !== "" && !(Number(v) >= 0)) return BAS.toast("Cost must be a number", "err");
+    rpc("close_maintenance", { p_id: id, p_status: status, p_cost: status === "Fixed" && v.trim() !== "" ? Number(v) : null, p_note: status === "Fixed" ? null : v }, status === "Fixed" ? "Back in stock" : "Written off");
+  };
+  $("view").querySelectorAll("[data-mfix]").forEach(b => b.onclick = () => close(Number(b.dataset.mfix), "Fixed"));
+  $("view").querySelectorAll("[data-mwo]").forEach(b => b.onclick = () => { if (confirm("Write these pieces off? They leave the stock for good.")) close(Number(b.dataset.mwo), "Written off"); });
+}
+
+// ---------- waitlist ----------
+function waitView() {
+  $("view").innerHTML = '<p class="meta" style="margin-bottom:10px">Leaders join when an item has none left. Joining doesn\'t book anything; they get an alert when it\'s available and book normally.</p>' +
+    (WAIT.length ? '<div class="panel tscroll"><table class="ltable"><tr><th>Item</th><th>Stage</th><th>Leader</th><th class="num">Wanted</th><th class="num">Available now</th><th>Needed by</th><th>Note</th><th>Since</th><th></th></tr>' +
+      WAIT.map(w => { const a = availOf(w.item_id, w.variant_id);
+        return '<tr><td><a class="lnk" href="item.html?id=' + w.item_id + '">' + esc(BAS.itemLabel(BY, w.item_id, w.variant_id)) + "</a></td><td>" + (w.section_id ? BAS.secHTML(w.section_id) : "—") + "</td><td>" + esc(person(w.profile_id)) + '</td><td class="num">' + w.qty +
+          '</td><td class="num">' + (a > 0 ? '<span class="pill ok">' + a + "</span>" : "0") + "</td><td>" + esc(w.needed_by ? BAS.fmtDate(w.needed_by) : "—") + "</td><td>" + esc(w.note || "") + "</td><td>" + esc(BAS.fmtDate(w.created_at)) +
+          '</td><td><button class="btn line sm" data-wl="' + w.id + '">Remove</button></td></tr>'; }).join("") + "</table></div>" : '<div class="empty">Nobody is waiting for anything.</div>');
+  $("view").querySelectorAll("[data-wl]").forEach(b => b.onclick = () => rpc("leave_waitlist", { p_id: Number(b.dataset.wl) }, "Removed"));
+}
+
+// ---------- announcements ----------
+function newsView() {
+  const target = a => a.target === "all" ? "Everyone" : a.target === "service" ? BAS.serviceName(a.service_id) : BAS.sectionName(a.section_id);
+  $("view").innerHTML = '<div class="panel"><h3>New announcement</h3><div class="grid2"><div class="field"><label>To</label><select id="aTo"><option value="all">Everyone</option>' +
+    BAS.sections.map(s => '<option value="s' + s.id + '">' + esc(s.name_ar) + "</option>").join("") + BAS.services.map(v => '<option value="v' + v.id + '">' + esc(v.name_ar) + " (service)</option>").join("") + "</select></div>" +
+    '<div class="field"><label>Title</label><input id="aT"></div></div><div class="field"><label>Message</label><textarea id="aB"></textarea></div><button class="btn gold" id="aGo">Post</button></div>' +
+    (ANN.length ? ANN.map(a => '<div class="ann"><small>' + esc(BAS.fmtDateTime(a.created_at)) + " · to <bdi>" + esc(target(a)) + "</bdi> · " + esc(person(a.created_by)) + "</small><h4>" + esc(a.title) + "</h4><p>" + esc(a.body) + '</p><div class="actions"><button class="btn danger sm" data-adel="' + a.id + '">Delete</button></div></div>').join("")
+      : '<div class="empty">No announcements yet.</div>');
+  $("aGo").onclick = async () => {
+    const to = $("aTo").value, t = $("aT").value.trim(), b = $("aB").value.trim();
+    if (!t || !b) return BAS.toast("Write a title and a message", "err");
+    const { error } = await supabaseClient.from("announcements").insert({ title: t, body: b, target: to === "all" ? "all" : to[0] === "s" ? "section" : "service",
+      section_id: to[0] === "s" ? Number(to.slice(1)) : null, service_id: to[0] === "v" ? Number(to.slice(1)) : null, created_by: BAS.user.id });
+    if (error) return BAS.toast(BAS.errText(error), "err");
+    BAS.toast("Posted"); loadAll();
+  };
+  $("view").querySelectorAll("[data-adel]").forEach(b => b.onclick = async () => {
+    if (!confirm("Delete this announcement?")) return;
+    const { error } = await supabaseClient.from("announcements").delete().eq("id", Number(b.dataset.adel));
+    if (error) return BAS.toast(BAS.errText(error), "err");
+    loadAll();
+  });
+}
+
+// ---------- accounts and transfers ----------
+function peopleView() {
+  const pend = PEOPLE.filter(p => p.approval_status === "pending"), rest = PEOPLE.filter(p => p.approval_status !== "pending"), tr = TRANSFERS.filter(t => t.status === "Pending");
+  const secOpts = sel => '<option value="">No stage</option>' + BAS.sections.map(s => '<option value="' + s.id + '"' + (s.id === sel ? " selected" : "") + ">" + esc(s.name_ar) + "</option>").join("");
+  const row = p => '<div class="person" data-p="' + p.id + '"><div><h4>' + esc(p.full_name) + (p.id === BAS.user.id ? " (you)" : "") + '</h4><div class="meta">' + esc(p.email || "") + " · signed up " + esc(BAS.fmtDate(p.created_at)) + " · " +
+    '<span class="pill ' + (p.approval_status === "approved" ? "paid" : p.approval_status === "pending" ? "low" : "late") + '">' + esc(p.approval_status.toUpperCase()) + "</span></div></div>" +
+    '<div class="actions" style="margin:0"><select data-f="section_id" aria-label="Stage">' + secOpts(p.section_id) + '</select><select data-f="role" aria-label="Role"><option value="leader"' + (p.role === "leader" ? " selected" : "") +
+    '>Leader</option><option value="admin"' + (p.role === "admin" ? " selected" : "") + ">Warehouse team</option></select>" +
+    (p.approval_status !== "approved" ? '<button class="btn ok sm" data-ap="approved">Approve</button>' : "") + (p.approval_status !== "rejected" && p.id !== BAS.user.id ? '<button class="btn danger sm" data-ap="rejected">Reject</button>' : "") + "</div></div>";
+  $("view").innerHTML = '<div class="group-title">New accounts waiting</div>' + (pend.length ? pend.map(row).join("") : '<div class="empty">No one is waiting.</div>') +
+    '<div class="group-title">Stage transfer requests</div>' + (tr.length ? tr.map(t => '<div class="person"><div><h4>' + esc(person(t.profile_id)) + '</h4><div class="meta">' + BAS.secHTML(t.from_section) + " → <b>" + BAS.secHTML(t.to_section) + "</b> · " + esc(BAS.fmtDate(t.created_at)) + (t.note ? " · " + esc(t.note) : "") + "</div></div>" +
+      '<div class="actions" style="margin:0"><button class="btn ok sm" data-tr="' + t.id + '" data-ok="1">Approve</button><button class="btn danger sm" data-tr="' + t.id + '" data-ok="0">Reject</button></div></div>').join("") : '<div class="empty">No transfer requests.</div>') +
+    '<div class="group-title">Everyone else</div>' + rest.map(row).join("");
+  $("view").querySelectorAll(".person[data-p]").forEach(el => {
+    const id = el.dataset.p;
+    el.querySelectorAll("select").forEach(s => s.onchange = () => {
+      const v = s.dataset.f === "section_id" ? (s.value ? Number(s.value) : null) : s.value;
+      if (id === BAS.user.id && s.dataset.f === "role" && v !== "admin" && !confirm("Remove your own team access? You'll lose this page.")) { render(); return; }
+      updatePerson(id, { [s.dataset.f]: v });
+    });
+    el.querySelectorAll("[data-ap]").forEach(b => b.onclick = () => updatePerson(id, { approval_status: b.dataset.ap }));
+  });
+  $("view").querySelectorAll("[data-tr]").forEach(b => b.onclick = () => rpc("decide_transfer", { p_id: Number(b.dataset.tr), p_approve: b.dataset.ok === "1" }, b.dataset.ok === "1" ? "Transfer approved" : "Transfer rejected"));
+}
+async function updatePerson(id, row) {
+  const p = PEOPLE.find(x => x.id === id);
+  if (row.approval_status === "approved" && p.role === "leader" && !p.section_id) { BAS.toast("Choose their stage first", "err"); return; }
+  const { error } = await supabaseClient.from("profiles").update(row).eq("id", id);
+  if (error) { BAS.toast(BAS.errText(error), "err"); return; }
+  BAS.toast("Saved");
+  if (id === BAS.user.id) { location.reload(); return; }
+  await loadAll();
+}
+
+// ---------- activity log ----------
+async function logView() {
+  $("view").innerHTML = '<div class="loading">Loading…</div>';
+  const { data, error } = await supabaseClient.from("activity_log").select("*").order("at", { ascending: false }).limit(300);
+  if (error) { $("view").innerHTML = '<div class="msg err">' + esc(BAS.errText(error)) + "</div>"; return; }
+  const what = x => x.entity === "reservation" ? " · request #" + esc(x.entity_id) : (x.entity === "items" || x.entity === "item") && BY[x.entity_id] ? ' · <a class="lnk" href="item.html?id=' + esc(x.entity_id) + '">' + esc(BY[x.entity_id].name_en) + "</a>" : "";
+  $("view").innerHTML = '<p class="meta" style="margin-bottom:10px">The last 300 actions, with the time. Nobody can edit or delete this list.</p><div class="panel">' +
+    (data.length ? data.map(x => '<div class="log-row"><small>' + esc(BAS.fmtDateTime(x.at)) + "</small><div><b>" + esc(x.action) + "</b> · " + esc(person(x.actor) || "system") + what(x) + "</div></div>").join("") : '<div class="empty">Nothing yet.</div>') + "</div>";
+}
+
+// ---------- settings ----------
+function settingsView() {
+  const s = BAS.settings;
+  $("view").innerHTML = '<div class="panel" style="max-width:640px">' +
+    '<div class="grid2"><div class="field"><label>Minimum days before a request</label><input id="sDays" type="number" min="0" max="30" value="' + s.min_days + '"></div>' +
+    '<div class="field"><label>Days to return after the meeting</label><input id="sRet" type="number" min="0" max="60" value="' + (s.return_days == null ? 7 : s.return_days) + '"></div></div>' +
+    '<div class="grid2"><div class="field"><label>Low stock warning (% of total)</label><input id="sLow" type="number" min="0" max="100" value="' + s.low_pct + '"></div>' +
+    '<div class="field"><label>Meeting times (comma separated)</label><input id="sTimes" value="' + esc((s.times || []).join(", ")) + '"></div></div>' +
+    '<div id="fErr" class="msg err" hidden></div><button class="btn ok" id="sSave">Save settings</button></div>' +
+    '<div class="group-title">Other church services</div><div class="panel" style="max-width:640px">' +
+    BAS.services.map(v => '<div class="person"><div><h4><bdi>' + esc(v.name_ar) + "</bdi>" + (v.name_en && v.name_en !== v.name_ar ? " · " + esc(v.name_en) : "") + "</h4></div>" +
+      '<div class="actions" style="margin:0"><a class="btn line sm" href="' + BAS.borrowerURL(null, v.id) + '">Open page</a><button class="btn line sm" data-svc="' + v.id + '" data-on="' + (!v.is_active) + '">' + (v.is_active ? "Hide" : "Show") + "</button></div></div>").join("") +
+    '<div class="grid2" style="margin-top:10px"><div class="field"><label>New service or church (name)</label><input id="svAr"></div><div class="field"><label>Other spelling (optional)</label><input id="svEn"></div></div>' +
+    '<button class="btn gold" id="svAdd">Add service</button></div>';
+  $("sSave").onclick = async () => {
+    const days = Number($("sDays").value), ret = Number($("sRet").value), low = Number($("sLow").value), times = $("sTimes").value.split(",").map(x => x.trim()).filter(Boolean);
+    if (!Number.isInteger(days) || days < 0 || days > 30) return fail("Days before must be between 0 and 30.");
+    if (!Number.isInteger(ret) || ret < 0 || ret > 60) return fail("Days to return must be between 0 and 60.");
+    if (!Number.isInteger(low) || low < 0 || low > 100) return fail("Low stock must be between 0 and 100.");
+    if (!times.length) return fail("Add at least one time.");
+    const { error } = await supabaseClient.from("settings").update({ min_days: days, low_pct: low, times, return_days: ret }).eq("id", 1);
+    if (error) return fail(BAS.errText(error));
+    Object.assign(BAS.settings, { min_days: days, low_pct: low, times, return_days: ret });
+    BAS.toast("Settings saved");
+  };
+  $("svAdd").onclick = async () => {
+    const ar = $("svAr").value.trim();
+    if (!ar) return BAS.toast("Write the service name", "err");
+    const { error } = await supabaseClient.from("services").insert({ name_ar: ar, name_en: $("svEn").value.trim() || ar });
+    if (error) return BAS.toast(/unique|duplicate/i.test(error.message) ? "That service already exists" : BAS.errText(error), "err");
+    BAS.toast("Service added"); await loadAll();
+  };
+  $("view").querySelectorAll("[data-svc]").forEach(b => b.onclick = async () => {
+    const { error } = await supabaseClient.from("services").update({ is_active: b.dataset.on === "true" }).eq("id", Number(b.dataset.svc));
+    if (error) return BAS.toast(BAS.errText(error), "err");
+    await loadAll();
+  });
+}
+</script>
+</body>
+</html>
