@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Book items | BAS Warehouse</title>
+<link rel="icon" href="logo.png">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#17196A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="BAS Warehouse">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="bas.css">
+</head>
+<body>
+<main class="page">
+  <div class="head">
+    <div>
+      <p class="eyebrow" id="eyebrow">Book equipment</p>
+      <h1 id="title">What do you <em>need?</em></h1>
+      <p class="sub" id="subtitle">Pick items and quantities, then send. Pieces are held for you as soon as you send.</p>
+    </div>
+  </div>
+  <div id="editNote"></div>
+  <div id="waitAlerts"></div>
+  <div class="toolbar"><input id="search" type="search" placeholder="Search: shoum, حبل, pot…" aria-label="Search items"></div>
+  <div class="chips" id="chips"></div>
+  <div class="cat-grid" id="grid"><div class="loading">Loading items…</div></div>
+  <div class="empty" id="none" hidden>No items match.</div>
+</main>
+
+<div class="cart-bar" id="cartBar" hidden>
+  <div><strong id="cartCount">0 items</strong><span id="cartHint">READY TO SEND</span></div>
+  <button class="btn gold" id="cartOpen">Review →</button>
+</div>
+<div class="overlay" id="sheet" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="common.js"></script>
+<script src="i18n.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const esc = s => BAS.esc(s);
+let STOCK = [], CART = {}, CAT = "All", EDIT = null, OWN = {}, WAIT = [];
+
+(async function () {
+  await BAS.init("book");
+  if (!BAS.requireApproved()) return;
+  if (!BAS.isAdmin() && !BAS.profile.section_id) { $("grid").innerHTML = '<div class="msg err">Your account has no stage. Ask the warehouse team.</div>'; return; }
+  try {
+    const st = await BAS.loadStock();
+    STOCK = st.list.filter(i => i.is_active);
+    const editId = Number(new URLSearchParams(location.search).get("edit"));
+    if (editId) await startEdit(editId, st.byId);
+    const w = await supabaseClient.from("waitlist").select("*").eq("profile_id", BAS.user.id).in("status", ["Waiting", "Available"]);
+    WAIT = w.error ? [] : w.data;
+    chips(); draw(); waitAlerts();
+  } catch (e) { $("grid").innerHTML = '<div class="msg err">' + esc(BAS.errText(e)) + "</div>"; }
+})();
+
+// ---------- editing an existing request ----------
+async function startEdit(id, byId) {
+  const list = await BAS.loadReservations(byId);
+  const r = list.find(x => x.id === id);
+  if (!r) throw new Error("Request #" + id + " was not found.");
+  if (BAS.PRE.indexOf(r.status) < 0) throw new Error("Request #" + id + " was already handed out, so it can't be edited.");
+  if (!BAS.isAdmin() && r.change) throw new Error("A change for request #" + id + " is already waiting for the warehouse team.");
+  EDIT = r;
+  r.items.forEach(l => { const k = l.item_id + ":" + (l.variant_id || ""); CART[k] = (CART[k] || 0) + l.quantity; OWN[k] = (OWN[k] || 0) + l.quantity; });
+  $("eyebrow").textContent = BAS.isAdmin() ? "Editing request #" + id : "Asking to change request #" + id;
+  $("title").innerHTML = "Change <em>#" + id + "</em> · " + BAS.borrowerHTML(r);
+  $("subtitle").textContent = BAS.isAdmin() ? "Change the items, then save. The new quantities are checked against stock." : "Change what you need. The warehouse team will approve or reject the change; until then the old request stays as it is.";
+  $("editNote").innerHTML = '<div class="msg info">Current: ' + r.items.map(i => esc(BAS.lineName(i)) + " ×" + i.quantity).join(", ") + " · " + esc(BAS.fmtDate(r.meeting_date, true)) + " · " + esc(r.place || "") +
+    ' · <a class="lnk" href="' + (BAS.isAdmin() ? "team.html#requests" : "section.html") + '">Stop editing</a></div>';
+  document.title = "Edit #" + id + " | BAS Warehouse";
+}
+
+// ---------- waitlist alerts: something you waited for is back ----------
+function availOfWait(w) {
+  const i = STOCK.find(x => x.id === w.item_id);
+  if (!i || !i.counted) return 0;
+  if (w.variant_id) { const v = (i.variants || []).find(x => x.id === w.variant_id); return v ? v.available : 0; }
+  return i.available || 0;
+}
+function waitAlerts() {
+  const back = WAIT.filter(w => availOfWait(w) > 0);
+  $("waitAlerts").innerHTML = back.map(w => '<div class="msg ok">🔔 <b>' + esc(BAS.itemLabel(Object.fromEntries(STOCK.map(i => [i.id, i])), w.item_id, w.variant_id)) +
+    "</b> is available again: " + availOfWait(w) + " now (you wanted " + w.qty + '). <button class="btn sm ok" data-wbook="' + w.id + '">Add to my request</button> <button class="btn sm line" data-wleave="' + w.id + '">Remove from waitlist</button></div>').join("");
+  $("waitAlerts").querySelectorAll("[data-wbook]").forEach(b => b.onclick = () => {
+    const w = WAIT.find(x => x.id === Number(b.dataset.wbook)), k = w.item_id + ":" + (w.variant_id || "");
+    CART[k] = Math.min(availFor(k), Math.max(CART[k] || 0, w.qty)); draw(); BAS.toast("Added. Review and send to book it.");
+  });
+  $("waitAlerts").querySelectorAll("[data-wleave]").forEach(b => b.onclick = async () => {
+    const { error } = await supabaseClient.rpc("leave_waitlist", { p_id: Number(b.dataset.wleave) });
+    if (error) return BAS.toast(BAS.errText(error), "err");
+    WAIT = WAIT.filter(x => x.id !== Number(b.dataset.wleave)); waitAlerts(); draw();
+  });
+}
+
+// ---------- catalogue ----------
+function chips() {
+  const c = ["All"]; STOCK.forEach(i => { const k = i.category || "Other"; if (c.indexOf(k) < 0) c.push(k); });
+  $("chips").innerHTML = c.map(k => '<button class="tab' + (k === CAT ? " on" : "") + '" data-c="' + esc(k) + '">' + (k === "All" ? "All items" : BAS.icon(k) + " " + esc(k)) + "</button>").join("");
+  $("chips").querySelectorAll("[data-c]").forEach(b => b.onclick = () => { CAT = b.dataset.c; chips(); draw(); });
+}
+$("search").oninput = draw;
+
+const activeVars = i => (i.variants || []).filter(v => v.is_active);
+function availFor(key) {
+  const p = key.split(":"), i = STOCK.find(x => x.id === Number(p[0]));
+  if (!i || !i.counted) return 0;
+  let a = p[1] ? ((activeVars(i).find(x => x.id === Number(p[1])) || {}).available || 0) : (i.available || 0);
+  return a + (OWN[key] || 0); // when editing, what this request already holds counts as yours
+}
+function level(i) {
+  if (!i.counted) return "rc";
+  if (i.available <= 0) return "out";
+  const t = i.quantity + i.repaired_found;
+  return t > 0 && i.available <= t * (BAS.settings.low_pct || 20) / 100 ? "low" : "ok";
+}
+function stepper(key) {
+  const n = CART[key] || 0, max = availFor(key);
+  return '<div class="qty"><button type="button" data-k="' + key + '" data-d="-1"' + (n ? "" : " disabled") + ' aria-label="Less">−</button><span>' + n +
+    '</span><button type="button" data-k="' + key + '" data-d="1"' + (n < max ? "" : " disabled") + ' aria-label="More">+</button></div>';
+}
+function onWait(i) { return WAIT.some(w => w.item_id === i.id); }
+
+function card(i) {
+  const vars = activeVars(i), lvl = level(i), total = i.quantity + i.repaired_found;
+  const inCart = Object.keys(CART).some(k => k.split(":")[0] === String(i.id));
+  const pct = !i.counted || total <= 0 ? 0 : Math.max(0, Math.min(100, Math.round(i.available / total * 100)));
+  const own = Object.keys(OWN).filter(k => k.split(":")[0] === String(i.id)).reduce((t, k) => t + OWN[k], 0);
+  const shown = (i.available || 0) + own;
+  const label = !i.counted ? '<span class="pill rc">NOT COUNTED YET</span>' : shown <= 0 ? '<span class="pill out">NONE LEFT</span>' :
+    "Available " + shown + (lvl === "low" ? ' <span class="pill low">LOW</span>' : "");
+  let pick = "";
+  if (i.counted && vars.length) {
+    pick = '<div class="vrows">' + vars.map(v => { const k = i.id + ":" + v.id; return '<div class="vrow"><span class="vn">' + esc(v.name) + " <small>(" + availFor(k) + ")</small></span>" + stepper(k) + "</div>"; }).join("") + "</div>";
+  } else if (i.counted) pick = stepper(i.id + ":");
+  const canWait = i.counted && (vars.length ? vars.some(v => availFor(i.id + ":" + v.id) <= 0) : availFor(i.id + ":") <= 0);
+  if (canWait) pick += onWait(i) ? '<div class="pill info wait-btn">ON YOUR WAITLIST</div>' : '<button class="btn line sm wait-btn" data-wait="' + i.id + '">🔔 Join waitlist</button>';
+  return '<div class="icard' + (inCart ? " sel" : "") + '"><div class="img"' + (i.image_url ? ' style="background-image:url(\'' + esc(i.image_url) + '\')"' : "") + ">" +
+    (i.image_url ? "" : BAS.icon(i.category)) + '<span class="cat">' + esc(i.category || "Other") + "</span></div>" +
+    '<div class="bd"><h3>' + esc(i.name_en) + "</h3>" + (i.name_ar ? '<div class="arname">' + esc(i.name_ar) + "</div>" : "") +
+    (i.kind === "Consumable" ? '<small class="mut">Used up (not returned)</small>' : "") +
+    '<div class="av"><span>' + label + "</span>" + (BAS.isAdmin() ? '<a class="lnk" href="item.html?id=' + i.id + '" style="font-size:11px">History</a>' : "") + "</div>" +
+    (i.counted ? '<div class="bar"><i class="' + lvl + '" style="width:' + pct + '%"></i></div>' : "") + pick + "</div></div>";
+}
+
+function draw() {
+  const q = $("search").value.trim().toLowerCase();
+  const L = STOCK.filter(i => (!q || (i.name_en || "").toLowerCase().includes(q) || (i.name_ar || "").includes(q) || (i.category || "").toLowerCase().includes(q)) &&
+    (CAT === "All" || (i.category || "Other") === CAT));
+  $("none").hidden = L.length > 0;
+  $("grid").innerHTML = L.map(card).join("");
+  $("grid").querySelectorAll("[data-k]").forEach(b => b.onclick = () => {
+    const k = b.dataset.k; let n = (CART[k] || 0) + Number(b.dataset.d);
+    n = Math.max(0, Math.min(n, availFor(k)));
+    if (n) CART[k] = n; else delete CART[k];
+    draw();
+  });
+  $("grid").querySelectorAll("[data-wait]").forEach(b => b.onclick = () => waitSheet(Number(b.dataset.wait)));
+  const lines = cartLines(), pieces = lines.reduce((t, l) => t + l.qty, 0);
+  $("cartBar").hidden = !lines.length && !EDIT;
+  document.body.classList.toggle("has-cart", !$("cartBar").hidden);
+  $("cartCount").textContent = lines.length + (lines.length === 1 ? " item" : " items") + " · " + pieces + " pieces";
+  $("cartHint").textContent = EDIT ? "EDITING #" + EDIT.id : "READY TO SEND";
+}
+
+function cartLines() {
+  return Object.keys(CART).map(k => {
+    const p = k.split(":"), i = STOCK.find(x => x.id === Number(p[0]));
+    const v = i && p[1] ? activeVars(i).find(x => x.id === Number(p[1])) : null;
+    return i ? { key: k, item: i, variant: v, qty: CART[k] } : null;
+  }).filter(Boolean);
+}
+
+// ---------- waitlist sheet ----------
+function waitSheet(id) {
+  const i = STOCK.find(x => x.id === id), vars = activeVars(i).filter(v => availFor(i.id + ":" + v.id) <= 0);
+  const o = $("sheet");
+  o.innerHTML = '<div class="sheet"><h2>🔔 Waitlist: ' + esc(i.name_en) + '</h2><p class="sub">Joining the waitlist does not book anything. When pieces come back you\'ll get an alert, then you book it normally.</p>' +
+    '<div class="panel">' + (vars.length ? '<div class="field"><label>Colour</label><select id="wVar">' + vars.map(v => '<option value="' + v.id + '">' + esc(v.name) + "</option>").join("") + "</select></div>" : "") +
+    '<div class="grid2"><div class="field"><label>How many do you need?</label><input id="wQty" type="number" min="1" value="1" inputmode="numeric"></div>' +
+    '<div class="field"><label>Needed by (optional)</label><input id="wBy" type="date" min="' + BAS.todayISO() + '"></div></div>' +
+    '<div class="field"><label>Note (optional)</label><input id="wNote" placeholder="For the camp…"></div></div>' +
+    '<div id="wErr" class="msg err" hidden></div><div class="actions"><button class="btn gold" id="wGo">Join waitlist</button><button class="btn line" id="wBack">Back</button></div></div>';
+  o.hidden = false;
+  $("wBack").onclick = () => { o.hidden = true; };
+  o.onclick = e => { if (e.target === o) o.hidden = true; };
+  $("wGo").onclick = async () => {
+    const qty = Number($("wQty").value);
+    if (!Number.isInteger(qty) || qty < 1) { $("wErr").textContent = "Write how many, 1 or more."; $("wErr").hidden = false; return; }
+    const { error } = await supabaseClient.rpc("join_waitlist", { p_item: id, p_variant: $("wVar") ? Number($("wVar").value) : null, p_qty: qty, p_needed_by: $("wBy").value || null, p_note: $("wNote").value });
+    if (error) { $("wErr").textContent = BAS.errText(error); $("wErr").hidden = false; return; }
+    const w = await supabaseClient.from("waitlist").select("*").eq("profile_id", BAS.user.id).in("status", ["Waiting", "Available"]);
+    WAIT = w.error ? WAIT : w.data;
+    o.hidden = true; draw(); BAS.toast("You're on the waitlist");
+  };
+}
+
+// ---------- review and send ----------
+$("cartOpen").onclick = openCheckout;
+
+function openCheckout() {
+  const o = $("sheet"), lines = cartLines(), r = EDIT;
+  let who;
+  if (r) who = '<div class="field"><label>For</label><div class="inline-in">' + BAS.borrowerHTML(r) + "</div></div>";
+  else if (BAS.isAdmin()) who = '<div class="field"><label>For which stage or church service?</label><select id="coWho">' +
+      '<optgroup label="Scout stages">' + BAS.sections.map(s => '<option value="s' + s.id + '">' + esc(s.name_ar) + " · " + esc(s.name_en) + "</option>").join("") + "</optgroup>" +
+      '<optgroup label="Other church services">' + BAS.services.filter(v => v.is_active).map(v => '<option value="v' + v.id + '">' + esc(v.name_ar) + (v.name_en && v.name_en !== v.name_ar ? " · " + esc(v.name_en) : "") + "</option>").join("") +
+      '<option value="new">Others: type a service or church…</option></optgroup></select>' +
+      '<input id="coNew" class="inline-in" placeholder="Service or church name" style="margin-top:8px" hidden></div>';
+  else who = '<div class="field"><label>Stage</label><div class="inline-in">' + BAS.secHTML(BAS.profile.section_id) + "</div></div>";
+  const times = (BAS.settings.times || []).slice();
+  const t0 = r && r.meeting_time && times.indexOf(r.meeting_time) < 0 ? "Other" : (r ? r.meeting_time : times[0]);
+  o.innerHTML = '<div class="sheet" role="dialog" aria-label="Review">' +
+    "<h2>" + (r ? (BAS.isAdmin() ? "Save changes to #" + r.id : "Ask to change #" + r.id) : "Review your request") + '</h2><p class="sub">' + esc(BAS.profile.full_name) + "</p>" +
+    '<div class="panel">' + (lines.length ? '<ul class="lines">' + lines.map(l => "<li><span>" + BAS.icon(l.item.category) + " " + esc(l.item.name_en) + (l.variant ? " (" + esc(l.variant.name) + ")" : "") +
+      (r && (OWN[l.key] || 0) !== l.qty ? ' <small class="mut">was ' + (OWN[l.key] || 0) + "</small>" : "") + "</span><b>" + l.qty + "</b></li>").join("") + "</ul>" : '<p class="mut">No items chosen. Add items, or cancel the request from your stage page instead.</p>') + "</div>" +
+    '<div class="panel">' + who +
+    '<div class="grid2"><div class="field"><label>Meeting date (pickup)</label><input type="date" id="coDate" min="' + BAS.todayISO() + '" value="' + esc(r ? r.meeting_date : "") + '"></div>' +
+    '<div class="field"><label>Time</label><select id="coTime">' + times.concat(["Other"]).map(t => "<option" + (t === t0 ? " selected" : "") + ">" + esc(t) + "</option>").join("") + "</select></div></div>" +
+    '<div class="field" id="coTOWrap"' + (t0 === "Other" ? "" : " hidden") + '><label>Write the time</label><input id="coTO" placeholder="6:00 PM" value="' + esc(t0 === "Other" && r ? r.meeting_time : "") + '"></div>' +
+    '<div class="field"><label>Meeting place</label><input id="coPlace" placeholder="Roof, villa, el dor el 5…" value="' + esc(r ? r.place : "") + '"></div>' +
+    '<div class="field"><label>Notes</label><textarea id="coNotes">' + esc(r ? r.notes || "" : "") + "</textarea></div>" +
+    (r && !BAS.isAdmin() ? '<div class="field"><label>Why the change?</label><input id="coWhy" placeholder="More kids are coming…"></div>' : "") +
+    '<div id="coLate" class="msg warn" hidden></div>' +
+    (r ? "" : '<label class="check"><input type="checkbox" id="coOk"> We are responsible for returning all items in good condition.</label>') + "</div>" +
+    '<div id="coErr" class="msg err" hidden></div>' +
+    '<div class="actions"><button class="btn gold" id="coSend"' + (lines.length ? "" : " disabled") + ">" + (r ? (BAS.isAdmin() ? "Save changes" : "Send change for approval") : "Send request") + '</button><button class="btn line" id="coBack">Back</button></div></div>';
+  o.hidden = false;
+  if (!r) { try { const p = JSON.parse(localStorage.getItem("basPlace") || "null"); if (p) $("coPlace").value = p; } catch (e) {} }
+  $("coBack").onclick = () => { o.hidden = true; };
+  o.onclick = e => { if (e.target === o) o.hidden = true; };
+  $("coTime").onchange = () => { $("coTOWrap").hidden = $("coTime").value !== "Other"; };
+  $("coDate").onchange = lateCheck;
+  if ($("coWho")) $("coWho").onchange = () => { $("coNew").hidden = $("coWho").value !== "new"; };
+  $("coSend").onclick = send;
+}
+
+function lateCheck() {
+  const v = $("coDate").value, w = $("coLate");
+  if (!v) { w.hidden = true; return; }
+  const days = BAS.daysFromToday(v), min = BAS.settings.min_days || 0;
+  w.hidden = days >= min;
+  w.textContent = "Requests should be sent at least " + min + " days before. You can still send it, but the team may not manage to prepare everything.";
+}
+
+async function borrower() {
+  if (!BAS.isAdmin()) return { section: null, service: null };
+  const v = $("coWho").value;
+  if (v[0] === "s") return { section: Number(v.slice(1)), service: null };
+  if (v[0] === "v") return { section: null, service: Number(v.slice(1)) };
+  const name = $("coNew").value.trim();
+  if (!name) throw new Error("Write the service or church name.");
+  const ex = BAS.services.find(x => x.name_ar.trim().toLowerCase() === name.toLowerCase() || (x.name_en || "").trim().toLowerCase() === name.toLowerCase());
+  if (ex) return { section: null, service: ex.id };
+  const ins = await supabaseClient.from("services").insert({ name_ar: name, name_en: name }).select("id, name_ar, name_en, is_active").single();
+  if (ins.error) throw ins.error;
+  BAS.services.push(ins.data);
+  return { section: null, service: ins.data.id };
+}
+
+async function send() {
+  const err = $("coErr"); err.hidden = true;
+  const fail = m => { err.textContent = m; err.hidden = false; };
+  const date = $("coDate").value, time = $("coTime").value === "Other" ? $("coTO").value.trim() : $("coTime").value, place = $("coPlace").value.trim();
+  const miss = []; if (!date) miss.push("the date"); if (!time) miss.push("the time"); if (!place) miss.push("the place");
+  if (miss.length) return fail("Fill in " + miss.join(", ") + ".");
+  if ($("coOk") && !$("coOk").checked) return fail("Tick the box to confirm first.");
+  const items = cartLines().map(l => ({ item_id: l.item.id, variant_id: l.variant ? l.variant.id : null, qty: l.qty }));
+  const b = $("coSend"); b.disabled = true;
+  let res;
+  try {
+    if (EDIT && BAS.isAdmin()) res = await supabaseClient.rpc("admin_edit_reservation", { p_id: EDIT.id, p_date: date, p_time: time, p_place: place, p_notes: $("coNotes").value, p_items: items });
+    else if (EDIT) res = await supabaseClient.rpc("request_change", { p_id: EDIT.id, p_date: date, p_time: time, p_place: place, p_notes: $("coNotes").value, p_items: items, p_reason: $("coWhy").value });
+    else {
+      const who = await borrower();
+      res = await supabaseClient.rpc("create_reservation", { p_meeting_date: date, p_meeting_time: time, p_place: place, p_notes: $("coNotes").value, p_items: items, p_section_id: who.section, p_service_id: who.service });
+    }
+  } catch (e) { res = { error: e }; }
+  b.disabled = false;
+  if (res.error) {
+    fail(BAS.errText(res.error));
+    try { const st = await BAS.loadStock(); STOCK = st.list.filter(i => i.is_active); draw(); } catch (e) {}
+    return;
+  }
+  try { localStorage.setItem("basPlace", JSON.stringify(place)); } catch (e) {}
+  const back = BAS.isAdmin() ? "team.html#requests" : "section.html";
+  const msg = EDIT ? (BAS.isAdmin() ? "Request #" + EDIT.id + " updated ✓" : "Change sent ✓") : "Request sent ✓";
+  const sub = EDIT ? (BAS.isAdmin() ? "The new quantities are held." : "The warehouse team will approve or reject it. The old request stays until then.") : "Request #" + res.data + ". The warehouse team will prepare it.";
+  $("sheet").innerHTML = '<div class="sheet"><h2>' + msg + '</h2><p class="sub">' + esc(sub) + '</p><div class="actions"><a class="btn" href="' + back + '">' + (BAS.isAdmin() ? "Go to requests" : "Go to my stage") + '</a><a class="btn line" href="book.html">Book something else</a></div></div>';
+  CART = {}; OWN = {};
+}
+</script>
+</body>
+</html>
