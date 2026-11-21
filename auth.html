@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login | BAS Warehouse</title>
+<link rel="icon" href="logo.png">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#17196A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="BAS Warehouse">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="bas.css">
+<script>try{document.documentElement.dataset.theme=localStorage.getItem("basTheme")==="dark"?"dark":"light"}catch(e){}</script>
+</head>
+<body data-noi18n>
+<div class="auth-wrap">
+  <aside class="auth-side">
+    <img class="crest" src="logo.png" alt="BA Scout shield">
+    <div>
+      <h1><span>BI ARCHI ANGELOUS</span><i style="font-style:normal" data-k="title">Scout Warehouse</i></h1>
+      <p data-k="tag">Book equipment for your stage, follow it until it comes back, and keep everything counted.</p>
+    </div>
+    <div class="foot">St. Michael Church · Mostafa Kamel · Alexandria</div>
+  </aside>
+
+  <main class="auth-main">
+    <div class="auth-card">
+      <div class="mlogo"><img src="logo.png" alt=""><div><b>BI ARCHI ANGELOUS</b><span data-k="title">Scout Warehouse</span></div></div>
+
+      <div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button type="button" class="btn line sm" id="thBtn" aria-label="Dark / light"></button></div>
+      <div class="langs" role="group" aria-label="Language">
+        <button type="button" data-lang="ar">العربية</button>
+        <button type="button" data-lang="en">English</button>
+        <button type="button" data-lang="fr">Français</button>
+      </div>
+
+      <h2 id="hTitle" data-k="welcome">Welcome</h2>
+      <p class="sub" id="hSub" data-k="welcomeSub">Log in to continue.</p>
+
+      <div class="auth-tabs" id="tabs">
+        <button type="button" data-tab="login" class="on" data-k="login">Login</button>
+        <button type="button" data-tab="signup" data-k="signup">Create account</button>
+      </div>
+
+      <div id="msg" class="msg" hidden></div>
+
+      <form id="loginForm">
+        <div class="field"><label for="lEmail" data-k="email">Email</label><input id="lEmail" type="email" autocomplete="email" required></div>
+        <div class="field"><label for="lPass" data-k="password">Password</label><input id="lPass" type="password" autocomplete="current-password" required></div>
+        <button class="btn block" id="lBtn" data-k="loginBtn">Log in</button>
+        <p class="mt right"><button type="button" class="linkbtn" id="toForgot" data-k="forgot">Forgot password?</button></p>
+      </form>
+
+      <form id="signupForm" hidden>
+        <div class="field"><label for="sName" data-k="name">Full name</label><input id="sName" required autocomplete="name"></div>
+        <div class="field"><label for="sEmail" data-k="email">Email</label><input id="sEmail" type="email" required autocomplete="email"></div>
+        <div class="field"><label for="sPass" data-k="password">Password</label><input id="sPass" type="password" minlength="6" required autocomplete="new-password"><div class="hint" data-k="pwHint">At least 6 characters.</div></div>
+        <div class="field"><label for="sStage" data-k="stage">Your stage</label><select id="sStage" required></select></div>
+        <button class="btn gold block" id="sBtn" data-k="signupBtn">Create account</button>
+      </form>
+
+      <form id="forgotForm" hidden>
+        <div class="field"><label for="fEmail" data-k="email">Email</label><input id="fEmail" type="email" required></div>
+        <button class="btn block" id="fBtn" data-k="sendLink">Send reset link</button>
+        <p class="mt"><button type="button" class="linkbtn" id="backLogin" data-k="back">← Back to login</button></p>
+      </form>
+    </div>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="common.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const T = {
+  en: { title: "Scout Warehouse", tag: "Book equipment for your stage, follow it until it comes back, and keep everything counted.",
+    welcome: "Welcome", welcomeSub: "Choose your language, then log in.", login: "Login", signup: "Create account", email: "Email", password: "Password",
+    loginBtn: "Log in", forgot: "Forgot password?", name: "Full name", pwHint: "At least 6 characters.", stage: "Your stage", chooseStage: "Choose your stage",
+    signupBtn: "Create account", sendLink: "Send reset link", back: "← Back to login", forgotTitle: "Reset your password", forgotSub: "We'll email you a link.",
+    loggingIn: "Logging in…", pending: "Your account is waiting for the warehouse team to approve it.", rejected: "Your account was not approved. Talk to the warehouse team.",
+    created: "Account created. The warehouse team will approve it soon. If asked, confirm your email first.", sent: "If this email has an account, a reset link is on its way. Check spam too.",
+    noProfile: "Your account could not be loaded. Talk to the warehouse team.", notConfirmed: "Your email is not confirmed yet. Open the link in your inbox, or ask the warehouse team." },
+  ar: { title: "مخزن الكشافة", tag: "احجز أدوات مرحلتك، تابعها لحد ما ترجع، وخلي كل حاجة متعدّة.",
+    welcome: "أهلاً بيك", welcomeSub: "اختار اللغة، وبعدين سجّل دخول.", login: "دخول", signup: "حساب جديد", email: "البريد الإلكتروني", password: "كلمة السر",
+    loginBtn: "دخول", forgot: "نسيت كلمة السر؟", name: "الاسم بالكامل", pwHint: "٦ حروف على الأقل.", stage: "مرحلتك", chooseStage: "اختار مرحلتك",
+    signupBtn: "إنشاء الحساب", sendLink: "ابعت رابط التغيير", back: "→ رجوع للدخول", forgotTitle: "تغيير كلمة السر", forgotSub: "هنبعتلك رابط على الإيميل.",
+    loggingIn: "جاري الدخول…", pending: "حسابك مستني موافقة فريق المخزن.", rejected: "حسابك ما اتوافقش عليه. كلّم فريق المخزن.",
+    created: "الحساب اتعمل. فريق المخزن هيوافق عليه قريب. لو طلب منك، أكّد الإيميل الأول.", sent: "لو الإيميل ده عليه حساب، الرابط في الطريق. بُص في الـ Spam كمان.",
+    noProfile: "مش قادرين نفتح حسابك. كلّم فريق المخزن.", notConfirmed: "الإيميل لسه ما اتأكدش. افتح الرابط اللي في البريد أو كلّم فريق المخزن." },
+  fr: { title: "Entrepôt scout", tag: "Réservez le matériel de votre unité, suivez-le jusqu'à son retour et gardez tout compté.",
+    welcome: "Bienvenue", welcomeSub: "Choisissez votre langue, puis connectez-vous.", login: "Connexion", signup: "Créer un compte", email: "E-mail", password: "Mot de passe",
+    loginBtn: "Se connecter", forgot: "Mot de passe oublié ?", name: "Nom complet", pwHint: "Au moins 6 caractères.", stage: "Votre unité", chooseStage: "Choisissez votre unité",
+    signupBtn: "Créer le compte", sendLink: "Envoyer le lien", back: "← Retour à la connexion", forgotTitle: "Réinitialiser le mot de passe", forgotSub: "Nous vous enverrons un lien par e-mail.",
+    loggingIn: "Connexion…", pending: "Votre compte attend l'approbation de l'équipe de l'entrepôt.", rejected: "Votre compte n'a pas été approuvé. Contactez l'équipe de l'entrepôt.",
+    created: "Compte créé. L'équipe l'approuvera bientôt. Si demandé, confirmez d'abord votre e-mail.", sent: "Si ce compte existe, un lien arrive. Vérifiez aussi les spams.",
+    noProfile: "Impossible de charger votre compte. Contactez l'équipe.", notConfirmed: "Votre e-mail n'est pas encore confirmé. Ouvrez le lien reçu ou contactez l'équipe." }
+};
+const w = k => (T[BAS.lang] || T.en)[k] || T.en[k];
+
+function applyLang() {
+  document.documentElement.lang = BAS.lang;
+  document.documentElement.dir = BAS.lang === "ar" ? "rtl" : "ltr";
+  document.querySelectorAll("[data-k]").forEach(el => { el.textContent = w(el.dataset.k); });
+  document.querySelectorAll("[data-lang]").forEach(b => b.classList.toggle("on", b.dataset.lang === BAS.lang));
+  fillStages();
+}
+document.querySelectorAll("[data-lang]").forEach(b => b.onclick = () => { BAS.setLang(b.dataset.lang); applyLang(); });
+
+function show(kind, text) { const m = $("msg"); m.className = "msg " + kind; m.textContent = text; m.hidden = false; }
+function clear() { $("msg").hidden = true; }
+
+function tab(which) {
+  clear();
+  $("loginForm").hidden = which !== "login";
+  $("signupForm").hidden = which !== "signup";
+  $("forgotForm").hidden = which !== "forgot";
+  $("tabs").hidden = which === "forgot";
+  document.querySelectorAll("[data-tab]").forEach(b => b.classList.toggle("on", b.dataset.tab === which));
+  $("hTitle").textContent = which === "forgot" ? w("forgotTitle") : w("welcome");
+  $("hSub").textContent = which === "forgot" ? w("forgotSub") : w("welcomeSub");
+}
+document.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => tab(b.dataset.tab));
+$("toForgot").onclick = () => tab("forgot");
+$("backLogin").onclick = () => tab("login");
+
+async function fillStages() {
+  if (!BAS.sections.length) {
+    const r = await supabaseClient.from("sections").select("id, name_en, name_ar").order("id");
+    if (!r.error) BAS.sections = r.data;
+  }
+  const v = $("sStage").value;
+  $("sStage").innerHTML = '<option value="">' + BAS.esc(w("chooseStage")) + "</option>" +
+    BAS.sections.map(s => '<option value="' + s.id + '">' + BAS.esc(s.name_ar) + " · " + BAS.esc(s.name_en) + "</option>").join("");
+  $("sStage").value = v;
+}
+
+function nextURL(profile) {
+  const n = new URLSearchParams(location.search).get("next");
+  if (n && /^[a-z0-9_-]+\.html(\?[a-z0-9=&_-]*)?$/i.test(n)) return n;
+  return profile.role === "admin" ? "team.html" : "section.html";
+}
+
+$("loginForm").onsubmit = async e => {
+  e.preventDefault(); clear();
+  const b = $("lBtn"); b.disabled = true; b.textContent = w("loggingIn");
+  try {
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email: $("lEmail").value.trim(), password: $("lPass").value });
+    if (error) throw new Error(/not confirmed/i.test(error.message) ? w("notConfirmed") : error.message);
+    const p = await supabaseClient.from("profiles").select("full_name, role, approval_status, section_id").eq("id", data.user.id).single();
+    if (p.error) { await supabaseClient.auth.signOut(); throw new Error(w("noProfile")); }
+    if (p.data.approval_status !== "approved") {
+      await supabaseClient.auth.signOut();
+      const bad = p.data.approval_status === "rejected" || p.data.approval_status === "removed";
+      show(bad ? "err" : "info", w(bad ? "rejected" : "pending"));
+      return;
+    }
+    location.href = nextURL(p.data);
+  } catch (err) { show("err", err.message); }
+  finally { b.disabled = false; b.textContent = w("loginBtn"); }
+};
+
+$("signupForm").onsubmit = async e => {
+  e.preventDefault(); clear();
+  if (!$("sStage").value) { show("err", w("chooseStage")); return; }
+  const b = $("sBtn"); b.disabled = true;
+  try {
+    const { error } = await supabaseClient.auth.signUp({ email: $("sEmail").value.trim(), password: $("sPass").value,
+      options: { data: { full_name: $("sName").value.trim(), section_id: $("sStage").value }, emailRedirectTo: location.origin + "/auth.html" } });
+    if (error) throw error;
+    await supabaseClient.auth.signOut();
+    $("signupForm").reset(); tab("login"); show("ok", w("created"));
+  } catch (err) { show("err", err.message); }
+  finally { b.disabled = false; }
+};
+
+$("forgotForm").onsubmit = async e => {
+  e.preventDefault(); clear();
+  const b = $("fBtn"); b.disabled = true;
+  const { error } = await supabaseClient.auth.resetPasswordForEmail($("fEmail").value.trim(), { redirectTo: location.origin + "/reset-password.html" });
+  b.disabled = false;
+  if (error) show("err", error.message); else show("ok", w("sent"));
+};
+
+const thb = document.getElementById("thBtn");
+const thSet = () => { thb.textContent = BAS.theme() === "dark" ? "☀️ Light" : "🌙 Dark"; };
+thb.onclick = () => { BAS.setTheme(BAS.theme() === "dark" ? "light" : "dark"); thSet(); };
+thSet();
+(async function () {
+  applyLang();
+  const params = new URLSearchParams(location.search);
+  if (params.get("pending")) { await supabaseClient.auth.signOut(); show("info", w("pending")); return; }
+  const { data } = await supabaseClient.auth.getSession();
+  if (data.session) {
+    const p = await supabaseClient.from("profiles").select("role, approval_status").eq("id", data.session.user.id).single();
+    if (!p.error && p.data.approval_status === "approved") location.replace(nextURL(p.data));
+  }
+})();
+</script>
+</body>
+</html>

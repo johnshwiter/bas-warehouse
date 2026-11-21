@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300" fill="none" stroke="#17196A" stroke-opacity="0.09" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<!-- fleur-de-lis -->
+<g transform="translate(40 30)"><path d="M30 6c-8 10-8 22 0 34 8-12 8-24 0-34z"/><path d="M30 40c-6-14-22-16-26-6 4-2 12 0 14 8"/><path d="M30 40c6-14 22-16 26-6-4-2-12 0-14 8"/><path d="M18 44h24"/><path d="M30 44v14m-6-4 6 6 6-6"/></g>
+<!-- lotus -->
+<g transform="translate(180 40)"><path d="M40 50c-10-10-10-26 0-38 10 12 10 28 0 38z"/><path d="M40 50c-14-2-26-12-28-26 12 2 22 10 28 26z"/><path d="M40 50c14-2 26-12 28-26-12 2-22 10-28 26z"/><path d="M10 54c16 6 44 6 60 0"/></g>
+<!-- angel wings with sword (St. Michael) -->
+<g transform="translate(30 165)"><path d="M50 10v62m-8-50h16m-8 50 0 8"/><path d="M44 30c-14-14-34-14-40-4 10 0 16 4 20 10-8 0-14 4-16 10 10-2 20 0 30-6"/><path d="M56 30c14-14 34-14 40-4-10 0-16 4-20 10 8 0 14 4 16 10-10-2-20 0-30-6"/></g>
+<!-- tent -->
+<g transform="translate(185 175)"><path d="M10 60 45 10l35 50z"/><path d="M45 10v50m-12 0 12-22 12 22"/><path d="M2 60h86"/></g>
+<!-- reef knot / rope -->
+<g transform="translate(125 115)"><path d="M0 20c10-14 24-14 30 0s20 14 30 0"/><path d="M0 26c10 14 24 14 30 0s20-14 30 0"/></g>
+<!-- compass star -->
+<g transform="translate(140 250)"><circle cx="12" cy="12" r="11"/><path d="M12 3l3 9-3 9-3-9z"/></g>
+</svg>
