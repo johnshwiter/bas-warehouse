@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Item history | BAS Warehouse</title>
+<link rel="icon" href="logo.png">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#17196A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="BAS Warehouse">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="bas.css">
+</head>
+<body>
+<main class="page">
+  <div class="crumbs"><a href="#" id="backLink">‹ Back</a></div>
+  <div id="view"><div class="loading">Loading…</div></div>
+</main>
+<div class="overlay" id="sheet" hidden></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="common.js"></script>
+<script src="i18n.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const esc = s => BAS.esc(s);
+const ID = Number(new URLSearchParams(location.search).get("id"));
+let IT = null, BY = {}, RES = [], LOSSES = [], MAINT = [], LOG = [], VAR = "";
+
+$("backLink").onclick = e => { e.preventDefault(); if (history.length > 1) history.back(); else location.href = BAS.homeURL(); };
+
+(async function () {
+  await BAS.init("stock");
+  if (!BAS.requireApproved()) return;
+  await load();
+})();
+
+async function load() {
+  try {
+    const st = await BAS.loadStock(); BY = st.byId; IT = BY[ID];
+    if (!IT) { $("view").innerHTML = '<div class="empty">This item was not found or was deleted.</div>'; return; }
+    document.title = IT.name_en + " | BAS Warehouse";
+    const lines = await BAS.q(supabaseClient.from("reservation_items").select("id, reservation_id, item_id, variant_id, quantity, prepared_qty, issued_qty, returned_qty, missing_qty, damaged_qty").eq("item_id", ID));
+    const ids = [...new Set(lines.map(l => l.reservation_id))];
+    let res = [];
+    for (let i = 0; i < ids.length; i += 150) res = res.concat(await BAS.q(supabaseClient.from("reservations").select("*").in("id", ids.slice(i, i + 150))));
+    RES = res.map(r => Object.assign(r, { lines: lines.filter(l => l.reservation_id === r.id) })).sort((a, b) => a.created_at < b.created_at ? 1 : -1);
+    LOSSES = await BAS.q(supabaseClient.from("loss_status").select("*").eq("item_id", ID).order("created_at", { ascending: false }));
+    if (BAS.isAdmin()) {
+      MAINT = await BAS.q(supabaseClient.from("maintenance").select("*").eq("item_id", ID).order("created_at", { ascending: false }));
+      LOG = await BAS.q(supabaseClient.from("activity_log").select("*").eq("entity", "items").eq("entity_id", String(ID)).order("at", { ascending: false }).limit(100));
+      const pr = await supabaseClient.from("profiles").select("id, full_name"); BAS.NAMES = {}; (pr.data || []).forEach(p => { BAS.NAMES[p.id] = p.full_name; });
+    }
+    render();
+  } catch (e) { $("view").innerHTML = '<div class="msg err">' + esc(BAS.errText(e)) + "</div>"; }
+}
+
+const vname = id => { const v = (IT.variants || []).find(x => x.id === id); return v ? v.name : ""; };
+const person = id => (BAS.NAMES || {})[id] || "";
+
+function timeline() {
+  const ev = [];
+  RES.forEach(r => {
+    const ls = r.lines.filter(l => !VAR || String(l.variant_id || "") === VAR);
+    if (!ls.length) return;
+    const who = '<a class="lnk" href="' + BAS.borrowerURL(r.section_id, r.service_id) + '"><bdi>' + esc(BAS.borrowerName(r.section_id, r.service_id)) + "</bdi></a>";
+    const q = f => ls.map(l => (l[f] || 0) + (l.variant_id ? " " + esc(vname(l.variant_id)) : "")).join(", ");
+    ev.push({ at: r.created_at, cls: "book", html: "<b>Booked " + q("quantity") + "</b> by " + who + " for " + esc(BAS.fmtDate(r.meeting_date, true)) + " " + esc(r.meeting_time || "") + " · " + esc(r.place || "") + " · #" + r.id + " " + BAS.statusBadge(r.status) });
+    if (r.issued_at) ev.push({ at: r.issued_at, cls: "out", html: "<b>Issued " + q("issued_qty") + "</b> to " + who + (r.received_by_name ? " (" + esc(r.received_by_name) + ")" : "") + " · #" + r.id + (r.return_by ? " · return by " + esc(BAS.fmtDate(r.return_by)) : "") });
+    const back = ls.reduce((t, l) => t + l.returned_qty, 0), mis = ls.reduce((t, l) => t + l.missing_qty, 0), dmg = ls.reduce((t, l) => t + l.damaged_qty, 0);
+    if (r.returned_at || back || mis || dmg) ev.push({ at: r.returned_at || r.completed_at || r.issued_at, cls: mis || dmg ? "bad" : "back", html: "<b>Came back</b> from " + who + ": " + back + " OK" + (mis ? ', <span class="bad">' + mis + " missing</span>" : "") + (dmg ? ', <span class="bad">' + dmg + " damaged</span>" : "") + " · #" + r.id + (r.returned_at ? "" : " (partly)") });
+    if (r.status === "Cancelled" || r.status === "Rejected") ev.push({ at: r.completed_at || r.created_at, cls: "", html: esc(r.status) + " · #" + r.id + (r.closed_reason ? " · " + esc(r.closed_reason) : "") });
+  });
+  MAINT.filter(m => !VAR || String(m.variant_id || "") === VAR).forEach(m => {
+    ev.push({ at: m.created_at, cls: "fix", html: "<b>🔧 " + m.qty + (m.variant_id ? " " + esc(vname(m.variant_id)) : "") + " sent to maintenance</b>: " + esc(m.reason) + (m.problem ? " · " + esc(m.problem) : "") + (m.responsible ? " · " + esc(m.responsible) : "") });
+    if (m.closed_on) ev.push({ at: m.closed_on + "T12:00:00", cls: m.status === "Fixed" ? "back" : "bad", html: "<b>" + (m.status === "Fixed" ? "✅ " + m.qty + " back from maintenance" : "🗑 " + m.qty + " written off") + "</b>" + (m.cost != null ? " · cost " + BAS.money(m.cost) : "") + (m.close_note ? " · " + esc(m.close_note) : "") });
+  });
+  if (!VAR) LOG.forEach(x => {
+    const q = x.details && x.details.quantity, f = x.details && x.details.repaired_found;
+    const det = Array.isArray(q) ? " · count " + esc(q[0]) + " → <b>" + esc(q[1]) + "</b>" : (Array.isArray(f) ? " · repaired/found " + esc(f[0]) + " → <b>" + esc(f[1]) + "</b>" : "");
+    ev.push({ at: x.at, cls: "", html: esc(x.action.replace("items created", "Item added")) + det + (x.actor ? " · " + esc(person(x.actor)) : "") });
+  });
+  return ev.sort((a, b) => a.at < b.at ? 1 : -1);
+}
+
+function render() {
+  const i = IT, total = i.quantity + i.repaired_found, vars = i.variants || [];
+  const times = RES.filter(r => r.issued_at).length;
+  const ev = timeline();
+  let h = '<div class="head"><div style="display:flex;gap:14px;align-items:center"><div class="thumb" style="width:76px;height:76px;flex-basis:76px;font-size:36px' + (i.image_url ? ";background-image:url('" + esc(i.image_url) + "')" : "") + '">' + (i.image_url ? "" : BAS.icon(i.category)) + "</div>" +
+    '<div><p class="eyebrow">' + esc(i.category || "Other") + " · " + esc(i.kind) + "</p><h1>" + esc(i.name_en) + "</h1>" + (i.name_ar ? '<p class="sub ar" dir="rtl">' + esc(i.name_ar) + "</p>" : "") + "</div></div>" +
+    (BAS.isAdmin() ? '<div class="actions" style="margin:0"><button class="btn line" id="mGo">🔧 Send to maintenance</button><a class="btn line" href="team.html#stock">Edit in stock</a></div>' : "") + "</div>";
+  h += '<div class="kpis"><div class="kpi"><p>Total</p><h3>' + (i.counted ? total : "?") + '</h3></div><div class="kpi ok"><p>Available</p><h3>' + (i.counted ? i.available : "?") + '</h3></div><div class="kpi"><p>Booked / out</p><h3>' + i.out_now +
+    '</h3></div><div class="kpi fix"><p>In maintenance</p><h3>' + (i.maintenance || 0) + '</h3></div><div class="kpi bad"><p>Missing</p><h3>' + i.missing + '</h3></div><div class="kpi warn"><p>Damaged</p><h3>' + i.damaged + '</h3></div><div class="kpi gold"><p>Times issued</p><h3>' + times + "</h3></div></div>";
+  if (i.location || i.notes || i.description) h += '<div class="panel">' + (i.description ? esc(i.description) + "<br>" : "") + (i.location ? "📍 " + esc(i.location) + " " : "") + (i.notes ? '<span class="mut">· ' + esc(i.notes) + "</span>" : "") + "</div>";
+  if (vars.length) h += '<div class="group-title">Colours</div><div class="panel tscroll"><table class="ltable"><tr><th>Colour</th><th class="num">Total</th><th class="num">Available</th><th class="num">Out</th><th class="num">Maintenance</th></tr>' +
+    vars.map(v => "<tr><td>" + esc(v.name) + (v.is_active ? "" : ' <span class="pill mut">HIDDEN</span>') + '</td><td class="num">' + (v.quantity + v.repaired_found) + '</td><td class="num"><b>' + v.available + '</b></td><td class="num">' + v.out_now + '</td><td class="num">' + (v.maintenance || 0) + "</td></tr>").join("") + "</table></div>";
+  const openM = MAINT.filter(m => m.status === "Open");
+  if (openM.length) h += '<div class="group-title">In maintenance now</div>' + openM.map(mRow).join("");
+  h += '<div class="group-title">Full movement history</div>' +
+    (vars.length ? '<div class="chips"><button class="tab' + (VAR === "" ? " on" : "") + '" data-v="">All colours</button>' + vars.map(v => '<button class="tab' + (VAR === String(v.id) ? " on" : "") + '" data-v="' + v.id + '">' + esc(v.name) + "</button>").join("") + "</div>" : "") +
+    (ev.length ? '<div class="panel"><div class="tl">' + ev.map(e => '<div class="tl-row ' + e.cls + '"><small>' + esc(BAS.fmtDateTime(e.at)) + "</small><div>" + e.html + "</div></div>").join("") + "</div></div>" : '<div class="empty">No movements yet.</div>');
+  if (LOSSES.length) h += '<div class="group-title">Missing and damaged</div>' + BAS.lossTable(LOSSES, BY, { who: true });
+  if (!BAS.isAdmin()) h += '<p class="meta mt">You see your own stage\'s movements. The warehouse team sees everyone\'s.</p>';
+  $("view").innerHTML = h;
+  $("view").querySelectorAll("[data-v]").forEach(b => b.onclick = () => { VAR = b.dataset.v; render(); });
+  if ($("mGo")) $("mGo").onclick = maintSheet;
+  bindM();
+  if ($("mGo") && location.hash === "#maint") { history.replaceState(null, "", location.search); maintSheet(); }
+}
+
+function mRow(m) {
+  return '<div class="panel"><b>🔧 ' + m.qty + (m.variant_id ? " " + esc(vname(m.variant_id)) : "") + "</b> · " + esc(m.reason) + (m.problem ? " · " + esc(m.problem) : "") +
+    '<div class="meta">Since ' + esc(BAS.fmtDate(m.started_on)) + (m.expected_back ? " · back by " + esc(BAS.fmtDate(m.expected_back)) : "") + (m.responsible ? " · " + esc(m.responsible) : "") + (m.cost != null ? " · " + BAS.money(m.cost) : "") + "</div>" +
+    '<div class="actions"><button class="btn ok sm" data-mfix="' + m.id + '">Fixed: back in stock</button><button class="btn danger sm" data-mwo="' + m.id + '">Write off</button></div></div>';
+}
+function bindM() {
+  const close = async (id, status) => {
+    const cost = prompt(status === "Fixed" ? "Repair cost in EGP (leave empty if none):" : "Note why it's written off (optional):", "");
+    if (cost === null) return;
+    const args = status === "Fixed" ? { p_id: id, p_status: status, p_cost: cost.trim() === "" ? null : Number(cost), p_note: null } : { p_id: id, p_status: status, p_cost: null, p_note: cost };
+    if (status === "Fixed" && args.p_cost != null && !(args.p_cost >= 0)) return BAS.toast("Cost must be a number", "err");
+    const { error } = await supabaseClient.rpc("close_maintenance", args);
+    if (error) return BAS.toast(BAS.errText(error), "err");
+    BAS.toast(status === "Fixed" ? "Back in stock" : "Written off"); load();
+  };
+  $("view").querySelectorAll("[data-mfix]").forEach(b => b.onclick = () => close(Number(b.dataset.mfix), "Fixed"));
+  $("view").querySelectorAll("[data-mwo]").forEach(b => b.onclick = () => { if (confirm("Write these pieces off? They leave the stock for good.")) close(Number(b.dataset.mwo), "Written off"); });
+}
+
+function maintSheet() {
+  const o = $("sheet"), vars = (IT.variants || []).filter(v => v.is_active);
+  o.innerHTML = '<div class="sheet"><h2>🔧 Send to maintenance</h2><p class="sub">' + esc(IT.name_en) + ". These pieces can't be booked until they're marked fixed.</p><div class=\"panel\">" +
+    '<div class="grid2">' + (vars.length ? '<div class="field"><label>Colour</label><select id="mV">' + vars.map(v => '<option value="' + v.id + '">' + esc(v.name) + " (" + v.available + " available)</option>").join("") + "</select></div>" : "") +
+    '<div class="field"><label>How many pieces?</label><input id="mQ" type="number" min="1" value="1"><div class="hint">Available now: ' + (IT.available == null ? "not counted" : IT.available) + "</div></div></div>" +
+    '<div class="grid2"><div class="field"><label>Reason</label><input id="mR" placeholder="Broken, torn, needs cleaning…"></div><div class="field"><label>Problem details</label><input id="mP"></div></div>' +
+    '<div class="grid3"><div class="field"><label>Expected back</label><input id="mB" type="date" min="' + BAS.todayISO() + '"></div><div class="field"><label>Repair cost (EGP)</label><input id="mC" type="number" min="0"></div><div class="field"><label>Who is responsible</label><input id="mW"></div></div></div>' +
+    '<div id="mErr" class="msg err" hidden></div><div class="actions"><button class="btn gold" id="mSave">Send to maintenance</button><button class="btn line" id="mBack">Back</button></div></div>';
+  o.hidden = false;
+  $("mBack").onclick = () => { o.hidden = true; };
+  o.onclick = e => { if (e.target === o) o.hidden = true; };
+  $("mSave").onclick = async () => {
+    const qty = Number($("mQ").value), cost = $("mC").value.trim();
+    const fail = m => { $("mErr").textContent = m; $("mErr").hidden = false; };
+    if (!Number.isInteger(qty) || qty < 1) return fail("How many pieces? 1 or more.");
+    if (!$("mR").value.trim()) return fail("Write the reason.");
+    const { error } = await supabaseClient.rpc("start_maintenance", { p_item: ID, p_variant: $("mV") ? Number($("mV").value) : null, p_qty: qty, p_reason: $("mR").value, p_problem: $("mP").value,
+      p_expected_back: $("mB").value || null, p_cost: cost === "" ? null : Number(cost), p_responsible: $("mW").value });
+    if (error) return fail(BAS.errText(error));
+    o.hidden = true; BAS.toast("Sent to maintenance"); load();
+  };
+}
+</script>
+</body>
+</html>
