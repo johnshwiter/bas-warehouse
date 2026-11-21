@@ -1,0 +1,418 @@
+// =========================================================
+// BAS WAREHOUSE: translation of every screen (Egyptian Arabic + French)
+// Pages are written in English; this file swaps the words on screen.
+// To fix a word: find the English text below and change the Arabic or French next to it.
+// =========================================================
+"use strict";
+(function () {
+  const L = BAS.lang;
+  if (L === "en" || document.body.hasAttribute("data-noi18n")) return;
+  const K = L === "ar" ? 0 : 1;
+  document.documentElement.lang = L;
+  if (L === "ar") document.documentElement.dir = "rtl";
+
+  // ---------- exact texts: "English": ["العربي", "Français"] ----------
+  const D = {
+    // menus and common
+    "Overview": ["نظرة عامة", "Vue d'ensemble"], "Requests": ["الطلبات", "Demandes"], "Book items": ["احجز أدوات", "Réserver"], "Calendar": ["التقويم", "Calendrier"],
+    "Stock": ["المخزون", "Stock"], "Profile": ["حسابي", "Profil"], "My stage": ["مرحلتي", "Mon unité"], "Logout": ["خروج", "Déconnexion"],
+    "Warehouse team": ["فريق المخزن", "Équipe entrepôt"], "Leader": ["قائد", "Chef"], "BAS Warehouse": ["مخزن BAS", "Entrepôt BAS"],
+    "Loading…": ["بيحمّل…", "Chargement…"], "Opening the warehouse…": ["بنفتح المخزن…", "Ouverture de l'entrepôt…"],
+    "Back": ["رجوع", "Retour"], "‹ Back": ["‹ رجوع", "‹ Retour"], "Save": ["حفظ", "Enregistrer"], "Delete": ["مسح", "Supprimer"], "Edit": ["تعديل", "Modifier"],
+    "Close": ["قفل", "Fermer"], "Cancel": ["إلغاء", "Annuler"], "Reject": ["رفض", "Refuser"], "Approve": ["موافقة", "Approuver"], "Remove": ["شيل", "Retirer"],
+    "Open": ["افتح", "Ouvrir"], "Open page": ["افتح الصفحة", "Ouvrir la page"], "Show": ["إظهار", "Afficher"], "Hide": ["إخفاء", "Masquer"], "Post": ["انشر", "Publier"],
+    "Clear": ["امسح", "Effacer"], "Today": ["النهارده", "Aujourd'hui"], "All": ["الكل", "Tout"], "Other": ["تاني", "Autre"], "Others": ["تاني", "Autres"],
+    "Status": ["الحالة", "Statut"], "Date": ["التاريخ", "Date"], "Time": ["الوقت", "Heure"], "Place": ["المكان", "Lieu"], "Note": ["ملاحظة", "Note"], "Notes": ["ملاحظات", "Notes"],
+    "Item": ["الأداة", "Article"], "Items": ["الأدوات", "Articles"], "Qty": ["العدد", "Qté"], "Kind": ["النوع", "Type"], "Type": ["النوع", "Type"], "Price": ["السعر", "Prix"],
+    "Total": ["الإجمالي", "Total"], "Request": ["الطلب", "Demande"], "Title": ["العنوان", "Titre"], "Message": ["الرسالة", "Message"], "For": ["لـ", "Pour"], "From": ["من", "De"],
+    "To": ["لـ", "À"], "Who": ["مين", "Qui"], "Since": ["من", "Depuis"], "Start": ["البداية", "Début"], "Reason": ["السبب", "Raison"], "Cost": ["التكلفة", "Coût"],
+    "Stage": ["المرحلة", "Unité"], "Stage / service": ["المرحلة / الخدمة", "Unité / service"], "Role": ["الدور", "Rôle"], "Account": ["الحساب", "Compte"], "Email": ["الإيميل", "E-mail"],
+    "Full name": ["الاسم بالكامل", "Nom complet"], "Language": ["اللغة", "Langue"], "Your account": ["حسابك", "Votre compte"], "Your stage": ["مرحلتك", "Votre unité"],
+    "My": ["", "Mon"], "profile": ["حسابي", "profil"], "you": ["إنت", "vous"], "You": ["إنت", "Vous"], "by": ["من", "par"], "to": ["لـ", "à"], "from": ["من", "de"], "used": ["اتستهلك", "utilisé"],
+    "SERVICE": ["خدمة", "SERVICE"], "WAREHOUSE": ["المخزن", "ENTREPÔT"], "Scout stage": ["مرحلة كشفية", "Unité scoute"], "Church service": ["خدمة في الكنيسة", "Service de l'église"],
+    "Scout stages": ["المراحل الكشفية", "Unités scoutes"], "Other church services": ["خدمات تانية في الكنيسة", "Autres services de l'église"], "Everyone": ["الكل", "Tout le monde"],
+    "All stages": ["كل المراحل", "Toutes les unités"], "all stages": ["كل المراحل", "toutes les unités"], "All stages and services": ["كل المراحل والخدمات", "Toutes les unités et services"],
+    "No stage": ["من غير مرحلة", "Sans unité"], "another leader": ["قائد تاني", "un autre chef"], "system": ["النظام", "système"], "Less": ["أقل", "Moins"], "More": ["أكتر", "Plus"],
+    "Previous month": ["الشهر اللي فات", "Mois précédent"], "Next month": ["الشهر الجاي", "Mois suivant"], "Search items": ["دوّر على أداة", "Rechercher"],
+
+    // statuses and pills
+    "Waiting": ["مستني", "En attente"], "Preparing": ["بيتجهز", "En préparation"], "Ready to collect": ["جاهز للاستلام", "Prêt à récupérer"], "Issued": ["اتسلّم", "Remis"],
+    "Partly returned": ["رجع جزء", "Rendu en partie"], "Returned": ["رجع", "Rendu"], "Completed": ["خلص", "Terminé"], "Cancelled": ["اتلغى", "Annulé"], "Rejected": ["اترفض", "Refusé"],
+    "Pending": ["مستني", "En attente"], "OVERDUE": ["متأخر", "EN RETARD"], "LATE": ["متأخر", "TARDIF"], "LOW": ["قليل", "BAS"], "OUT": ["خلص", "ÉPUISÉ"], "RECOUNT": ["محتاج يتعد", "À RECOMPTER"],
+    "NONE LEFT": ["مفيش باقي", "PLUS RIEN"], "NOT COUNTED YET": ["لسه ما اتعدش", "PAS ENCORE COMPTÉ"], "MISSING": ["ناقص", "MANQUANT"], "DAMAGED": ["بايظ", "ABÎMÉ"],
+    "PAID": ["اتدفع", "PAYÉ"], "NO PRICE": ["من غير سعر", "SANS PRIX"], "APPROVED": ["متوافق عليه", "APPROUVÉ"], "PENDING": ["مستني", "EN ATTENTE"], "REJECTED": ["مرفوض", "REFUSÉ"],
+    "CANCELLED": ["اتلغى", "ANNULÉ"], "HIDDEN": ["مخفي", "MASQUÉ"], "FIXED": ["اتصلّح", "RÉPARÉ"], "WRITTEN OFF": ["اتشطب", "MIS AU REBUT"], "ON YOUR WAITLIST": ["في قايمة انتظارك", "SUR VOTRE LISTE"],
+    "CHANGE ASKED": ["مطلوب تعديل", "MODIF. DEMANDÉE"], "MEETING": ["اجتماع", "RÉUNION"], "TRIP": ["رحلة", "SORTIE"], "CAMP": ["معسكر", "CAMP"], "OTHER": ["تاني", "AUTRE"],
+    "Returnable": ["بترجع", "À rendre"], "Consumable": ["بتستهلك", "Consommable"], "Clash": ["تعارض", "Conflit"],
+
+    // book page
+    "Book equipment": ["احجز أدوات", "Réserver du matériel"], "What do you": ["إنت محتاج", "De quoi avez-vous"], "need?": ["إيه؟", "besoin ?"],
+    "Pick items and quantities, then send. Pieces are held for you as soon as you send.": ["اختار الأدوات والعدد وابعت. القطع بتتحجزلك أول ما تبعت.", "Choisissez les articles et les quantités, puis envoyez. Les pièces vous sont réservées dès l'envoi."],
+    "Search: shoum, حبل, pot…": ["دوّر: شومة، حبل، حلة…", "Rechercher : shoum, corde, pot…"],
+    "All items": ["كل الأدوات", "Tous les articles"], "No items match.": ["مفيش أدوات بالاسم ده.", "Aucun article trouvé."], "Used up (not returned)": ["بتستهلك (مش بترجع)", "Consommable (non rendu)"],
+    "READY TO SEND": ["جاهز للإرسال", "PRÊT À ENVOYER"], "Review →": ["راجع ←", "Vérifier →"], "Review your request": ["راجع طلبك", "Vérifiez votre demande"],
+    "🔔 Join waitlist": ["🔔 استنى لما يتوفر", "🔔 Liste d'attente"], "Join waitlist": ["انضم لقايمة الانتظار", "Rejoindre la liste"], "History": ["السجل", "Historique"],
+    "Joining the waitlist does not book anything. When pieces come back you'll get an alert, then you book it normally.": ["قايمة الانتظار مش بتحجز حاجة. لما القطع ترجع هيجيلك تنبيه، وبعدين تحجز عادي.", "La liste d'attente ne réserve rien. Quand des pièces reviennent, vous êtes prévenu, puis vous réservez normalement."],
+    "Colour": ["اللون", "Couleur"], "How many do you need?": ["محتاج كام؟", "Combien en faut-il ?"], "Needed by (optional)": ["محتاجه قبل (اختياري)", "Nécessaire avant (facultatif)"],
+    "Note (optional)": ["ملاحظة (اختياري)", "Note (facultatif)"], "For the camp…": ["للمعسكر…", "Pour le camp…"],
+    "For which stage or church service?": ["لأنهي مرحلة أو خدمة؟", "Pour quelle unité ou quel service ?"], "Others: type a service or church…": ["تاني: اكتب اسم الخدمة أو الكنيسة…", "Autre : saisir un service ou une église…"],
+    "Service or church name": ["اسم الخدمة أو الكنيسة", "Nom du service ou de l'église"], "Meeting date (pickup)": ["ميعاد الاجتماع (الاستلام)", "Date de la réunion (retrait)"],
+    "Write the time": ["اكتب الوقت", "Indiquez l'heure"], "Meeting place": ["مكان الاجتماع", "Lieu de la réunion"], "Roof, villa, el dor el 5…": ["السطح، الفيلا، الدور الخامس…", "Toit, villa, 5e étage…"],
+    "Why the change?": ["ليه التعديل؟", "Pourquoi ce changement ?"], "More kids are coming…": ["فيه أطفال زيادة جايين…", "Plus d'enfants viennent…"],
+    "We are responsible for returning all items in good condition.": ["إحنا مسؤولين نرجّع كل الأدوات بحالة كويسة.", "Nous sommes responsables de rendre tout le matériel en bon état."],
+    "Send request": ["ابعت الطلب", "Envoyer la demande"], "Save changes": ["احفظ التعديل", "Enregistrer"], "Send change for approval": ["ابعت التعديل للموافقة", "Envoyer pour approbation"],
+    "Request sent ✓": ["الطلب اتبعت ✓", "Demande envoyée ✓"], "Change sent ✓": ["التعديل اتبعت ✓", "Modification envoyée ✓"], "Go to my stage": ["روح لمرحلتي", "Aller à mon unité"],
+    "Go to requests": ["روح للطلبات", "Aller aux demandes"], "Book something else": ["احجز حاجة تانية", "Réserver autre chose"], "Stop editing": ["وقّف التعديل", "Arrêter la modification"],
+    "Change the items, then save. The new quantities are checked against stock.": ["غيّر الأدوات واحفظ. الأعداد الجديدة بتتراجع على المخزون.", "Modifiez les articles puis enregistrez. Les quantités sont vérifiées."],
+    "Change what you need. The warehouse team will approve or reject the change; until then the old request stays as it is.": ["غيّر اللي محتاجه. فريق المخزن هيوافق أو يرفض، ولحد ساعتها الطلب القديم زي ما هو.", "Modifiez ce qu'il faut. L'équipe acceptera ou refusera ; d'ici là, l'ancienne demande reste."],
+    "The new quantities are held.": ["الأعداد الجديدة اتحجزت.", "Les nouvelles quantités sont réservées."],
+    "The warehouse team will approve or reject it. The old request stays until then.": ["فريق المخزن هيوافق أو يرفض. الطلب القديم فاضل لحد ساعتها.", "L'équipe va l'accepter ou la refuser. L'ancienne demande reste jusque-là."],
+    "No items chosen. Add items, or cancel the request from your stage page instead.": ["مفيش أدوات مختارة. ضيف أدوات، أو الغي الطلب من صفحة المرحلة.", "Aucun article. Ajoutez-en, ou annulez la demande depuis votre page."],
+    "Scout stages ": ["المراحل الكشفية", "Unités scoutes"],
+
+    // stage page
+    "Requests, equipment out, history, losses and news for this stage.": ["الطلبات، الأدوات اللي برّه، السجل، النواقص والأخبار بتاعة المرحلة دي.", "Demandes, matériel sorti, historique, pertes et nouvelles de cette unité."],
+    "Requests, equipment out, history, losses and news for this service.": ["الطلبات، الأدوات اللي برّه، السجل، النواقص والأخبار بتاعة الخدمة دي.", "Demandes, matériel sorti, historique, pertes et nouvelles de ce service."],
+    "Dashboard": ["الرئيسية", "Tableau de bord"], "History & search": ["السجل والبحث", "Historique et recherche"], "Equipment out / back": ["الأدوات برّه / رجعت", "Matériel sorti / rendu"],
+    "Missing & compensation": ["النواقص والتعويض", "Pertes et compensation"], "Announcements": ["الإعلانات", "Annonces"], "Waitlist": ["قايمة الانتظار", "Liste d'attente"], "Messages": ["الرسايل", "Messages"],
+    "+ Book items": ["+ احجز أدوات", "+ Réserver"], "+ Book for them": ["+ احجز ليهم", "+ Réserver pour eux"],
+    "Waiting / preparing": ["مستني / بيتجهز", "En attente / préparation"], "Pieces out now": ["قطع برّه دلوقتي", "Pièces sorties"], "Overdue": ["متأخر", "En retard"],
+    "Missing pieces": ["قطع ناقصة", "Pièces manquantes"], "Damaged pieces": ["قطع بايظة", "Pièces abîmées"], "Still owed": ["لسه عليهم", "Reste dû"], "Requests so far": ["الطلبات لحد دلوقتي", "Demandes à ce jour"],
+    "Coming up": ["الجاي", "À venir"], "Out with the stage": ["برّه مع المرحلة", "Sorti avec l'unité"], "Out with them": ["برّه معاهم", "Sorti avec eux"], "Events": ["الأحداث", "Événements"],
+    "No events yet.": ["مفيش أحداث لسه.", "Aucun événement."], "Add one": ["ضيف واحد", "En ajouter"], "No requests waiting.": ["مفيش طلبات مستنية.", "Aucune demande en attente."],
+    "No open requests": ["مفيش طلبات مفتوحة", "Aucune demande ouverte"], "for the next meeting.": ["للاجتماع الجاي.", "pour la prochaine réunion."],
+    "✏️ Ask to change": ["✏️ اطلب تعديل", "✏️ Demander une modif."], "✏️ Edit": ["✏️ تعديل", "✏️ Modifier"], "Withdraw change": ["اسحب التعديل", "Retirer la modification"],
+    "Cancel request": ["الغي الطلب", "Annuler la demande"], "Prepare / issue in team portal": ["جهّز / سلّم من صفحة الفريق", "Préparer / remettre (équipe)"],
+    "Asked": ["المطلوب", "Demandé"], "Back ": ["رجع", "Rendu"], "Missing": ["ناقص", "Manquant"], "Damaged": ["بايظ", "Abîmé"], "Still out": ["لسه برّه", "Encore dehors"], "(used up)": ["(بتستهلك)", "(consommable)"],
+    "Item (when was it taken?)": ["الأداة (اتاخدت إمتى؟)", "Article (quand a-t-il été pris ?)"], "Any item": ["أي أداة", "Tout article"], "From date": ["من تاريخ", "Du"], "To date": ["لحد تاريخ", "Au"],
+    "Meeting, place or request number": ["الاجتماع أو المكان أو رقم الطلب", "Réunion, lieu ou n° de demande"], "Roof, 2:30, #12…": ["السطح، 2:30، #12…", "Toit, 2:30, #12…"],
+    "What did we take today?": ["خدنا إيه النهارده؟", "Qu'avons-nous pris aujourd'hui ?"], "Nothing matches.": ["مفيش حاجة مطابقة.", "Aucun résultat."], "Never booked in these dates.": ["ما اتحجزتش في التواريخ دي.", "Jamais réservé à ces dates."],
+    "Meeting": ["الاجتماع", "Réunion"], "Out now": ["برّه دلوقتي", "Sorti"], "Everything issued (newest first)": ["كل اللي اتسلّم (الأحدث الأول)", "Tout le matériel remis (récent d'abord)"],
+    "Nothing is out right now.": ["مفيش حاجة برّه دلوقتي.", "Rien n'est sorti."], "Nothing has been issued yet.": ["لسه ما اتسلّمش حاجة.", "Rien n'a encore été remis."],
+    "Out": ["طلع", "Sorti"], "Return by / back": ["يرجع قبل / رجع", "À rendre / rendu"],
+    "Total charged": ["إجمالي المطلوب", "Total facturé"], "Paid": ["اتدفع", "Payé"], "Remaining": ["الباقي", "Reste"],
+    "Compensation belongs to the whole stage, not to one leader.": ["التعويض على المرحلة كلها، مش على قائد واحد.", "La compensation est due par toute l'unité, pas par un chef."],
+    "Compensation belongs to the whole service, not to one leader.": ["التعويض على الخدمة كلها، مش على خادم واحد.", "La compensation est due par tout le service."],
+    "Missing and damaged": ["الناقص والبايظ", "Manquant et abîmé"], "Nothing missing or damaged. 👌": ["مفيش حاجة ناقصة ولا بايظة. 👌", "Rien de manquant ni d'abîmé. 👌"],
+    "Record a payment": ["سجّل دفعة", "Enregistrer un paiement"], "Amount (EGP)": ["المبلغ (جنيه)", "Montant (EGP)"], "Date paid": ["تاريخ الدفع", "Date du paiement"], "Save payment": ["احفظ الدفعة", "Enregistrer"],
+    "Payments": ["المدفوعات", "Paiements"], "No payments yet.": ["مفيش مدفوعات لسه.", "Aucun paiement."], "general": ["عام", "général"], "Save price": ["احفظ السعر", "Enregistrer le prix"], "Paid ✓": ["اتدفع ✓", "Payé ✓"],
+    "Total ": ["الإجمالي", "Total"], "No announcements yet.": ["مفيش إعلانات لسه.", "Aucune annonce."], "everyone": ["الكل", "tout le monde"],
+    "Chat with the warehouse team. Everyone in your stage sees this conversation.": ["اتكلم مع فريق المخزن. كل قادة المرحلة شايفين المحادثة دي.", "Discutez avec l'équipe. Tous les chefs de l'unité voient la conversation."],
+    "Chat with this stage.": ["اتكلم مع المرحلة دي.", "Discuter avec cette unité."], "Chat with this service.": ["اتكلم مع الخدمة دي.", "Discuter avec ce service."],
+    "Latest comments on requests": ["آخر التعليقات على الطلبات", "Derniers commentaires"], "No comments yet. Each request has its own comments under it.": ["مفيش تعليقات لسه. كل طلب ليه تعليقاته تحته.", "Aucun commentaire. Chaque demande a ses commentaires."],
+    "No messages yet. Say hi 👋": ["مفيش رسايل لسه. قول أهلاً 👋", "Aucun message. Dites bonjour 👋"], "Write a message…": ["اكتب رسالة…", "Écrire un message…"], "Send": ["ابعت", "Envoyer"],
+    "Add a comment": ["ضيف تعليق", "Ajouter un commentaire"], "delete": ["مسح", "supprimer"],
+    "+ Add event": ["+ ضيف حدث", "+ Ajouter un événement"], "All stages calendar": ["تقويم كل المراحل", "Calendrier de toutes les unités"], "Nothing on this day.": ["مفيش حاجة اليوم ده.", "Rien ce jour-là."],
+    "Add an event": ["ضيف حدث", "Ajouter un événement"], "New event": ["حدث جديد", "Nouvel événement"], "Edit event": ["تعديل الحدث", "Modifier l'événement"],
+    "Friday meeting, Camp…": ["اجتماع الجمعة، معسكر…", "Réunion du vendredi, camp…"], "Friday meeting, Winter camp…": ["اجتماع الجمعة، معسكر الشتا…", "Réunion du vendredi, camp d'hiver…"],
+    "End (for trips and camps)": ["النهاية (للرحلات والمعسكرات)", "Fin (sorties et camps)"], "End (trips and camps)": ["النهاية (للرحلات والمعسكرات)", "Fin (sorties et camps)"],
+    "Meetings, trips and camps. Events don't book equipment; use Book items for that.": ["اجتماعات ورحلات ومعسكرات. الحدث مش بيحجز أدوات؛ للحجز استخدم احجز أدوات.", "Réunions, sorties et camps. Un événement ne réserve pas de matériel."],
+    "Meeting ": ["اجتماع", "Réunion"], "Trip": ["رحلة", "Sortie"], "Camp": ["معسكر", "Camp"],
+    "Joining the waitlist does not book anything. When pieces come back you see it here, then you book normally. To join, open Book items and press Join waitlist on an item that has none left.": ["قايمة الانتظار مش بتحجز حاجة. لما القطع ترجع هتشوفها هنا وتحجز عادي. عشان تنضم: افتح احجز أدوات واضغط «استنى لما يتوفر» على أداة خلصانة.", "La liste d'attente ne réserve rien. Pour la rejoindre, ouvrez Réserver et appuyez sur Liste d'attente sur un article épuisé."],
+    "Wanted": ["المطلوب", "Voulu"], "Available now": ["المتاح دلوقتي", "Disponible"], "Needed by": ["محتاجينه قبل", "Nécessaire avant"], "Book": ["احجز", "Réserver"],
+    "Nobody from this stage is waiting for anything.": ["مفيش حد من المرحلة مستني حاجة.", "Personne de l'unité n'attend rien."],
+
+    // calendar
+    "Smart calendar": ["التقويم الذكي", "Calendrier intelligent"], "Pickups, returns": ["الاستلام والتسليم", "Retraits, retours"], "& events": ["والأحداث", "et événements"],
+    "Every booking, every return date, and every meeting, trip and camp. A red ! means a clash on that day.": ["كل حجز، وكل ميعاد رجوع، وكل اجتماع ورحلة ومعسكر. العلامة الحمرا ! معناها فيه تعارض اليوم ده.", "Chaque réservation, retour, réunion, sortie et camp. Un ! rouge signale un conflit."],
+    "Pickups": ["الاستلام", "Retraits"], "Returns": ["المرتجعات", "Retours"], "📦 Pickup": ["📦 استلام", "📦 Retrait"], "↩ Return due": ["↩ ميعاد الرجوع", "↩ Retour prévu"], "👥 Meeting": ["👥 اجتماع", "👥 Réunion"],
+    "🚌 Trip": ["🚌 رحلة", "🚌 Sortie"], "⛺ Camp": ["⛺ معسكر", "⛺ Camp"], "Next pickups": ["الاستلامات الجاية", "Prochains retraits"], "Waiting to come back": ["مستنيين يرجعوا", "En attente de retour"],
+    "No pickups coming.": ["مفيش استلامات جاية.", "Aucun retrait prévu."], "Nothing out.": ["مفيش حاجة برّه.", "Rien de sorti."], "Clash on this day": ["فيه تعارض اليوم ده", "Conflit ce jour-là"],
+    "Sat": ["سبت", "sam."], "Sun": ["حد", "dim."], "Mon": ["اتنين", "lun."], "Tue": ["تلات", "mar."], "Wed": ["أربع", "mer."], "Thu": ["خميس", "jeu."], "Fri": ["جمعة", "ven."],
+
+    // item page
+    "Full movement history": ["سجل الحركة كله", "Historique complet"], "Booked / out": ["محجوز / برّه", "Réservé / sorti"], "In maintenance": ["في الصيانة", "En réparation"],
+    "Times issued": ["مرات التسليم", "Fois remis"], "Colours": ["الألوان", "Couleurs"], "All colours": ["كل الألوان", "Toutes les couleurs"], "Maintenance": ["الصيانة", "Réparation"],
+    "In maintenance now": ["في الصيانة دلوقتي", "En réparation"], "No movements yet.": ["مفيش حركة لسه.", "Aucun mouvement."], "Came back": ["رجع", "Rendu"],
+    "You see your own stage's movements. The warehouse team sees everyone's.": ["إنت شايف حركة مرحلتك بس. فريق المخزن شايف الكل.", "Vous voyez les mouvements de votre unité. L'équipe voit tout."],
+    "🔧 Send to maintenance": ["🔧 ابعت للصيانة", "🔧 Envoyer en réparation"], "Send to maintenance": ["ابعت للصيانة", "Envoyer en réparation"], "Edit in stock": ["عدّل في المخزون", "Modifier dans le stock"],
+    "How many pieces?": ["كام قطعة؟", "Combien de pièces ?"], "Broken, torn, needs cleaning…": ["مكسور، مقطوع، محتاج تنضيف…", "Cassé, déchiré, à nettoyer…"], "Problem details": ["تفاصيل المشكلة", "Détails du problème"],
+    "Expected back": ["هيرجع إمتى", "Retour prévu"], "Repair cost (EGP)": ["تكلفة التصليح (جنيه)", "Coût de réparation (EGP)"], "Who is responsible": ["مين المسؤول", "Responsable"],
+    "Fixed: back in stock": ["اتصلّح: رجع المخزون", "Réparé : de retour en stock"], "Write off": ["اشطبه", "Mettre au rebut"], "Fixed ✓": ["اتصلّح ✓", "Réparé ✓"],
+    "Sent to maintenance": ["اتبعت للصيانة", "Envoyé en réparation"], "Stock quantity changed": ["العدد في المخزون اتغيّر", "Quantité modifiée"], "Item added": ["أداة اتضافت", "Article ajouté"],
+    "items edited": ["أداة اتعدّلت", "article modifié"], "item_variants created": ["لون اتضاف", "couleur ajoutée"], "events created": ["حدث اتضاف", "événement ajouté"], "announcements created": ["إعلان اتضاف", "annonce ajoutée"],
+
+    // team portal
+    "Overview of": ["نظرة عامة على", "Vue d'ensemble de"], "Prepare requests, receive returns, keep the stock right, and see every stage and service at once.": ["جهّز الطلبات، استلم المرتجعات، ظبّط المخزون، وشوف كل المراحل والخدمات مرة واحدة.", "Préparer les demandes, recevoir les retours, tenir le stock et voir toutes les unités."],
+    "+ Book for a stage or service": ["+ احجز لمرحلة أو خدمة", "+ Réserver pour une unité ou un service"], "Compensation": ["التعويض", "Compensation"], "Accounts": ["الحسابات", "Comptes"], "Activity": ["النشاط", "Activité"], "Settings": ["الإعدادات", "Paramètres"],
+    "To prepare": ["محتاج يتجهز", "À préparer"], "Ready": ["جاهز", "Prêt"], "Issued now": ["متسلّم دلوقتي", "Remis"], "Changes to approve": ["تعديلات مستنية موافقة", "Modifications à approuver"],
+    "Need recount": ["محتاج يتعد", "À recompter"], "All requests": ["كل الطلبات", "Toutes les demandes"], "Missing / damaged": ["ناقص / بايظ", "Manquant / abîmé"], "Next up": ["الجاي", "À suivre"],
+    "Nothing to prepare.": ["مفيش حاجة تتجهز.", "Rien à préparer."], "Issued / out": ["متسلّم / برّه", "Remis / sorti"], "Closed": ["مقفول", "Clôturé"], "Later": ["بعدين", "Plus tard"],
+    "This week": ["الأسبوع ده", "Cette semaine"], "Next week": ["الأسبوع الجاي", "Semaine prochaine"], "Past date": ["تاريخ فات", "Date passée"],
+    "No change requests waiting.": ["مفيش طلبات تعديل مستنية.", "Aucune modification en attente."], "Nothing here.": ["مفيش حاجة هنا.", "Rien ici."], "Nothing here. 👌": ["مفيش حاجة هنا. 👌", "Rien ici. 👌"],
+    "Approve change": ["وافق على التعديل", "Approuver la modif."], "Reject change": ["ارفض التعديل", "Refuser la modif."], "Prepared": ["اتجهّز", "Préparé"], "Note if short": ["ملاحظة لو ناقص", "Note si incomplet"],
+    "e.g. only 8 clean": ["مثلاً: ٨ بس نضاف", "ex. seulement 8 propres"], "Prepare all ✓": ["جهّز الكل ✓", "Tout préparer ✓"], "Issue…": ["سلّم…", "Remettre…"], "All back OK": ["كله رجع سليم", "Tout rendu OK"],
+    "Receive return…": ["استلم المرتجع…", "Recevoir le retour…"], "Mark completed": ["اقفل الطلب", "Marquer terminé"], "Who is receiving the equipment?": ["مين بيستلم الأدوات؟", "Qui reçoit le matériel ?"],
+    "Issuing now": ["هيتسلّم دلوقتي", "Remis maintenant"], "Confirm issue": ["أكّد التسليم", "Confirmer la remise"], "Back OK": ["رجع سليم", "Rendu OK"], "Price per piece (EGP)": ["سعر القطعة (جنيه)", "Prix par pièce (EGP)"],
+    "What happened (optional)": ["إيه اللي حصل (اختياري)", "Que s'est-il passé (facultatif)"], "Save return": ["احفظ المرتجع", "Enregistrer le retour"], "Missing &": ["النواقص", "Pertes"], "compensation": ["والتعويض", "et compensation"],
+    "Compensation belongs to the whole stage or service, not to one leader. Press Paid ✓ when a missing or damaged item is settled.": ["التعويض على المرحلة أو الخدمة كلها. اضغط «اتدفع ✓» لما الحاجة الناقصة أو البايظة تتدفع.", "La compensation est due par toute l'unité ou le service. Appuyez sur Payé ✓ quand c'est réglé."],
+    "Charged": ["المطلوب", "Facturé"], "Nothing charged yet.": ["مفيش مطلوب لسه.", "Rien de facturé."], "Record a general payment": ["سجّل دفعة عامة", "Enregistrer un paiement général"],
+    "A general payment is applied to that stage's oldest unpaid items first.": ["الدفعة العامة بتتخصم من أقدم حاجات مش مدفوعة الأول.", "Un paiement général règle d'abord les plus anciens."],
+    "Items": ["الأدوات", "Articles"], "Low or out": ["قليل أو خلص", "Bas ou épuisé"], "Pieces in maintenance": ["قطع في الصيانة", "Pièces en réparation"], "Missing + damaged": ["ناقص + بايظ", "Manquant + abîmé"],
+    "Search stock": ["دوّر في المخزون", "Rechercher"], "+ Add item": ["+ ضيف أداة", "+ Ajouter un article"], "Needs recount": ["محتاج يتعد", "À recompter"], "Low / out": ["قليل / خلص", "Bas / épuisé"], "Hidden": ["مخفي", "Masqué"],
+    "No items here.": ["مفيش أدوات هنا.", "Aucun article."], "New item": ["أداة جديدة", "Nouvel article"], "Name (English / Franco)": ["الاسم (إنجليزي / فرانكو)", "Nom (anglais / franco)"], "Name (Arabic)": ["الاسم (عربي)", "Nom (arabe)"],
+    "Description": ["الوصف", "Description"], "Category": ["الفئة", "Catégorie"], "+ New category": ["+ فئة جديدة", "+ Nouvelle catégorie"], "New category name": ["اسم الفئة الجديدة", "Nom de la catégorie"],
+    "Counted total": ["العدد بعد العد", "Total compté"], "Count it, then type it": ["اعده واكتبه", "Comptez puis saisissez"], "Repaired / found (+)": ["اتصلّح / اتلاقى (+)", "Réparé / retrouvé (+)"],
+    "Where in the warehouse": ["فين في المخزن", "Où dans l'entrepôt"], "Shelf B, cupboard 1…": ["رف B، دولاب 1…", "Étagère B, armoire 1…"], "Colours / variants": ["الألوان", "Couleurs / variantes"],
+    "Count": ["العدد", "Nombre"], "Repaired/found": ["اتصلّح/اتلاقى", "Réparé/retrouvé"], "Active": ["شغال", "Actif"], "New colour, e.g. Red": ["لون جديد، مثلاً أحمر", "Nouvelle couleur, ex. Rouge"], "Add": ["ضيف", "Ajouter"],
+    "Photo": ["الصورة", "Photo"], "📷 Take / choose photo": ["📷 صوّر / اختار صورة", "📷 Prendre / choisir une photo"], "Change photo": ["غيّر الصورة", "Changer la photo"], "Remove photo": ["شيل الصورة", "Retirer la photo"],
+    "Add item": ["ضيف الأداة", "Ajouter l'article"], "History / 🔧 maintenance": ["السجل / 🔧 الصيانة", "Historique / 🔧 réparation"], "Mark unavailable": ["خليه مش متاح", "Rendre indisponible"],
+    "Make available": ["خليه متاح", "Rendre disponible"], "Delete item": ["امسح الأداة", "Supprimer l'article"], "This item has colours, so its total is the sum of the colours below.": ["الأداة دي ليها ألوان، فالإجمالي هو مجموع الألوان تحت.", "Cet article a des couleurs : le total est leur somme."],
+    "Under": ["تحت", "En"], "maintenance": ["الصيانة", "réparation"], "Late coming back": ["متأخر في الرجوع", "Retour en retard"], "Repair costs so far": ["تكاليف التصليح لحد دلوقتي", "Coûts de réparation"],
+    "Send an item to maintenance…": ["ابعت أداة للصيانة…", "Envoyer un article en réparation…"], "Fixed / written off": ["اتصلّح / اتشطب", "Réparé / au rebut"], "Pieces": ["القطع", "Pièces"],
+    "Reason / problem": ["السبب / المشكلة", "Raison / problème"], "Back by": ["يرجع قبل", "Retour avant"], "Responsible": ["المسؤول", "Responsable"], "Result": ["النتيجة", "Résultat"],
+    "Nothing is under maintenance.": ["مفيش حاجة في الصيانة.", "Rien en réparation."], "Nothing closed yet.": ["مفيش حاجة اتقفلت لسه.", "Rien de clôturé."],
+    "Leaders join when an item has none left. Joining doesn't book anything; they get an alert when it's available and book normally.": ["القادة بينضموا لما الأداة تخلص. ده مش بيحجز حاجة؛ بيجيلهم تنبيه لما تتوفر ويحجزوا عادي.", "Les chefs s'inscrivent quand un article est épuisé. Ils sont prévenus quand il revient."],
+    "Leader ": ["القائد", "Chef"], "Nobody is waiting for anything.": ["مفيش حد مستني حاجة.", "Personne n'attend rien."],
+    "Comments about one request are under that request in Requests.": ["التعليقات على طلب معيّن موجودة تحته في الطلبات.", "Les commentaires d'une demande sont sous cette demande."], "No messages yet": ["مفيش رسايل لسه", "Aucun message"],
+    "New announcement": ["إعلان جديد", "Nouvelle annonce"], "New accounts waiting": ["حسابات جديدة مستنية", "Nouveaux comptes en attente"], "No one is waiting.": ["مفيش حد مستني.", "Personne en attente."],
+    "Stage transfer requests": ["طلبات النقل لمرحلة تانية", "Demandes de changement d'unité"], "No transfer requests.": ["مفيش طلبات نقل.", "Aucune demande."], "Everyone else": ["الباقيين", "Tous les autres"],
+    "The last 300 actions, with the time. Nobody can edit or delete this list.": ["آخر ٣٠٠ حركة بالوقت. محدش يقدر يعدّل أو يمسح القايمة دي.", "Les 300 dernières actions. Personne ne peut les modifier."],
+    "Activity log": ["سجل النشاط", "Journal d'activité"], "Role changed": ["الدور اتغيّر", "Rôle modifié"], "Stage changed": ["المرحلة اتغيّرت", "Unité modifiée"], "Transfer approved": ["النقل اتوافق عليه", "Changement approuvé"], "Transfer rejected": ["النقل اترفض", "Changement refusé"],
+    "Nothing yet.": ["مفيش حاجة لسه.", "Rien pour l'instant."], "Minimum days before a request": ["أقل عدد أيام قبل الطلب", "Jours minimum avant une demande"], "Days to return after the meeting": ["أيام الرجوع بعد الاجتماع", "Jours pour rendre après la réunion"],
+    "Low stock warning (% of total)": ["تنبيه المخزون القليل (% من الإجمالي)", "Alerte stock bas (% du total)"], "Meeting times (comma separated)": ["مواعيد الاجتماعات (افصل بفاصلة)", "Heures des réunions (séparées par des virgules)"],
+    "Save settings": ["احفظ الإعدادات", "Enregistrer"], "New service or church (name)": ["خدمة أو كنيسة جديدة (الاسم)", "Nouveau service ou église (nom)"], "Other spelling (optional)": ["كتابة تانية (اختياري)", "Autre orthographe (facultatif)"],
+    "Add service": ["ضيف خدمة", "Ajouter un service"], "Reservation submitted": ["طلب اتبعت", "Demande envoyée"], "Change requested": ["تعديل مطلوب", "Modification demandée"],
+    "Equipment prepared": ["الأدوات اتجهّزت", "Matériel préparé"], "Equipment issued": ["الأدوات اتسلّمت", "Matériel remis"], "Equipment returned": ["الأدوات رجعت", "Matériel rendu"], "Joined waitlist": ["انضم لقايمة الانتظار", "Inscrit en liste d'attente"],
+    "Payment recorded": ["دفعة اتسجلت", "Paiement enregistré"], "Change approved": ["التعديل اتوافق عليه", "Modification approuvée"], "Change rejected": ["التعديل اترفض", "Modification refusée"], "Reservation edited": ["الطلب اتعدّل", "Demande modifiée"],
+
+    // profile
+    "Move to another stage": ["انقل لمرحلة تانية", "Changer d'unité"], "Past transfer requests": ["طلبات نقل قديمة", "Anciennes demandes"], "Save name": ["احفظ الاسم", "Enregistrer le nom"],
+    "Your old requests stay with the stage you had when you made them.": ["طلباتك القديمة فاضلة مع المرحلة اللي كنت فيها.", "Vos anciennes demandes restent avec votre ancienne unité."],
+    "New stage": ["المرحلة الجديدة", "Nouvelle unité"], "Why (optional)": ["ليه (اختياري)", "Pourquoi (facultatif)"], "Ask to move": ["اطلب النقل", "Demander le changement"], "Withdraw request": ["اسحب الطلب", "Retirer la demande"],
+    "Phone notifications": ["تنبيهات الموبايل", "Notifications sur le téléphone"],
+    "Get a pop-up on this phone when your request is ready, a message arrives, or something is due back. Turn it on once on each phone you use.": ["يجيلك تنبيه على الموبايل لما طلبك يجهز، أو تيجي رسالة، أو حاجة لازم ترجع. شغّلها مرة واحدة على كل موبايل.", "Recevez une alerte quand votre demande est prête, un message arrive ou un retour approche."],
+    "Every screen is shown in the language you pick.": ["كل الشاشات بتظهر باللغة اللي تختارها.", "Tous les écrans s'affichent dans la langue choisie."],
+
+    "Choose a new password": ["اختار كلمة سر جديدة", "Choisissez un nouveau mot de passe"], "Checking your reset link…": ["بنتأكد من الرابط…", "Vérification du lien…"],
+    "New password": ["كلمة السر الجديدة", "Nouveau mot de passe"], "Type it again": ["اكتبها تاني", "Retapez-le"], "Save new password": ["احفظ كلمة السر", "Enregistrer"], "Back to login": ["رجوع للدخول", "Retour à la connexion"],
+    "Use at least 6 characters.": ["استخدم ٦ حروف على الأقل.", "Au moins 6 caractères."], "The two passwords are different.": ["كلمتين السر مختلفين.", "Les deux mots de passe diffèrent."],
+    "Password changed. Taking you to the warehouse…": ["كلمة السر اتغيّرت. داخلين المخزن…", "Mot de passe changé. Redirection…"],
+    "This reset link is not valid or has expired. Ask for a new one from the login page.": ["الرابط ده مش صالح أو انتهى. اطلب واحد جديد من صفحة الدخول.", "Ce lien n'est plus valide. Demandez-en un nouveau."],
+
+    // ---------- phase 4 ----------
+    "3ohda": ["العهدة", "Responsabilités"], "Mizania": ["الميزانية", "Budget"], "Search everything…": ["دوّر على أي حاجة…", "Tout rechercher…"], "Search everything": ["دوّر على أي حاجة", "Tout rechercher"],
+    "Nothing found.": ["مفيش نتايج.", "Aucun résultat."], "Items ": ["الأدوات", "Articles"], "Stages": ["المراحل", "Unités"], "Services": ["الخدمات", "Services"], "People": ["الأشخاص", "Personnes"],
+    "Kada": ["قادة", "Chefs"], "3el": ["عيّل", "Jeune"], "Who is going & 3ohda": ["الطالعين والعهدة", "Participants et responsabilités"],
+    "⛺ CAMP": ["⛺ معسكر", "⛺ CAMP"], "🚌 TRIP": ["🚌 رحلة", "🚌 SORTIE"], "PHASE 2 ✓": ["المرحلة ٢ ✓", "ÉTAPE 2 ✓"], "PHASE 2 MISSING": ["المرحلة ٢ ناقصة", "ÉTAPE 2 MANQUANTE"],
+    "What is it for?": ["الحجز لإيه؟", "C'est pour quoi ?"], "Last day": ["آخر يوم", "Dernier jour"], "💾 Save draft": ["💾 احفظ مسودة", "💾 Brouillon"], "📝 Drafts": ["📝 المسودات", "📝 Brouillons"],
+    "Saved, not booked yet. Nothing is held until you send.": ["محفوظة، لسه ما اتحجزتش. مفيش حاجة بتتحجز غير لما تبعت.", "Enregistré, pas encore réservé."], "Continue": ["كمّل", "Continuer"],
+    "Draft saved. Nothing is booked yet.": ["المسودة اتحفظت. لسه مفيش حاجة اتحجزت.", "Brouillon enregistré. Rien n'est réservé."], "Delete this draft?": ["تمسح المسودة دي؟", "Supprimer ce brouillon ?"],
+    "No items yet": ["لسه مفيش أدوات", "Aucun article"], "Some items have fewer pieces available now; quantities were lowered.": ["بعض الأدوات بقى المتاح منها أقل؛ الأعداد قلّت.", "Certaines quantités ont été réduites."],
+    "Write the last day of the trip or camp.": ["اكتب آخر يوم في الرحلة أو المعسكر.", "Indiquez le dernier jour."], "Write who is going now": ["اكتب الطالعين دلوقتي", "Inscrire les participants"],
+    "Phase 2: write who is going now, or later from your stage page.": ["المرحلة ٢: اكتب الطالعين دلوقتي أو بعدين من صفحة المرحلة.", "Étape 2 : inscrivez les participants maintenant ou plus tard."],
+    "Phase 1: items": ["المرحلة ١: الأدوات", "Étape 1 : matériel"], "Phase 2: who is going": ["المرحلة ٢: مين طالع", "Étape 2 : qui part"], "3ohda: who carries what": ["العهدة: مين شايل إيه", "Qui porte quoi"],
+    "Write who is going": ["اكتب الطالعين", "Inscrire les participants"], "✏️ Edit the list": ["✏️ عدّل القايمة", "✏️ Modifier la liste"], "Nobody written yet.": ["لسه محدش اتكتب.", "Personne pour l'instant."],
+    "Tick everyone who is going. Names you add are saved in the stage's list for next time.": ["علّم على كل اللي طالعين. الأسامي اللي بتضيفها بتتحفظ في قايمة المرحلة للمرة الجاية.", "Cochez les participants. Les noms ajoutés sont gardés pour la prochaine fois."],
+    "This stage lists kada only.": ["المرحلة دي بتكتب القادة بس.", "Cette unité n'inscrit que les chefs."], "3eyal": ["العيال", "Jeunes"], "Nobody in the list yet. Add them below.": ["القايمة فاضية. ضيفهم تحت.", "Liste vide. Ajoutez-les ci-dessous."],
+    "Add to the stage's list": ["ضيف لقايمة المرحلة", "Ajouter à la liste"], "Boy / girl": ["ولد / بنت", "Garçon / fille"], "Boy / man": ["ولد", "Garçon"], "Girl / woman": ["بنت", "Fille"], "Kada or 3el": ["قائد ولا عيّل", "Chef ou jeune"],
+    "Link to an account (kada)": ["اربطه بحساب (قائد)", "Lier à un compte"], "No account": ["من غير حساب", "Sans compte"], "+ Add to list": ["+ ضيف للقايمة", "+ Ajouter"],
+    "One-time names (not saved in the list)": ["أسامي لمرة واحدة (مش بتتحفظ)", "Noms ponctuels (non enregistrés)"], "Guest leader…": ["قائد ضيف…", "Chef invité…"], "+ Add one-time name": ["+ ضيف اسم لمرة واحدة", "+ Ajouter un nom ponctuel"],
+    "Save who is going": ["احفظ الطالعين", "Enregistrer les participants"], "Saving the list clears who-carries-what; the warehouse team will distribute again.": ["حفظ القايمة بيمسح توزيع العهدة؛ فريق المخزن هيوزّع تاني.", "Enregistrer la liste efface la répartition."],
+    "rename": ["تغيير الاسم", "renommer"], "remove": ["شيل", "retirer"], "New name:": ["الاسم الجديد:", "Nouveau nom :"], "Write the name": ["اكتب الاسم", "Indiquez le nom"], "Choose at least one person.": ["اختار شخص واحد على الأقل.", "Choisissez au moins une personne."],
+    "🎲 Distribute automatically": ["🎲 وزّع أوتوماتيك", "🎲 Répartir automatiquement"], "Save 3ohda": ["احفظ العهدة", "Enregistrer"], "Undo changes": ["الغي التغييرات", "Annuler"], "3ohda saved": ["العهدة اتحفظت", "Enregistré"],
+    "Heavy items go to boys and kada, kada carry more, \"kada only\" items (like flags) go to kada. Change any number, then save.": ["التقيل للولاد والقادة، القادة بيشيلوا أكتر، وحاجات «للقادة بس» (زي العلم) مع القادة. غيّر أي رقم وبعدين احفظ.", "Le lourd va aux garçons et aux chefs ; les objets « chefs seulement » aux chefs."],
+    "Not distributed yet. Press Distribute automatically.": ["لسه ما اتوزعش. اضغط «وزّع أوتوماتيك».", "Pas encore réparti."], "The warehouse team hasn't distributed the items yet.": ["فريق المخزن لسه ما وزّعش الأدوات.", "L'équipe n'a pas encore réparti le matériel."],
+    "Person": ["الشخص", "Personne"], "light": ["خفيف", "léger"], "medium": ["متوسط", "moyen"], "heavy": ["تقيل", "lourd"], "Edit the numbers": ["عدّل الأرقام", "Modifier les nombres"],
+    "Some totals don't match the items. Save anyway?": ["فيه إجماليات مش مطابقة للأدوات. تحفظ برضه؟", "Certains totaux ne correspondent pas. Enregistrer ?"],
+    "Who has": ["مين معاه", "Qui a"], "what": ["إيه", "quoi"], "Everything that is out right now, by stage and by person. In camps and trips, each person's share is listed.": ["كل اللي برّه دلوقتي، حسب المرحلة والشخص. في المعسكرات والرحلات، نصيب كل واحد مكتوب.", "Tout ce qui est sorti, par unité et par personne."],
+    "Person or item…": ["شخص أو أداة…", "Personne ou article…"], "Has": ["معاه", "A"], "With": ["مع", "Avec"],
+    "Warehouse": ["المخزن", "Entrepôt"], "money": ["فلوس", "argent"], "Everything that came in and went out: purchases, repairs, compensation, money from the church or the group.": ["كل اللي دخل وطلع: مشتريات، تصليح، تعويضات، فلوس من الكنيسة أو المجموعة.", "Tout ce qui entre et sort : achats, réparations, compensations."],
+    "+ Add money in / out": ["+ ضيف دخل / صرف", "+ Ajouter entrée / dépense"], "Balance now": ["الرصيد دلوقتي", "Solde"], "Money in": ["الدخل", "Entrées"], "Money out": ["المصروف", "Dépenses"], "Compensation still owed": ["تعويضات لسه ما اتدفعتش", "Compensations dues"],
+    "Opening balance": ["رصيد البداية", "Solde de départ"], "edit": ["تعديل", "modifier"], "All months": ["كل الشهور", "Tous les mois"], "In and out": ["دخل وصرف", "Entrées et dépenses"], "All categories": ["كل الفئات", "Toutes les catégories"],
+    "IN": ["دخل", "ENTRÉE"], "from Compensation": ["من التعويضات", "compensation"], "from Maintenance": ["من الصيانة", "réparation"], "By category": ["حسب الفئة", "Par catégorie"], "Total in − out": ["الدخل − المصروف", "Entrées − dépenses"],
+    "Nothing here yet.": ["مفيش حاجة لسه.", "Rien pour l'instant."], "Money in / out": ["دخل / صرف", "Entrée / dépense"], "Edit entry": ["تعديل", "Modifier"], "In or out": ["دخل ولا صرف", "Entrée ou dépense"], "Amount (EGP)": ["المبلغ (جنيه)", "Montant (EGP)"],
+    "What / from where": ["إيه / منين", "Quoi / d'où"], "Item (optional)": ["الأداة (اختياري)", "Article (facultatif)"], "Stage (optional)": ["المرحلة (اختياري)", "Unité (facultatif)"], "Receipt photo (optional)": ["صورة الفاتورة (اختياري)", "Photo du reçu (facultatif)"],
+    "A receipt is saved. Choose a new photo to replace it.": ["فيه فاتورة محفوظة. اختار صورة جديدة لو عايز تغيّرها.", "Un reçu est enregistré."], "🧾 receipt": ["🧾 الفاتورة", "🧾 reçu"],
+    "Church / group money": ["فلوس من الكنيسة / المجموعة", "Argent de l'église / du groupe"], "Donation": ["تبرع", "Don"], "Other income": ["دخل تاني", "Autre entrée"], "Equipment purchase": ["شراء أدوات", "Achat de matériel"],
+    "Repairs": ["تصليح", "Réparations"], "Transport": ["مواصلات", "Transport"], "Cleaning": ["تنضيف", "Nettoyage"], "Other expense": ["مصروف تاني", "Autre dépense"],
+    "Opening balance in EGP (money the warehouse had when you started using this page):": ["رصيد البداية بالجنيه (الفلوس اللي كانت مع المخزن لما بدأتوا الصفحة دي):", "Solde de départ en EGP :"],
+    "Delete this entry? You can restore it from Deleted.": ["تمسح ده؟ تقدر ترجّعه من المحذوفات.", "Supprimer ? Restaurable depuis Supprimés."], "Deleted": ["المحذوفات", "Supprimés"], "Write a number": ["اكتب رقم", "Indiquez un nombre"],
+    "New booking": ["حجز جديد", "Nouvelle réservation"], "New camp / trip": ["معسكر / رحلة جديدة", "Nouveau camp / sortie"], "Record a return": ["سجّل مرتجع", "Enregistrer un retour"], "Add an item": ["ضيف أداة", "Ajouter un article"],
+    "Record missing / damaged": ["سجّل ناقص / بايظ", "Signaler manquant / abîmé"], "Edit missing / damaged": ["عدّل الناقص / البايظ", "Modifier manquant / abîmé"],
+    "For something lost or broken outside a request. It's charged to the stage or service.": ["لحاجة ضاعت أو اتكسرت برّه أي طلب. بتتحسب على المرحلة أو الخدمة.", "Hors demande ; facturé à l'unité ou au service."],
+    "Recorded": ["اتسجّل", "Enregistré"], "Check the quantity and price.": ["راجع العدد والسعر.", "Vérifiez la quantité et le prix."],
+    "Counts as taken on": ["بيتحسب متاخد يوم", "Compté comme pris le"], "The stage was told it's ready.": ["المرحلة اتبلّغت إنه جاهز.", "L'unité a été prévenue."],
+    "✏️ Fix numbers": ["✏️ صلّح الأرقام", "✏️ Corriger"], "🗑 Delete": ["🗑 امسح", "🗑 Supprimer"], "Done": ["خلصت", "Terminé"],
+    "For mistakes. Missing/damaged charges are fixed separately in Compensation.": ["للأخطاء. حساب الناقص والبايظ بيتعدّل في التعويض.", "Pour les erreurs. Les charges se corrigent dans Compensation."],
+    "Minimum stock (warn below)": ["أقل عدد (نبّه لو قل عنه)", "Stock minimum (alerte en dessous)"], "No minimum": ["من غير حد أدنى", "Aucun minimum"], "Weight (for camps)": ["الوزن (للمعسكرات)", "Poids (camps)"],
+    "Light": ["خفيف", "Léger"], "Medium": ["متوسط", "Moyen"], "Heavy": ["تقيل", "Lourd"], "Pieces per person in camps": ["عدد القطع لكل شخص في المعسكر", "Pièces par personne"], "Automatic": ["أوتوماتيك", "Automatique"],
+    "Only kada carry it (like flags)": ["القادة بس اللي يشيلوه (زي العلم)", "Seuls les chefs le portent"], "Write the name in Arabic too, so everyone can search for it.": ["اكتب الاسم بالعربي كمان، عشان الكل يقدر يدوّر عليه.", "Indiquez aussi le nom en arabe."],
+    "Minimum and pieces per person must be whole numbers.": ["الحد الأدنى وعدد القطع لازم أرقام صحيحة.", "Nombres entiers uniquement."], "Item deleted": ["الأداة اتمسحت", "Article supprimé"],
+    "Remove account": ["شيل الحساب", "Retirer le compte"], "Account removed": ["الحساب اتشال", "Compte retiré"], "+ Add stage": ["+ ضيف مرحلة", "+ Ajouter une unité"],
+    "Kada + 3eyal in camps": ["قادة + عيال في المعسكرات", "Chefs + jeunes en camp"], "Kada only in camps": ["قادة بس في المعسكرات", "Chefs seulement en camp"],
+    "Stage name (Arabic):": ["اسم المرحلة (عربي):", "Nom de l'unité (arabe) :"], "Stage name (English / Franco):": ["اسم المرحلة (إنجليزي / فرانكو):", "Nom de l'unité (anglais) :"],
+    "Does this stage take 3eyal to camps (like Motakdem & Ra2edat)? OK = yes, Cancel = kada only.": ["المرحلة دي بتطلّع عيال المعسكرات (زي متقدم ورائدات)؟ موافق = أيوه، إلغاء = قادة بس.", "Cette unité emmène-t-elle des jeunes en camp ? OK = oui."],
+    "Delete this stage? It is hidden everywhere; you can restore it from Deleted.": ["تمسح المرحلة دي؟ هتختفي من كل حتة؛ تقدر ترجّعها من المحذوفات.", "Supprimer cette unité ? Restaurable."],
+    "Delete this service? You can restore it from Deleted.": ["تمسح الخدمة دي؟ تقدر ترجّعها من المحذوفات.", "Supprimer ce service ? Restaurable."],
+    "Only the warehouse team sees this. Restore puts it back exactly as it was. Delete forever can't be undone.": ["فريق المخزن بس شايف ده. «رجّع» بيرجّعه زي ما كان. «امسح نهائي» مالوش رجوع.", "Visible par l'équipe uniquement. Restaurer remet tout comme avant."],
+    "Restore": ["رجّع", "Restaurer"], "Delete forever": ["امسح نهائي", "Supprimer définitivement"], "Restored": ["اترجّع", "Restauré"], "Deleted forever.": ["اتمسح نهائي.", "Supprimé définitivement."],
+    "Delete forever? This can't be undone.": ["تمسح نهائي؟ مالوش رجوع.", "Supprimer définitivement ? Irréversible."], "Nothing deleted.": ["مفيش حاجة ممسوحة.", "Rien de supprimé."],
+    "This item has history, so it stays hidden instead of being erased.": ["الأداة دي ليها سجل، فهتفضل مخفية بدل ما تتمسح.", "Cet article a un historique : il reste masqué."],
+    "This person has history, so the account is locked and renamed instead of erased. Their email can be used again.": ["الشخص ده ليه سجل، فالحساب اتقفل واتغيّر اسمه بدل ما يتمسح. الإيميل ينفع يتستخدم تاني.", "Ce compte a un historique : il est verrouillé et renommé."],
+    "It has history, so it stays hidden instead of being erased.": ["ليه سجل، فهيفضل مخفي بدل ما يتمسح.", "Historique existant : reste masqué."],
+    "Delete this payment? You can restore it from Deleted.": ["تمسح الدفعة دي؟ تقدر ترجّعها من المحذوفات.", "Supprimer ce paiement ? Restaurable."],
+    "Delete this missing/damaged record (and payments tied to it)? You can restore it from Deleted.": ["تمسح الناقص/البايظ ده (والدفعات المربوطة بيه)؟ تقدر ترجّعه من المحذوفات.", "Supprimer (et les paiements liés) ? Restaurable."],
+    "Delete this maintenance record? You can restore it from Deleted.": ["تمسح سجل الصيانة ده؟ تقدر ترجّعه.", "Supprimer ? Restaurable."], "Amount (EGP):": ["المبلغ (جنيه):", "Montant (EGP) :"], "Note:": ["ملاحظة:", "Note :"],
+    "Every screen is shown in the language you pick.": ["كل الشاشات بتظهر باللغة اللي تختارها.", "Tous les écrans s'affichent dans la langue choisie."],
+    "Phase 2 saved": ["الطالعين اتحفظوا", "Participants enregistrés"], "Loss recorded": ["ناقص/بايظ اتسجّل", "Perte enregistrée"], "Loss edited": ["ناقص/بايظ اتعدّل", "Perte modifiée"],
+    "Payment edited": ["دفعة اتعدّلت", "Paiement modifié"], "Line corrected": ["أرقام اتصلّحت", "Ligne corrigée"], "Stage saved": ["مرحلة اتحفظت", "Unité enregistrée"],
+    "Up to 4 photos per message.": ["٤ صور بالكتير في الرسالة.", "4 photos maximum par message."], "That photo belongs to another chat.": ["الصورة دي تبع محادثة تانية.", "Cette photo appartient à une autre discussion."],
+    "Add photos": ["ضيف صور", "Ajouter des photos"], "That file is not a photo.": ["الملف ده مش صورة.", "Ce fichier n'est pas une photo."], "photo": ["صورة", "photo"],
+    "Booking items for": ["حجز أدوات لـ", "Réservation pour"], "From": ["من", "De"], "Until (optional)": ["لحد (اختياري)", "Jusqu'à (facultatif)"],
+    "📦 Book items for this": ["📦 احجز أدوات للحدث ده", "📦 Réserver le matériel"], "Open camp page": ["افتح صفحة المعسكر", "Ouvrir la page du camp"], "Items booked": ["الأدوات اتحجزت", "Matériel réservé"],
+    "deleted a message": ["مسح رسالة", "a supprimé un message"], "reply": ["رد", "répondre"], "edited": ["اتعدّلت", "modifié"], "Edit your message:": ["عدّل رسالتك:", "Modifier votre message :"],
+    "You can only edit your own messages.": ["تقدر تعدّل رسايلك بس.", "Vous ne pouvez modifier que vos messages."], "You can only delete your own messages.": ["تقدر تمسح رسايلك بس.", "Vous ne pouvez supprimer que vos messages."],
+    "With the stage": ["مع المرحلة", "Avec l'unité"], "Taken": ["اتاخد", "Pris"], "To return": ["مستني يرجع", "À rendre"], "Out with stages": ["برّه مع المراحل", "Sorti avec les unités"],
+    "Everything taken (newest first)": ["كل اللي اتاخد (الأحدث الأول)", "Tout ce qui a été pris"], "Nothing has been taken yet.": ["لسه ما اتاخدش حاجة.", "Rien n'a encore été pris."],
+    "📄 Save as PDF": ["📄 احفظ PDF", "📄 Enregistrer en PDF"], "Write who is going first (Phase 2).": ["اكتب الطالعين الأول (المرحلة ٢).", "Inscrivez d'abord les participants."],
+    "Allow pop-ups to save the PDF": ["اسمح بالنوافذ المنبثقة عشان تحفظ الـ PDF", "Autorisez les fenêtres pour le PDF"], "Signature": ["الإمضاء", "Signature"], "Not distributed yet.": ["لسه ما اتوزعش.", "Pas encore réparti."],
+    "Camps & trips": ["المعسكرات والرحلات", "Camps et sorties"], "Out now": ["برّه دلوقتي", "Sorti"], "Camp": ["معسكر", "Camp"], "Trip": ["رحلة", "Sortie"],
+    "Missing or damaged? (missing / damaged)": ["ناقص ولا بايظ؟ (missing / damaged)", "Manquant ou abîmé ? (missing / damaged)"], "Qty:": ["العدد:", "Qté :"], "Price per piece (EGP):": ["سعر القطعة (جنيه):", "Prix par pièce (EGP) :"],
+    "Title:": ["العنوان:", "Titre :"], "Message:": ["الرسالة:", "Message :"], "By": ["مع", "Par"],
+    // bell + push
+    "Notifications": ["التنبيهات", "Notifications"], "Mark all read": ["علّم الكل مقروء", "Tout marquer lu"], "📲 Turn on phone notifications": ["📲 شغّل تنبيهات الموبايل", "📲 Activer les notifications"],
+    "Turn off": ["اقفلها", "Désactiver"], "📲 Phone notifications are on": ["📲 تنبيهات الموبايل شغالة", "📲 Notifications activées"], "now": ["دلوقتي", "maintenant"],
+    "This browser can't show phone notifications. Try Chrome.": ["المتصفح ده مش بيدعم التنبيهات. جرّب كروم.", "Ce navigateur ne gère pas les notifications. Essayez Chrome."],
+    "Notifications are blocked for this site. Allow them in the browser's site settings, then come back.": ["التنبيهات مقفولة للموقع ده. افتحها من إعدادات الموقع في المتصفح وارجع.", "Les notifications sont bloquées. Autorisez-les dans les réglages du site."],
+
+    // toasts, confirms and messages from the database
+    "Saved": ["اتحفظ", "Enregistré"], "Posted": ["اتنشر", "Publié"], "Event saved": ["الحدث اتحفظ", "Événement enregistré"], "Request cancelled": ["الطلب اتلغى", "Demande annulée"],
+    "Change withdrawn": ["التعديل اتسحب", "Modification retirée"], "Payment saved": ["الدفعة اتحفظت", "Paiement enregistré"], "Price saved": ["السعر اتحفظ", "Prix enregistré"], "Marked as paid": ["اتعلّم إنه اتدفع", "Marqué payé"],
+    "Payment deleted": ["الدفعة اتمسحت", "Paiement supprimé"], "Back in stock": ["رجع المخزون", "De retour en stock"], "Written off": ["اتشطب", "Mis au rebut"], "You're on the waitlist": ["إنت في قايمة الانتظار", "Vous êtes sur la liste"],
+    "Ready to collect": ["جاهز للاستلام", "Prêt à récupérer"], "Returned ✓": ["رجع ✓", "Rendu ✓"], "Partly returned: saved": ["رجع جزء: اتحفظ", "Rendu en partie : enregistré"],
+    "All prepared: ready to collect": ["كله اتجهّز: جاهز للاستلام", "Tout est prêt"], "Change approved: request updated": ["التعديل اتوافق عليه: الطلب اتحدّث", "Modification approuvée"],
+    "Phone notifications on": ["تنبيهات الموبايل اشتغلت", "Notifications activées"], "Phone notifications off": ["تنبيهات الموبايل اتقفلت", "Notifications désactivées"],
+    "Added. Review and send to book it.": ["اتضاف. راجع وابعت عشان تحجز.", "Ajouté. Vérifiez et envoyez."], "Name saved": ["الاسم اتحفظ", "Nom enregistré"],
+    "Something went wrong.": ["حصلت مشكلة.", "Une erreur est survenue."], "Fill in the date and the place.": ["اكتب التاريخ والمكان.", "Indiquez la date et le lieu."], "The date is in the past.": ["التاريخ ده فات.", "La date est passée."],
+    "Your account is not approved yet.": ["حسابك لسه ما اتوافقش عليه.", "Votre compte n'est pas encore approuvé."], "Choose at least one item.": ["اختار أداة واحدة على الأقل.", "Choisissez au moins un article."],
+    "Only the warehouse team can do this.": ["فريق المخزن بس اللي يقدر يعمل كده.", "Seule l'équipe peut faire cela."], "You can only write to your own stage.": ["تقدر تكتب لمرحلتك بس.", "Vous ne pouvez écrire qu'à votre unité."],
+    "Write a message.": ["اكتب رسالة.", "Écrivez un message."], "You are already on the waitlist for this.": ["إنت أصلاً في قايمة الانتظار لده.", "Vous êtes déjà sur la liste."],
+    "A change for this request is already waiting for the warehouse team.": ["فيه تعديل للطلب ده مستني فريق المخزن.", "Une modification attend déjà l'équipe."],
+    "It was already handed out, so it can't be edited.": ["الطلب اتسلّم خلاص، مينفعش يتعدّل.", "Déjà remis, impossible de modifier."], "It was already handed out, so it can't be changed.": ["الطلب اتسلّم خلاص، مينفعش يتغيّر.", "Déjà remis, impossible de modifier."],
+    "Write who is receiving the equipment.": ["اكتب مين بيستلم الأدوات.", "Indiquez qui reçoit le matériel."], "Use whole numbers, 0 or more.": ["اكتب أرقام صحيحة، صفر أو أكتر.", "Nombres entiers, 0 ou plus."],
+    "Enter what came back, or use Back.": ["اكتب اللي رجع، أو اضغط رجوع.", "Indiquez ce qui est revenu."], "Tick the box to confirm first.": ["علّم على المربع الأول للتأكيد.", "Cochez la case pour confirmer."],
+    "Write the title and the start date.": ["اكتب العنوان وتاريخ البداية.", "Indiquez le titre et la date."], "The end is before the start.": ["النهاية قبل البداية.", "La fin est avant le début."],
+    "Write the reason.": ["اكتب السبب.", "Indiquez la raison."], "Write a title and a message": ["اكتب عنوان ورسالة", "Indiquez un titre et un message"], "Write an amount more than 0": ["اكتب مبلغ أكبر من صفر", "Montant supérieur à 0"],
+    "Write an amount more than 0.": ["اكتب مبلغ أكبر من صفر.", "Montant supérieur à 0."], "Cancel request #": ["إلغاء الطلب #", "Annuler la demande #"],
+    "Everything still out came back in good condition?": ["كل اللي كان برّه رجع سليم؟", "Tout ce qui était sorti est revenu en bon état ?"], "Delete this event?": ["تمسح الحدث ده؟", "Supprimer cet événement ?"],
+    "Delete this message?": ["تمسح الرسالة دي؟", "Supprimer ce message ?"], "Delete this announcement?": ["تمسح الإعلان ده؟", "Supprimer cette annonce ?"],
+    "Withdraw your change? The request stays as it was.": ["تسحب التعديل؟ الطلب هيفضل زي ما هو.", "Retirer la modification ? La demande reste inchangée."],
+    "Delete this payment? It stays in the activity log.": ["تمسح الدفعة دي؟ هتفضل في سجل النشاط.", "Supprimer ce paiement ? Il reste dans le journal."],
+    "Write these pieces off? They leave the stock for good.": ["تشطب القطع دي؟ هتخرج من المخزون نهائي.", "Mettre ces pièces au rebut ? Elles quittent le stock."],
+    "Reject this change? Write a short reason (the leader sees it):": ["ترفض التعديل؟ اكتب سبب قصير (القائد هيشوفه):", "Refuser ? Donnez une raison (le chef la verra) :"],
+    "Repair cost in EGP (leave empty if none):": ["تكلفة التصليح بالجنيه (سيبها فاضية لو مفيش):", "Coût de réparation en EGP (vide si aucun) :"],
+    "Repair cost in EGP (leave empty to keep it as is):": ["تكلفة التصليح بالجنيه (سيبها فاضية لو زي ما هي):", "Coût en EGP (vide pour ne pas changer) :"],
+    "Why is it written off? (optional)": ["ليه اتشطب؟ (اختياري)", "Pourquoi au rebut ? (facultatif)"], "Note why it's written off (optional):": ["اكتب ليه اتشطب (اختياري):", "Pourquoi au rebut (facultatif) :"],
+    "Cost must be a number": ["التكلفة لازم تكون رقم", "Le coût doit être un nombre"], "Price can't be negative": ["السعر مينفعش يبقى بالسالب", "Le prix ne peut pas être négatif"]
+  };
+
+  // ---------- texts with numbers or names inside ----------
+  const R = [
+    [/^Available (\d+)$/, "متاح $1", "Disponible $1"],
+    [/^Available now: (.+)$/, "المتاح دلوقتي: $1", "Disponible : $1"],
+    [/^(.+) \((\d+) available\)$/, "$1 ($2 متاح)", "$1 ($2 dispo.)"],
+    [/^(\d+) items? · (\d+) pieces?$/, "$1 أداة · $2 قطعة", "$1 article(s) · $2 pièce(s)"],
+    [/^(\d+) requests?$/, "$1 طلب", "$1 demande(s)"],
+    [/^(\d+) LEFT$/, "باقي $1", "RESTE $1"],
+    [/^(\d+) AVAILABLE$/, "$1 متاح", "$1 DISPO."],
+    [/^(\d+) missing$/, "$1 ناقص", "$1 manquant(s)"], [/^(\d+) damaged$/, "$1 بايظ", "$1 abîmé(s)"],
+    [/^(\d+) (min|h)$/, (m, a, b) => a + (b === "min" ? " دقيقة" : " ساعة"), "$1 $2"],
+    [/^Not counted yet · last year: (.+)$/, "لسه ما اتعدش · السنة اللي فاتت: $1", "Pas encore compté · l'an dernier : $1"],
+    [/^Return due #(\d+)$/, "ميعاد رجوع #$1", "Retour prévu #$1"],
+    [/^Ask to change #(\d+)$/, "اطلب تعديل #$1", "Demander une modif. #$1"], [/^Save changes to #(\d+)$/, "احفظ التعديل على #$1", "Enregistrer #$1"],
+    [/^Editing request #(\d+)$/, "بتعدّل طلب #$1", "Modification de la demande #$1"], [/^Asking to change request #(\d+)$/, "طلب تعديل على #$1", "Demande de modif. #$1"],
+    [/^EDITING #(\d+)$/, "تعديل #$1", "MODIF. #$1"], [/^Change #(\d+)$/, "تعديل #$1", "Modifier #$1"], [/^Request #(\d+) updated ✓$/, "طلب #$1 اتعدّل ✓", "Demande #$1 modifiée ✓"],
+    [/^Request #(\d+)\. The warehouse team will prepare it\.$/, "طلب رقم #$1. فريق المخزن هيجهّزه.", "Demande #$1. L'équipe va la préparer."],
+    [/^Issue request #(\d+)$/, "تسليم طلب #$1", "Remettre la demande #$1"], [/^Receive return · #(\d+)$/, "استلام مرتجع · #$1", "Retour · #$1"],
+    [/^🔔 Waitlist: (.+)$/, "🔔 قايمة انتظار: $1", "🔔 Liste d'attente : $1"],
+    [/^🔧 (\d+)(.*) sent to maintenance$/, "🔧 $1$2 اتبعت للصيانة", "🔧 $1$2 envoyé(s) en réparation"],
+    [/^✅ (\d+) back from maintenance$/, "✅ $1 رجع من الصيانة", "✅ $1 revenu(s) de réparation"], [/^🗑 (\d+) written off$/, "🗑 $1 اتشطب", "🗑 $1 au rebut"],
+    [/^(.+)\. These pieces can't be booked until they're marked fixed\.$/, "$1. القطع دي مش هتتحجز لحد ما تتعلّم إنها اتصلّحت.", "$1. Ces pièces ne sont pas réservables avant réparation."],
+    [/^Booked (\d+.*)$/, "اتحجز $1", "Réservé $1"], [/^Issued (\d+.*)$/, "اتسلّم $1", "Remis $1"],
+    [/^Current: (.*)$/, "دلوقتي: $1", "Actuel : $1"], [/^asks to change: (.*)$/, "عايز يغيّر: $1", "demande à modifier : $1"],
+    [/^✏️ Change waiting for the warehouse team: (.*)$/, "✏️ تعديل مستني فريق المخزن: $1", "✏️ Modification en attente : $1"],
+    [/^💬 Comments \((\d+)\)( [▲▼])?$/, "💬 تعليقات ($1)$2", "💬 Commentaires ($1)$2"], [/^💬 Add a comment( [▲▼])?$/, "💬 ضيف تعليق$1", "💬 Ajouter un commentaire$1"],
+    [/^(.+) asks to change: (.*)$/, "$1 عايز يغيّر: $2", "$1 demande : $2"],
+    [/^💬 (\d+) comments on requests$/, "💬 $1 تعليق على الطلبات", "💬 $1 commentaires"],
+    [/^Post to (.+)$/, "انشر لـ $1", "Publier pour $1"], [/^For ([^A-Za-z]*\d[^A-Za-z]*.*|[^A-Za-z]+)$/, "لـ $1", "Pour $1"], [/^for ([^A-Za-z]*\d.*)$/, "لـ $1", "pour $1"],
+    [/^ · to $/, " · لـ ", " · à "], [/^to$/, "لـ", "à"],
+    [/^(.+) \(service\)$/, "$1 (خدمة)", "$1 (service)"], [/^(.+) \(you\)$/, "$1 (إنت)", "$1 (vous)"],
+    [/^(items|item_variants|profiles|announcements|events|reservations|settings|services|money_entries|sections) (created|edited)$/, (m, a, b) => ({ items: "أداة", item_variants: "لون", profiles: "حساب", announcements: "إعلان", events: "حدث", reservations: "طلب", settings: "الإعدادات", services: "خدمة", money_entries: "دخل/صرف", sections: "مرحلة" }[a] + (b === "created" ? " اتضاف" : " اتعدّل")), "$1 $2"],
+    [/^Account (approved|rejected|pending)$/, (m, a) => "الحساب " + ({ approved: "اتوافق عليه", rejected: "اترفض", pending: "مستني" }[a]), "Compte $1"],
+    [/^Mark (.+) as paid\? This records a payment of (.+)\.$/, "تعلّم $1 إنه اتدفع؟ هيتسجّل $2.", "Marquer $1 comme payé ? Paiement de $2."],
+    [/^Mark (.+) \((.+)\) as paid\? This records (.+)\.$/, "تعلّم $1 ($2) إنه اتدفع؟ هيتسجّل $3.", "Marquer $1 ($2) payé ? $3."],
+    [/^Cancel request #(\d+)\? The items go back to available\.$/, "تلغي طلب #$1؟ الأدوات هترجع متاحة.", "Annuler la demande #$1 ? Le matériel redevient disponible."],
+    [/^(Cancel|Reject) request #(\d+)\? Write a short reason:$/, (m, a, n) => (a === "Cancel" ? "تلغي" : "ترفض") + " طلب #" + n + "؟ اكتب سبب قصير:", (m, a, n) => (a === "Cancel" ? "Annuler" : "Refuser") + " la demande #" + n + " ? Raison :"],
+    [/^Not enough: (.*)$/, (m, a) => "مش كفاية: " + a.replace(/\(available: (\d+)\)/g, "(المتاح: $1)").replace(/\(not counted yet\)/g, "(لسه ما اتعدش)"), (m, a) => "Pas assez : " + a.replace(/\(available: (\d+)\)/g, "(dispo. : $1)").replace(/\(not counted yet\)/g, "(pas compté)")],
+    [/^Only (\d+) available right now\. (.*)$/, "المتاح دلوقتي $1 بس. القطع اللي برّه لازم ترجع الأول.", "Seulement $1 disponible(s)."],
+    [/^Choose a colour for (.+)\.$/, "اختار لون لـ $1.", "Choisissez une couleur pour $1."],
+    [/^(.+): only (\d+) still out\.$/, "$1: فاضل برّه $2 بس.", "$1 : seulement $2 dehors."],
+    [/^Issued for (.+) must be 0 to (\d+)\.$/, "المتسلّم من $1 لازم من 0 لـ $2.", "Remis pour $1 : de 0 à $2."],
+    [/^(\d+) people · saved (.+)$/, "$1 شخص · اتحفظ $2", "$1 personnes · enregistré $2"], [/^Kada \((\d+)\)$/, "القادة ($1)", "Chefs ($1)"], [/^3eyal \((\d+)\)$/, "العيال ($1)", "Jeunes ($1)"],
+    [/^Saved: (\d+) people$/, "اتحفظ: $1 شخص", "Enregistré : $1 personnes"], [/^Remove (.+) from the stage's list\? Past trips keep the name\.$/, "تشيل $1 من قايمة المرحلة؟ الرحلات القديمة هتفضل بالاسم.", "Retirer $1 ? Les anciennes sorties gardent le nom."],
+    [/^How many did they give back\? \(0 to (\d+)\)$/, "رجّعوا كام؟ (من 0 لـ $1)", "Combien rendus ? (0 à $1)"], [/^↩ (\d+)\/(\d+)$/, "↩ $1/$2", "↩ $1/$2"],
+    [/^Delete request #(\d+)\? Its lines and charges go with it\. You can restore it from Deleted\.$/, "تمسح طلب #$1؟ أدواته وحساباته هتتمسح معاه. تقدر ترجّعه من المحذوفات.", "Supprimer la demande #$1 ? Restaurable."],
+    [/^Remove (.+)'s account\? They can't log in any more\. You can restore it from Deleted\.$/, "تشيل حساب $1؟ مش هيقدر يدخل تاني. تقدر ترجّعه من المحذوفات.", "Retirer le compte de $1 ? Restaurable."],
+    [/^Delete (.+)\? It moves to Deleted, where you can restore it\.$/, "تمسح $1؟ هيروح للمحذوفات وتقدر ترجّعه.", "Supprimer $1 ? Restaurable."],
+    [/^Fix the numbers · #(\d+)$/, "صلّح الأرقام · #$1", "Corriger · #$1"], [/^Deleted (.+)$/, "اتمسح $1", "Supprimé $1"], [/^Request #(\d+) · (.+)$/, "طلب #$1 · $2", "Demande #$1 · $2"],
+    [/^Phase 2: after sending, write who is going \(kada( and 3eyal)?\)\. You'll get a reminder every day until it's done\.$/, (m, a) => "المرحلة ٢: بعد ما تبعت، اكتب مين طالع (" + (a ? "القادة والعيال" : "القادة") + "). هيجيلك تذكير كل يوم لحد ما تخلص.", "Étape 2 : après l'envoi, inscrivez les participants. Rappel chaque jour."],
+    [/^(\d+) colours$/, "$1 ألوان", "$1 couleurs"], [/^\+(\d+) more$/, "+$1 كمان", "+$1 autres"],
+    [/^Delete (.+)\? Its history stays; it just disappears from stock and booking\.$/, "تمسح $1؟ السجل بتاعه هيفضل؛ هيختفي بس من المخزون والحجز.", "Supprimer $1 ? Son historique reste."]
+  ];
+
+  // ---------- pieces inside longer lines (dates and names around them) ----------
+  const F = [
+    [/^Sent /, "اتبعت ", "Envoyé "], [/ · taken /g, " · اتاخد ", " · pris le "], [/ · sent /g, " · اتبعت ", " · envoyé "], [/ by (?=[^·]+($| · ))/, " من ", " par "], [/ · issued /g, " · اتسلّم ", " · remis "],
+    [/ to (?=[^·]+($| · ))/g, " لـ ", " à "], [/ · return by( |$)/g, " · يرجع قبل$1", " · retour avant$1"], [/ · back /g, " · رجع ", " · rendu "], [/^back /, "رجع ", "rendu "], [/^by /, "قبل ", "avant "],
+    [/^Available (\d+) of (\d+)/, "متاح $1 من $2", "Disponible $1 sur $2"], [/ · out (\d+)/g, " · برّه $1", " · sorti $1"], [/ · missing (\d+)/g, " · ناقص $1", " · manquant $1"],
+    [/ · damaged (\d+)/g, " · بايظ $1", " · abîmé $1"], [/ · (\d+) colours/g, " · $1 ألوان", " · $1 couleurs"], [/ · signed up /g, " · سجّل ", " · inscrit le "],
+    [/^Since /, "من ", "Depuis "], [/ · back by /g, " · يرجع قبل ", " · retour avant "], [/ · count /g, " · العدد ", " · nombre "], [/ · repaired\/found /g, " · اتصلّح/اتلاقى ", " · réparé/retrouvé "],
+    [/ · request #/g, " · طلب #", " · demande #"], [/^to /, "لـ ", "à "], [/ OK,/g, " سليم،", " OK,"], [/\(partly\)/g, "(جزء)", "(en partie)"], [/ · return by$/, " · يرجع قبل", " · retour avant"],
+    [/ · cost /g, " · التكلفة ", " · coût "], [/^Was /, "كان ", "Était "], [/ was handed out/, " اتسلّم", " remis"], [/^(.*) \(warehouse\)$/, "$1 (المخزن)", "$1 (entrepôt)"]
+  ];
+  const TRIG = /(· taken |^Sent |· sent |· issued |return by|^Available \d+ of|signed up|^Since |back by|· count |^back |^by |OK,|\(partly\)|· request #)/;
+
+  function tr(t) {
+    const s = t.trim();
+    if (!s || !/[A-Za-z]/.test(s)) return null;
+    if (Object.prototype.hasOwnProperty.call(D, s)) return t.replace(s, D[s][K]);
+    for (const r of R) { if (r[0].test(s)) { const to = r[K + 1]; return t.replace(s, s.replace(r[0], to)); } }
+    if (TRIG.test(s)) { let x = s; for (const f of F) x = x.replace(f[0], f[K + 1]); if (x !== s) return t.replace(s, x); }
+    return null;
+  }
+  BAS.tr = s => { const x = tr(String(s)); return x == null ? s : x; };
+
+  const ATTRS = ["placeholder", "title", "aria-label"];
+  function run(root) {
+    if (!root) return;
+    if (root.nodeType === 3) { fix(root); return; }
+    if (root.nodeType !== 1 || root.closest("script,style,[data-noi18n]")) return;
+    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let n; const list = [];
+    while ((n = w.nextNode())) list.push(n);
+    list.forEach(fix);
+    [root].concat([...root.querySelectorAll("[placeholder],[title],[aria-label]")]).forEach(e => {
+      if (!e.getAttribute) return;
+      ATTRS.forEach(a => { const v = e.getAttribute(a); if (v) { const x = tr(v); if (x != null && x !== v) e.setAttribute(a, x); } });
+    });
+  }
+  function fix(n) {
+    const p = n.parentElement;
+    if (!p || p.closest("script,style,textarea,[data-noi18n],.bub-txt,.ann p,.ann h4,.bp-row div")) return;
+    const x = tr(n.nodeValue);
+    if (x != null && x !== n.nodeValue) n.nodeValue = x;
+  }
+  run(document.body);
+  document.title = BAS.tr(document.title.split(" | ")[0]) + " | " + BAS.tr("BAS Warehouse");
+  new MutationObserver(ms => ms.forEach(m => {
+    if (m.type === "characterData") fix(m.target);
+    else m.addedNodes.forEach(run);
+  })).observe(document.body, { childList: true, subtree: true, characterData: true });
+
+  // pop-up questions too
+  const c = window.confirm, p = window.prompt, a = window.alert;
+  window.confirm = m => c.call(window, BAS.tr(m));
+  window.prompt = (m, d) => p.call(window, BAS.tr(m), d);
+  window.alert = m => a.call(window, BAS.tr(m));
+})();

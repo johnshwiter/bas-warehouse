@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mizania | BAS Warehouse</title>
+<link rel="icon" href="logo.png">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#17196A">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="bas.css">
+</head>
+<body>
+<main class="page">
+  <div class="head"><div><p class="eyebrow">Mizania</p><h1>Warehouse <em>money</em></h1>
+    <p class="sub">Everything that came in and went out: purchases, repairs, compensation, money from the church or the group.</p></div>
+    <button class="btn gold" id="addBtn">+ Add money in / out</button></div>
+  <div id="view"><div class="loading">Loading…</div></div>
+</main>
+<div class="overlay" id="sheet" hidden></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="common.js"></script>
+<script src="i18n.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const esc = s => BAS.esc(s);
+const CATS = { income: ["Church / group money", "Donation", "Other income"], expense: ["Equipment purchase", "Repairs", "Transport", "Cleaning", "Other expense"] };
+let BY = {}, MONEY = [], PAY = [], MAINT = [], LOSSES = [], ROWS = [], FM = "all", FK = "all", FC = "all";
+
+(async function () {
+  await BAS.init("mizania");
+  if (!BAS.requireApproved()) return;
+  if (!BAS.isAdmin()) { location.replace("section.html#money"); return; }
+  $("addBtn").onclick = () => entrySheet(null);
+  await load();
+})();
+
+async function load() {
+  try {
+    const st = await BAS.loadStock(); BY = st.byId;
+    MONEY = await BAS.q(supabaseClient.from("money_entries").select("*").order("entry_date", { ascending: false }));
+    PAY = await BAS.q(supabaseClient.from("payments").select("*"));
+    MAINT = (await BAS.q(supabaseClient.from("maintenance").select("*"))).filter(m => m.cost != null);
+    LOSSES = await BAS.q(supabaseClient.from("loss_status").select("*"));
+    const s = await supabaseClient.from("settings").select("*").eq("id", 1).single();
+    if (!s.error) BAS.settings = s.data;
+    ROWS = MONEY.map(m => ({ src: "manual", id: m.id, date: m.entry_date, kind: m.kind, cat: m.category, amount: Number(m.amount), note: m.note, item: m.item_id, sec: m.section_id, receipt: m.receipt_path, raw: m }))
+      .concat(PAY.map(p => ({ src: "payment", id: p.id, date: p.paid_on, kind: "income", cat: "Compensation", amount: Number(p.amount), note: BAS.borrowerName(p.section_id, p.service_id) + (p.note ? " · " + p.note : "") })))
+      .concat(MAINT.filter(m => Number(m.cost) > 0).map(m => ({ src: "maint", id: m.id, date: m.closed_on || m.started_on, kind: "expense", cat: "Repairs", amount: Number(m.cost), note: (m.reason || ""), item: m.item_id })))
+      .sort((a, b) => a.date < b.date ? 1 : -1);
+    draw();
+  } catch (e) { $("view").innerHTML = '<div class="msg err">' + esc(BAS.errText(e)) + "</div>"; }
+}
+
+function draw() {
+  const opening = Number(BAS.settings.opening_balance || 0);
+  const sum = (L, k) => L.filter(r => r.kind === k).reduce((t, r) => t + r.amount, 0);
+  const inAll = sum(ROWS, "income"), outAll = sum(ROWS, "expense"), owed = LOSSES.reduce((t, l) => t + Number(l.remaining || 0), 0);
+  const months = [...new Set(ROWS.map(r => (r.date || "").slice(0, 7)))].filter(Boolean);
+  const cats = [...new Set(ROWS.map(r => r.cat))];
+  const L = ROWS.filter(r => (FM === "all" || (r.date || "").slice(0, 7) === FM) && (FK === "all" || r.kind === FK) && (FC === "all" || r.cat === FC));
+  const byCat = {};
+  L.forEach(r => { const k = r.kind + "|" + r.cat; byCat[k] = (byCat[k] || 0) + r.amount; });
+  const tr = s => BAS.tr ? BAS.tr(s) : s;
+  let h = '<div class="kpis"><div class="kpi gold"><p>Balance now</p><h3>' + BAS.money(opening + inAll - outAll) + '</h3></div><div class="kpi ok"><p>Money in</p><h3>' + BAS.money(inAll) +
+    '</h3></div><div class="kpi bad"><p>Money out</p><h3>' + BAS.money(outAll) + '</h3></div><div class="kpi warn" data-go="team.html#money"><p>Compensation still owed</p><h3>' + BAS.money(owed) + "</h3></div>" +
+    '<div class="kpi"><p>Opening balance</p><h3>' + BAS.money(opening) + ' <button class="linkbtn sm" id="obEdit">edit</button></h3></div></div>';
+  h += '<div class="toolbar"><select id="fM"><option value="all">All months</option>' + months.map(m => '<option value="' + m + '"' + (m === FM ? " selected" : "") + ">" + esc(new Date(m + "-01T00:00:00").toLocaleDateString(BAS.loc(), { month: "long", year: "numeric" })) + "</option>").join("") + "</select>" +
+    '<select id="fK"><option value="all">In and out</option><option value="income"' + (FK === "income" ? " selected" : "") + '>Money in</option><option value="expense"' + (FK === "expense" ? " selected" : "") + ">Money out</option></select>" +
+    '<select id="fC"><option value="all">All categories</option>' + cats.map(c => '<option value="' + esc(c) + '"' + (c === FC ? " selected" : "") + ">" + esc(tr(c)) + "</option>").join("") + "</select></div>";
+  h += '<div class="cols"><div>' + (L.length ? '<div class="panel tscroll"><table class="ltable"><tr><th>Date</th><th>Category</th><th>Note</th><th class="num">Amount</th><th></th></tr>' +
+    L.map(r => '<tr><td class="nowrap">' + esc(BAS.fmtDate(r.date)) + "</td><td>" + (r.kind === "income" ? '<span class="pill ok">IN</span> ' : '<span class="pill bad">OUT</span> ') + esc(tr(r.cat)) + '</td><td dir="auto">' + esc(r.note || "") +
+      (r.item ? ' · <a class="lnk" href="item.html?id=' + r.item + '">' + esc(BAS.itemLabel(BY, r.item, null)) + "</a>" : "") + (r.sec ? " · " + BAS.secHTML(r.sec) : "") + (r.receipt ? ' · <button class="linkbtn" data-rc="' + esc(r.receipt) + '">🧾 receipt</button>' : "") + "</td>" +
+      '<td class="num nowrap"><b class="' + (r.kind === "income" ? "" : "bad") + '">' + (r.kind === "income" ? "+" : "−") + BAS.money(r.amount) + "</b></td><td class=\"nowrap\">" +
+      (r.src === "manual" ? '<button class="btn line sm" data-ed="' + r.id + '">Edit</button> <button class="btn danger sm" data-del="' + r.id + '">Delete</button>' : '<span class="mut" style="font-size:11px">' + esc(tr(r.src === "payment" ? "from Compensation" : "from Maintenance")) + "</span>") + "</td></tr>").join("") + "</table></div>"
+    : '<div class="empty">Nothing here yet.</div>') + "</div>" +
+    '<div><div class="group-title" style="margin-top:0">By category</div><div class="panel">' + (Object.keys(byCat).length ? Object.keys(byCat).sort().map(k => { const p = k.split("|"); return '<div class="person" style="margin:0 0 6px;padding:8px 10px"><span>' + (p[0] === "income" ? "➕ " : "➖ ") + esc(tr(p[1])) + "</span><b>" + BAS.money(byCat[k]) + "</b></div>"; }).join("") : '<span class="mut">—</span>') +
+    '<div class="person" style="margin:8px 0 0;padding:8px 10px;border-color:var(--navy)"><b>Total in − out</b><b>' + BAS.money(sum(L, "income") - sum(L, "expense")) + "</b></div></div></div></div>";
+  $("view").innerHTML = h;
+  $("fM").onchange = e => { FM = e.target.value; draw(); };
+  $("fK").onchange = e => { FK = e.target.value; draw(); };
+  $("fC").onchange = e => { FC = e.target.value; draw(); };
+  $("view").querySelectorAll("[data-go]").forEach(el => el.onclick = () => { location.href = el.dataset.go; });
+  $("obEdit").onclick = async () => {
+    const v = prompt("Opening balance in EGP (money the warehouse had when you started using this page):", String(opening));
+    if (v === null) return;
+    if (!(Number(v) >= 0)) return BAS.toast("Write a number", "err");
+    const { error } = await supabaseClient.from("settings").update({ opening_balance: Number(v) }).eq("id", 1);
+    if (error) return BAS.toast(BAS.errText(error), "err");
+    BAS.toast("Saved"); load();
+  };
+  $("view").querySelectorAll("[data-ed]").forEach(b => b.onclick = () => entrySheet(MONEY.find(m => m.id === Number(b.dataset.ed))));
+  $("view").querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+    if (!confirm("Delete this entry? You can restore it from Deleted.")) return;
+    const { error } = await supabaseClient.rpc("trash_item", { p_kind: "money", p_id: b.dataset.del });
+    if (error) return BAS.toast(BAS.errText(error), "err");
+    BAS.toast("Deleted"); load();
+  });
+  $("view").querySelectorAll("[data-rc]").forEach(b => b.onclick = async () => {
+    const r = await supabaseClient.storage.from("receipts").createSignedUrl(b.dataset.rc, 300);
+    if (r.error) return BAS.toast(BAS.errText(r.error), "err");
+    window.open(r.data.signedUrl, "_blank");
+  });
+}
+
+function entrySheet(m) {
+  const o = $("sheet"), kind = m ? m.kind : "expense";
+  const catOpts = k => CATS[k].concat(m && CATS[k].indexOf(m.category) < 0 && m.kind === k ? [m.category] : []).map(c => '<option value="' + esc(c) + '"' + (m && m.category === c ? " selected" : "") + ">" + esc(BAS.tr ? BAS.tr(c) : c) + "</option>").join("");
+  o.innerHTML = '<div class="sheet"><h2>' + (m ? "Edit entry" : "Money in / out") + '</h2><div class="panel">' +
+    '<div class="grid2"><div class="field"><label>In or out</label><select id="eK"><option value="expense"' + (kind === "expense" ? " selected" : "") + '>Money out</option><option value="income"' + (kind === "income" ? " selected" : "") + ">Money in</option></select></div>" +
+    '<div class="field"><label>Category</label><select id="eC">' + catOpts(kind) + "</select></div></div>" +
+    '<div class="grid2"><div class="field"><label>Amount (EGP)</label><input id="eA" type="number" min="1" inputmode="decimal" value="' + (m ? Number(m.amount) : "") + '"></div><div class="field"><label>Date</label><input id="eD" type="date" value="' + esc(m ? m.entry_date : BAS.todayISO()) + '"></div></div>' +
+    '<div class="field"><label>What / from where</label><input id="eN" value="' + esc(m ? m.note || "" : "") + '" placeholder="20 m of rope from …"></div>' +
+    '<div class="grid2"><div class="field"><label>Item (optional)</label><select id="eI"><option value="">—</option>' + Object.values(BY).sort((a, b) => a.name_en > b.name_en ? 1 : -1).map(i => '<option value="' + i.id + '"' + (m && m.item_id === i.id ? " selected" : "") + ">" + esc(i.name_en) + "</option>").join("") + "</select></div>" +
+    '<div class="field"><label>Stage (optional)</label><select id="eS"><option value="">—</option>' + BAS.sections.map(s => '<option value="' + s.id + '"' + (m && m.section_id === s.id ? " selected" : "") + ">" + esc(s.name_ar) + "</option>").join("") + "</select></div></div>" +
+    '<div class="field"><label>Receipt photo (optional)</label><input id="eR" type="file" accept="image/*">' + (m && m.receipt_path ? '<div class="hint">A receipt is saved. Choose a new photo to replace it.</div>' : "") + "</div></div>" +
+    '<div id="eErr" class="msg err" hidden></div><div class="actions"><button class="btn gold" id="eGo">Save</button><button class="btn line" id="eBack">Back</button></div></div>';
+  o.hidden = false;
+  $("eBack").onclick = () => { o.hidden = true; };
+  o.onclick = e => { if (e.target === o) o.hidden = true; };
+  $("eK").onchange = () => { $("eC").innerHTML = catOpts($("eK").value); };
+  $("eGo").onclick = async () => {
+    const fail = t => { $("eErr").textContent = t; $("eErr").hidden = false; };
+    const amt = Number($("eA").value);
+    if (!(amt > 0)) return fail("Write an amount more than 0.");
+    $("eGo").disabled = true;
+    const row = { kind: $("eK").value, category: $("eC").value, amount: amt, entry_date: $("eD").value || BAS.todayISO(), note: $("eN").value.trim() || null,
+      item_id: $("eI").value ? Number($("eI").value) : null, section_id: $("eS").value ? Number($("eS").value) : null };
+    const f = $("eR").files[0];
+    if (f) { try { row.receipt_path = await upload(f); } catch (e) { $("eGo").disabled = false; return fail(BAS.errText(e)); } }
+    const r = m ? await supabaseClient.from("money_entries").update(row).eq("id", m.id) : await supabaseClient.from("money_entries").insert(Object.assign(row, { created_by: BAS.user.id }));
+    $("eGo").disabled = false;
+    if (r.error) return fail(BAS.errText(r.error));
+    o.hidden = true; BAS.toast("Saved"); load();
+  };
+}
+
+function upload(file) {
+  return new Promise((ok, bad) => {
+    const rd = new FileReader(), img = new Image();
+    rd.onload = () => {
+      img.onload = () => {
+        const k = Math.min(1, 1400 / Math.max(img.width, img.height)), c = document.createElement("canvas");
+        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        c.toBlob(async blob => {
+          const path = BAS.todayISO() + "-" + Date.now() + ".jpg";
+          const up = await supabaseClient.storage.from("receipts").upload(path, blob, { contentType: "image/jpeg" });
+          if (up.error) bad(up.error); else ok(path);
+        }, "image/jpeg", 0.8);
+      };
+      img.onerror = () => bad(new Error("That file is not a photo."));
+      img.src = rd.result;
+    };
+    rd.readAsDataURL(file);
+  });
+}
+</script>
+</body>
+</html>
