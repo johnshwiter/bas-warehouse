@@ -9,14 +9,15 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="theme-color" content="#17196A">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
-<meta name="color-scheme" content="light dark">
+<meta name="color-scheme" content="only light">
 <link rel="stylesheet" href="bas.css">
-<script>try{document.documentElement.dataset.theme=localStorage.getItem("basTheme")==="dark"?"dark":"light"}catch(e){}</script>
+<script>(function(){var t="light";try{t=localStorage.getItem("basTheme")==="dark"?"dark":"light"}catch(e){}document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content="only "+t})()</script>
 </head>
 <body>
 <main class="page">
   <div class="head"><div><p class="eyebrow">3ohda</p><h1>Who has <em>what</em></h1>
-    <p class="sub">Everything that is out right now, by stage and by person. In camps and trips, each person's share is listed.</p></div></div>
+    <p class="sub">Everything that is out right now, by stage and by person. In camps and trips, each person's share is listed.</p></div>
+    <div class="actions" style="margin:0"><a class="btn gold" href="camp.html?new=Camp">⛺ + New camp</a><a class="btn line" href="camp.html?new=Trip">🚌 + New trip</a></div></div>
   <div class="toolbar"><select id="fSec" hidden></select><input id="fQ" type="search" placeholder="Person or item…"></div>
   <div id="view"><div class="loading">Loading…</div></div>
 </main>
@@ -28,7 +29,7 @@
 "use strict";
 const $ = id => document.getElementById(id);
 const esc = s => BAS.esc(s);
-let BY = {}, RES = [], PEOPLE = [], CUST = [], F = "all", CAMPS = [], CP = [], CC = [];
+let BY = {}, RES = [], PEOPLE = [], CUST = [], F = "all", CAMPS = [], CP = [], CC = [], DR = [];
 
 (async function () {
   await BAS.init("ohda");
@@ -46,6 +47,8 @@ let BY = {}, RES = [], PEOPLE = [], CUST = [], F = "all", CAMPS = [], CP = [], C
     const ALL = await BAS.loadReservations(BY);
     RES = ALL.filter(r => BAS.OUT.indexOf(r.status) >= 0);
     CAMPS = ALL.filter(r => r.kind && r.kind !== "Meeting" && ["Cancelled", "Rejected", "Completed"].indexOf(r.status) < 0).sort((a, b) => a.meeting_date > b.meeting_date ? 1 : -1);
+    const d = await supabaseClient.from("drafts").select("*").order("updated_at", { ascending: false });
+    DR = (d.data || []).filter(x => x.data && (x.data.kind === "Camp" || x.data.kind === "Trip"));
     const cids = CAMPS.map(r => r.id);
     if (cids.length) { CP = await BAS.q(supabaseClient.from("trip_people").select("id, reservation_id").in("reservation_id", cids)); CC = await BAS.q(supabaseClient.from("custody").select("id, reservation_id").in("reservation_id", cids)); }
     const ids = RES.map(r => r.id);
@@ -83,7 +86,7 @@ function draw() {
         body += '<div class="tscroll"><table class="ltable"><tr><th>Person</th><th>Has</th></tr>' + Object.keys(byP).map(pid => {
           const p = people.find(x => x.id === Number(pid)) || { name: "?", gender: "M" };
           if (q && !BAS.norm(p.name + " " + byP[pid].map(c => BAS.itemLabel(BY, c.item_id, c.variant_id)).join(" ")).includes(q) && !BAS.norm(itemsTxt + " #" + r.id).includes(q)) return "";
-          return '<tr><td><span class="gender ' + p.gender + '">' + (p.gender === "M" ? "♂" : "♀") + "</span> <b>" + esc(p.name) + '</b> <small class="mut">' + (p.role === "kada" ? "Kada" : "3el") + "</small></td><td>" +
+          return '<tr><td><span class="gender ' + (p.gender || "null") + '">' + (p.gender === "M" ? "♂" : p.gender === "F" ? "♀" : "?") + "</span> <b>" + esc(p.name) + '</b> <small class="mut">' + (p.role === "kada" ? "Kada" : "Walad") + "</small></td><td>" +
             byP[pid].map(c => '<a class="lnk" href="item.html?id=' + c.item_id + '">' + esc(BAS.itemLabel(BY, c.item_id, c.variant_id)) + "</a> ×" + (c.qty - c.returned_qty)).join(" · ") + "</td></tr>";
         }).join("") + "</table></div>";
       } else {
@@ -100,7 +103,9 @@ function draw() {
       '<div class="en">' + esc(BAS.fmtDate(r.meeting_date, true)) + (r.end_date ? " → " + esc(BAS.fmtDate(r.end_date, true)) : "") + " · " + esc(r.place || "") + "</div>" +
       "<dl><dt>Phase 1: items</dt><dd>" + r.items.length + "</dd><dt>Phase 2: who is going</dt><dd" + (np ? "" : ' class="bad"') + ">" + (np || "—") + "</dd><dt>3ohda</dt><dd" + (nc ? "" : ' class="bad"') + ">" + (nc ? "✓" : "—") + "</dd></dl></a>";
   }).join("") + "</div>" : "";
-  $("view").innerHTML = ch + (h ? '<div class="group-title">Out now</div>' + h : '<div class="group-title">Out now</div><div class="empty">' + (q ? "Nothing matches." : "Nothing is out right now.") + "</div>");
+  const dh = DR.length ? '<div class="group-title">📝 Drafts</div>' + DR.map(x => '<div class="person"><div><b dir="auto">' + esc(x.title || "Draft") + '</b><div class="meta">' + esc(BAS.fmtDateTime(x.updated_at)) + "</div></div>" +
+    '<div class="actions" style="margin:0"><a class="btn sm" href="camp.html?new=' + x.data.kind + "&draft=" + x.id + '">Continue</a></div></div>').join("") : "";
+  $("view").innerHTML = dh + ch + (h ? '<div class="group-title">Out now</div>' + h : '<div class="group-title">Out now</div><div class="empty">' + (q ? "Nothing matches." : "Nothing is out right now.") + "</div>");
 }
 </script>
 </body>

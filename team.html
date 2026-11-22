@@ -12,9 +12,9 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="BAS Warehouse">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
-<meta name="color-scheme" content="light dark">
+<meta name="color-scheme" content="only light">
 <link rel="stylesheet" href="bas.css">
-<script>try{document.documentElement.dataset.theme=localStorage.getItem("basTheme")==="dark"?"dark":"light"}catch(e){}</script>
+<script>(function(){var t="light";try{t=localStorage.getItem("basTheme")==="dark"?"dark":"light"}catch(e){}document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content="only "+t})()</script>
 </head>
 <body>
 <main class="page">
@@ -57,9 +57,9 @@ async function loadAll() {
   try {
     const st = await BAS.loadStock(); STOCK = st.list; BY = st.byId;
     RES = await BAS.loadReservations(BY);
-    LOSSES = await BAS.q(supabaseClient.from("loss_status").select("*").order("created_at", { ascending: false }));
+    LOSSES = await BAS.q(supabaseClient.from("loss_status").select("*").order("created_at", { ascending: false })); await BAS.loadLossWho(LOSSES);
     PAYMENTS = await BAS.q(supabaseClient.from("payments").select("*").order("paid_on", { ascending: false }));
-    PEOPLE = await BAS.q(supabaseClient.from("profiles").select("id, full_name, email, role, approval_status, section_id, created_at").order("created_at"));
+    PEOPLE = await BAS.q(supabaseClient.from("profiles").select("id, full_name, email, role, approval_status, section_id, created_at, stage_role").order("created_at"));
     TRANSFERS = await BAS.q(supabaseClient.from("transfer_requests").select("*").order("created_at", { ascending: false }));
     MAINT = await BAS.q(supabaseClient.from("maintenance").select("*").order("created_at", { ascending: false }));
     WAIT = await BAS.q(supabaseClient.from("waitlist").select("*").in("status", ["Waiting", "Available"]).order("created_at"));
@@ -646,6 +646,8 @@ function peopleView() {
     '<span class="pill ' + (p.approval_status === "approved" ? "paid" : p.approval_status === "pending" ? "low" : "late") + '">' + esc(p.approval_status.toUpperCase()) + "</span></div></div>" +
     '<div class="actions" style="margin:0"><select data-f="section_id" aria-label="Stage">' + secOpts(p.section_id) + '</select><select data-f="role" aria-label="Role"><option value="leader"' + (p.role === "leader" ? " selected" : "") +
     '>Leader</option><option value="admin"' + (p.role === "admin" ? " selected" : "") + ">Warehouse team</option></select>" +
+    (p.section_id && p.approval_status === "approved" ? '<select data-f="stage_role" aria-label="Role in the stage">' + [["leader", "Leader"], ["head", "قائد المرحلة"], ["deputy", "نائب قائد المرحلة"], ["assistant", "مساعد قائد المرحلة"]]
+      .map(o => '<option value="' + o[0] + '"' + ((p.stage_role || "leader") === o[0] ? " selected" : "") + ">" + o[1] + "</option>").join("") + "</select>" : "") +
     (p.approval_status !== "approved" ? '<button class="btn ok sm" data-ap="approved">Approve</button>' : "") + (p.approval_status !== "rejected" && p.id !== BAS.user.id ? '<button class="btn danger sm" data-ap="rejected">Reject</button>' : "") + (p.id !== BAS.user.id && p.approval_status !== "pending" ? '<button class="btn danger sm" data-rm="1">Remove account</button>' : "") + "</div></div>";
   $("view").innerHTML = '<div class="group-title">New accounts waiting</div>' + (pend.length ? pend.map(row).join("") : '<div class="empty">No one is waiting.</div>') +
     '<div class="group-title">Stage transfer requests</div>' + (tr.length ? tr.map(t => '<div class="person"><div><h4>' + esc(person(t.profile_id)) + '</h4><div class="meta">' + BAS.secHTML(t.from_section) + " → <b>" + BAS.secHTML(t.to_section) + "</b> · " + esc(BAS.fmtDate(t.created_at)) + (t.note ? " · " + esc(t.note) : "") + "</div></div>" +
@@ -693,6 +695,26 @@ async function logView() {
     (data.length ? data.map(x => '<div class="log-row"><small>' + esc(BAS.fmtDateTime(x.at)) + "</small><div><b>" + esc(x.action) + "</b> · " + esc(person(x.actor) || "system") + what(x) + "</div></div>").join("") : '<div class="empty">Nothing yet.</div>') + "</div>";
 }
 
+// ---------- reset (backup first) ----------
+async function resetAll() {
+  if ($("rsIn").value.trim() !== "RESET") return BAS.toast("Type RESET to confirm.", "err");
+  const out = RES.filter(r => BAS.OUT.indexOf(r.status) >= 0).length;
+  if (!confirm((out ? out + " requests are still out; their items will count as back in the warehouse. " : "") + "Delete all the history now? A backup file downloads first.")) return;
+  const b = $("rsGo"); b.disabled = true;
+  const bk = await supabaseClient.rpc("backup_all");
+  if (bk.error) { b.disabled = false; return BAS.toast(BAS.errText(bk.error), "err"); }
+  const blob = new Blob([JSON.stringify(bk.data)], { type: "application/json" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "bas-warehouse-backup-" + BAS.todayISO() + ".json";
+  document.body.appendChild(a); a.click(); a.remove();
+  await new Promise(r => setTimeout(r, 1200));
+  if (!confirm("Did the backup file download? OK = reset now.")) { b.disabled = false; return; }
+  const { error } = await supabaseClient.rpc("reset_history", { p_confirm: "RESET" });
+  b.disabled = false;
+  if (error) return BAS.toast(BAS.errText(error), "err");
+  BAS.toast("Reset done. Items and counts kept.");
+  setTimeout(() => location.reload(), 900);
+}
+
 // ---------- settings ----------
 function settingsView() {
   const s = BAS.settings;
@@ -703,14 +725,24 @@ function settingsView() {
     '<div class="field"><label>Meeting times (comma separated)</label><input id="sTimes" value="' + esc((s.times || []).join(", ")) + '"></div></div>' +
     '<div id="fErr" class="msg err" hidden></div><button class="btn ok" id="sSave">Save settings</button></div>' +
     '<div class="group-title">Scout stages</div><div class="panel" style="max-width:640px">' +
-    BAS.sections.map(x => '<div class="person"><div><h4><bdi>' + esc(x.name_ar) + "</bdi> · " + esc(x.name_en) + '</h4><div class="meta">' + (x.has_3eyal ? "Kada + 3eyal in camps" : "Kada only in camps") + "</div></div>" +
+    BAS.sections.map(x => '<div class="person"><div><h4><bdi>' + esc(x.name_ar) + "</bdi> · " + esc(x.name_en) + '</h4><div class="meta">' + (x.has_3eyal ? "Kada + awlad in camps" : "Kada only in camps (and a number of kids)") + "</div></div>" +
       '<div class="actions" style="margin:0"><button class="btn line sm" data-sec="' + x.id + '">Edit</button><button class="btn danger sm" data-secdel="' + x.id + '">Delete</button></div></div>').join("") +
     '<button class="btn gold" id="secAdd">+ Add stage</button></div>' +
     '<div class="group-title">Other church services</div><div class="panel" style="max-width:640px">' +
     BAS.services.map(v => '<div class="person"><div><h4><bdi>' + esc(v.name_ar) + "</bdi>" + (v.name_en && v.name_en !== v.name_ar ? " · " + esc(v.name_en) : "") + "</h4></div>" +
       '<div class="actions" style="margin:0"><a class="btn line sm" href="' + BAS.borrowerURL(null, v.id) + '">Open page</a><button class="btn line sm" data-svc="' + v.id + '" data-on="' + (!v.is_active) + '">' + (v.is_active ? "Hide" : "Show") + "</button><button class=\"btn danger sm\" data-svdel=\"" + v.id + "\">Delete</button></div></div>").join("") +
     '<div class="grid2" style="margin-top:10px"><div class="field"><label>New service or church (name)</label><input id="svAr"></div><div class="field"><label>Other spelling (optional)</label><input id="svEn"></div></div>' +
-    '<button class="btn gold" id="svAdd">Add service</button></div>';
+    '<button class="btn gold" id="svAdd">Add service</button></div>' +
+    '<div class="group-title">Attendance</div><div class="panel" style="max-width:640px"><p class="meta">The scout year started on <b>' + esc(BAS.fmtDate(s.att_year_start || BAS.todayISO(), true)) + '</b>. Percentages and absence counts start from this day.</p>' +
+    '<div class="grid2"><div class="field"><label>First day of the new scout year</label><input type="date" id="nyDate" value="' + BAS.todayISO() + '"></div><div></div></div><button class="btn line" id="nyGo">Start a new scout year</button></div>' +
+    '<div class="group-title">Reset</div><div class="panel" style="max-width:640px;border-color:var(--bad)"><h3>🧹 Reset the history</h3>' +
+    '<p class="meta">Deletes every request, missing/damaged record, payment, 3ohda, message, notification, activity log, waitlist, finished maintenance, calendar event and money entry. ' +
+    'Keeps the items and their counts (lost and written-off pieces are taken out of the totals), accounts, stages, services, people lists, tali3as, attendance and settings. Items still at the repair shop stay listed.</p>' +
+    '<p class="meta">A full backup file is downloaded first. Keep it.</p><div class="field"><label>Type RESET to confirm</label><input id="rsIn" autocomplete="off" placeholder="RESET"></div>' +
+    '<div id="rsMsg" class="msg warn" hidden></div><button class="btn danger" id="rsGo">Download backup and reset</button></div>';
+  $("nyGo").onclick = () => { const d = $("nyDate").value; if (!d) return BAS.toast("Choose the date", "err");
+    if (confirm("Start the new scout year on " + BAS.fmtDate(d, true) + "? Attendance before this day stops counting (it stays saved).")) rpc("new_scout_year", { p_start: d }, "New scout year started").then(() => location.reload()); };
+  $("rsGo").onclick = resetAll;
   $("sSave").onclick = async () => {
     const days = Number($("sDays").value), ret = Number($("sRet").value), low = Number($("sLow").value), times = $("sTimes").value.split(",").map(x => x.trim()).filter(Boolean);
     if (!Number.isInteger(days) || days < 0 || days > 30) return fail("Days before must be between 0 and 30.");
@@ -725,7 +757,7 @@ function settingsView() {
   const secEdit = x => {
     const ar = prompt("Stage name (Arabic):", x ? x.name_ar : ""); if (ar === null || !ar.trim()) return;
     const en = prompt("Stage name (English / Franco):", x ? x.name_en : ""); if (en === null) return;
-    const three = confirm("Does this stage take 3eyal to camps (like Motakdem & Ra2edat)? OK = yes, Cancel = kada only.");
+    const three = confirm("Does this stage list awlad by name in camps (like Motakdem & Ra2edat)? OK = yes, Cancel = kada only.");
     rpc("admin_save_section", { p_id: x ? x.id : null, p_ar: ar, p_en: en, p_has_3eyal: three }, "Saved").then(() => location.reload());
   };
   $("secAdd").onclick = () => secEdit(null);

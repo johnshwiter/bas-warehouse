@@ -12,9 +12,9 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="BAS Warehouse">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
-<meta name="color-scheme" content="light dark">
+<meta name="color-scheme" content="only light">
 <link rel="stylesheet" href="bas.css">
-<script>try{document.documentElement.dataset.theme=localStorage.getItem("basTheme")==="dark"?"dark":"light"}catch(e){}</script>
+<script>(function(){var t="light";try{t=localStorage.getItem("basTheme")==="dark"?"dark":"light"}catch(e){}document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content="only "+t})()</script>
 </head>
 <body>
 <main class="page">
@@ -51,7 +51,7 @@ async function load() {
     let res = [];
     for (let i = 0; i < ids.length; i += 150) res = res.concat(await BAS.q(supabaseClient.from("reservations").select("*").in("id", ids.slice(i, i + 150))));
     RES = res.map(r => Object.assign(r, { lines: lines.filter(l => l.reservation_id === r.id) })).sort((a, b) => a.created_at < b.created_at ? 1 : -1);
-    LOSSES = await BAS.q(supabaseClient.from("loss_status").select("*").eq("item_id", ID).order("created_at", { ascending: false }));
+    LOSSES = await BAS.q(supabaseClient.from("loss_status").select("*").eq("item_id", ID).order("created_at", { ascending: false })); await BAS.loadLossWho(LOSSES);
     if (BAS.isAdmin()) {
       MAINT = await BAS.q(supabaseClient.from("maintenance").select("*").eq("item_id", ID).order("created_at", { ascending: false }));
       LOG = await BAS.q(supabaseClient.from("activity_log").select("*").eq("entity", "items").eq("entity_id", String(ID)).order("at", { ascending: false }).limit(100));

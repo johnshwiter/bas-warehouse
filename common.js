@@ -71,11 +71,11 @@ const BAS = {
   async init(active) {
     const { data: { session } } = await supabaseClient.auth.getSession();
     this.user = session ? session.user : null;
-    let sec = await supabaseClient.from("sections").select("id, name_en, name_ar, has_3eyal, is_active").order("id");
+    let sec = await supabaseClient.from("sections").select("id, name_en, name_ar, has_3eyal, is_active, att_late_min, att_late_absent").order("id");
     if (sec.error) sec = await supabaseClient.from("sections").select("id, name_en, name_ar").order("id");
     if (!sec.error) { this.allSections = sec.data || []; this.sections = this.allSections.filter(x => x.is_active !== false); }
     if (this.user) {
-      const p = await supabaseClient.from("profiles").select("id, full_name, role, approval_status, section_id, lang").eq("id", this.user.id).single();
+      const p = await supabaseClient.from("profiles").select("id, full_name, role, approval_status, section_id, lang, stage_role").eq("id", this.user.id).single();
       this.profile = p.error ? null : p.data;
       if (this.isApproved()) {
         const st = await supabaseClient.from("settings").select("*").eq("id", 1).single();
@@ -98,17 +98,17 @@ const BAS = {
 
   // ---------- top bar ----------
   header(active) {
-    document.documentElement.dataset.theme = this.theme();
+    document.documentElement.dataset.theme = this.theme(); this.colorMeta(this.theme());
     let h = document.getElementById("top");
     if (!h) { h = document.createElement("header"); h.id = "top"; document.body.prepend(h); }
     const L = [];
     const mine = this.profile && this.profile.section_id;
     if (this.isAdmin()) {
       L.push(["overview", "team.html", "Overview"], ["requests", "team.html#requests", "Requests"], ["book", "book.html", "Book items"],
-        ["calendar", "calendar.html", "Calendar"], ["stock", "team.html#stock", "Stock"], ["ohda", "ohda.html", "3ohda"], ["mizania", "mizania.html", "Mizania"]);
+        ["calendar", "calendar.html", "Calendar"], ["stock", "team.html#stock", "Stock"], ["ohda", "ohda.html", "3ohda"], ["mizania", "mizania.html", "Mizania"], ["attendance", "attendance.html", "Attendance"]);
       if (mine) L.push(["stage", "section.html?id=" + mine, "My stage"]);
     } else if (this.isApproved()) {
-      L.push(["stage", "section.html", "My stage"], ["book", "book.html", "Book items"], ["calendar", "calendar.html", "Calendar"], ["ohda", "ohda.html", "3ohda"]);
+      L.push(["stage", "section.html", "My stage"], ["book", "book.html", "Book items"], ["ohda", "ohda.html", "3ohda"], ["attendance", "attendance.html", "Attendance"]);
     }
     const name = this.profile ? this.profile.full_name : (this.user ? this.user.email : "");
     const tag = this.isAdmin() ? this.t("Warehouse team") : (this.profile && this.profile.section_id ? this.sectionName(this.profile.section_id) : "");
@@ -141,11 +141,19 @@ const BAS = {
       ohda: i('<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16 4.5a3 3 0 0 1 0 6M18 14c2 .7 3 2.8 3 6"/>'),
       mizania: i('<rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9.5v.01M18 14.5v.01"/>'),
       stage: i('<path d="M3 20 12 5l9 15z"/><path d="M12 5v15M9 20l3-5 3 5"/>'),
+      attendance: i('<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="m8.5 12.5 2.2 2.2 4.8-4.8"/>'),
       profile: i('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/>')
     };
   })(),
   theme() { try { return localStorage.getItem("basTheme") === "dark" ? "dark" : "light"; } catch (e) { return "light"; } },
-  setTheme(t) { try { localStorage.setItem("basTheme", t); } catch (e) {} document.documentElement.dataset.theme = t; },
+  setTheme(t) { try { localStorage.setItem("basTheme", t); } catch (e) {} document.documentElement.dataset.theme = t; this.colorMeta(t); },
+  // tell the browser (Samsung Internet, Chrome "auto dark") not to repaint the page in its own dark mode
+  colorMeta(t) {
+    let m = document.querySelector('meta[name="color-scheme"]');
+    if (!m) { m = document.createElement("meta"); m.name = "color-scheme"; document.head.appendChild(m); }
+    m.content = t === "dark" ? "only dark" : "only light";
+    const tc = document.querySelector('meta[name="theme-color"]'); if (tc) tc.content = t === "dark" ? "#090A28" : "#17196A";
+  },
   firstName() { const n = (this.profile && this.profile.full_name) || ""; return /@/.test(n) ? "" : n.trim().split(/\s+/)[0]; },
   welcomeText() { const n = this.firstName(); return (this.tr ? this.tr("Welcome") : "Welcome") + (n ? (this.lang === "ar" ? "، " : ", ") + n : "") + " 👋"; },
   // a person whose name is still their email is asked for their real name once
@@ -185,7 +193,7 @@ const BAS = {
       (p.data || []).filter(x => x.approval_status !== "removed").forEach(x => idx.push({ g: "People", t: x.full_name, s: (x.role === "admin" ? "Warehouse team" : "") + (x.section_id ? " " + this.sectionName(x.section_id) : "") + (x.email ? " · " + x.email : ""), h: "team.html#people", k: this.norm(x.full_name + " " + (x.email || "")) }));
     }
     const ro = await supabaseClient.from("roster").select("id, name, role, section_id").eq("is_active", true);
-    (ro.data || []).forEach(x => idx.push({ g: "People", t: x.name, s: (x.role === "kada" ? "Kada" : "3el") + " · " + this.sectionName(x.section_id), h: "ohda.html?q=" + encodeURIComponent(x.name), k: this.norm(x.name) }));
+    (ro.data || []).forEach(x => idx.push({ g: "People", t: x.name, s: (x.role === "kada" ? "Kada" : "Walad") + " · " + this.sectionName(x.section_id), h: "ohda.html?q=" + encodeURIComponent(x.name), k: this.norm(x.name) }));
     this._idx = idx;
     return idx;
   },
@@ -301,7 +309,7 @@ const BAS = {
   // reservations the user may see (RLS decides), with their lines and any pending change
   async loadReservations(stockBy, filter) {
     let qr = supabaseClient.from("reservations")
-      .select("id, section_id, service_id, requested_by, status, notes, meeting_date, meeting_time, place, created_at, prepared_at, ready_at, issued_at, received_by_name, return_by, returned_at, completed_at, closed_reason, kind, end_date, phase2_at")
+      .select("id, section_id, service_id, requested_by, status, notes, meeting_date, meeting_time, place, created_at, prepared_at, ready_at, issued_at, received_by_name, return_by, returned_at, completed_at, closed_reason, kind, end_date, phase2_at, kids_count")
       .order("meeting_date", { ascending: false }).limit(1000);
     if (filter && filter.section_id) qr = qr.eq("section_id", filter.section_id);
     if (filter && filter.service_id) qr = qr.eq("service_id", filter.service_id);
@@ -401,6 +409,23 @@ const BAS = {
     return h;
   },
 
+  // camps: who had the missing piece (their 3ohda didn't all come back)
+  LOSSWHO: {},
+  async loadLossWho(losses) {
+    const ids = [...new Set(losses.filter(l => l.reservation_id).map(l => l.reservation_id))];
+    if (!ids.length) return;
+    try {
+      const cu = await this.q(supabaseClient.from("custody").select("reservation_id, item_id, variant_id, qty, returned_qty, person_id").in("reservation_id", ids));
+      const short = cu.filter(c => c.returned_qty < c.qty);
+      if (!short.length) return;
+      const tp = await this.q(supabaseClient.from("trip_people").select("id, name").in("id", [...new Set(short.map(c => c.person_id))]));
+      const nm = {}; tp.forEach(p => { nm[p.id] = p.name; });
+      losses.forEach(l => {
+        const L = short.filter(c => c.reservation_id === l.reservation_id && c.item_id === l.item_id && (c.variant_id || null) === (l.variant_id || null));
+        if (L.length) this.LOSSWHO[l.id] = L.map(c => (nm[c.person_id] || "?") + (c.qty - c.returned_qty > 1 ? " ×" + (c.qty - c.returned_qty) : "")).join("، ");
+      });
+    } catch (e) {}
+  },
   // missing/damaged lines with what is paid; works for one stage, one service, or everyone
   lossTable(losses, stockBy, opts) {
     opts = opts || {};
@@ -408,7 +433,7 @@ const BAS = {
     return '<div class="panel tscroll"><table class="ltable"><tr><th>Date</th>' + (opts.who ? "<th>Stage / service</th>" : "") + '<th>Item</th><th>Kind</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Total</th><th class="num">Paid</th><th>Status</th><th>Request</th>' + (opts.admin ? "<th></th>" : "") + "</tr>" +
       losses.map(l => "<tr><td class=\"nowrap\">" + this.esc(this.fmtDate(l.occurred_on)) + "</td>" +
         (opts.who ? '<td><a class="lnk" href="' + this.borrowerURL(l.section_id, l.service_id) + '"><bdi>' + this.esc(this.borrowerName(l.section_id, l.service_id)) + "</bdi></a></td>" : "") +
-        '<td><a class="lnk" href="item.html?id=' + l.item_id + '">' + this.esc(this.itemLabel(stockBy, l.item_id, l.variant_id)) + "</a>" + (l.note ? '<br><small class="mut">' + this.esc(l.note) + "</small>" : "") + "</td>" +
+        '<td><a class="lnk" href="item.html?id=' + l.item_id + '">' + this.esc(this.itemLabel(stockBy, l.item_id, l.variant_id)) + "</a>" + (l.note ? '<br><small class="mut">' + this.esc(l.note) + "</small>" : "") + (this.LOSSWHO[l.id] ? '<br><small class="who-had">👤 ' + this.esc(this.LOSSWHO[l.id]) + "</small>" : "") + "</td>" +
         "<td>" + (l.kind === "missing" ? '<span class="pill bad">MISSING</span>' : '<span class="pill warn">DAMAGED</span>') + '</td><td class="num">' + l.qty + "</td>" +
         '<td class="num">' + (opts.admin ? '<input type="number" min="0" value="' + Number(l.unit_price) + '" data-lp="' + l.id + '">' : Number(l.unit_price)) + '</td><td class="num"><b>' + Number(l.amount) + '</b></td><td class="num">' + Number(l.paid) + "</td>" +
         "<td>" + (Number(l.amount) <= 0 ? '<span class="pill mut">NO PRICE</span>' : l.settled ? '<span class="pill ok">PAID</span>' : '<span class="pill late">' + Number(l.remaining) + " LEFT</span>") + "</td>" +
@@ -589,11 +614,12 @@ const BAS = {
       const p = m.reply_to ? msgs.find(x => x.id === m.reply_to) : null;
       const quote = p ? '<div class="bub-quote" data-jump="' + p.id + '"><b>' + this.esc(p.sender === this.user.id ? t("You") : (p.sender_name || "")) + "</b><span dir=\"auto\">" +
         this.esc(p.deleted_at ? t("deleted a message") : (p.body || (p.images && p.images.length ? "📷" : ""))).slice(0, 120) + "</span></div>" : "";
-      const can = mine || this.isAdmin();
-      return sep + '<div class="bub' + (mine ? " mine" : "") + (team && !mine ? " team" : "") + '" id="msg' + m.id + '"><div class="bub-who">' + this.esc(mine ? t("You") : (m.sender_name || (this.NAMES || {})[m.sender] || "")) + (team ? ' <span class="pill svc">WAREHOUSE</span>' : "") + "</div>" + quote +
+      const can = mine || this.isAdmin(), pin = !!m.pinned_at;
+      return sep + '<div class="bub' + (mine ? " mine" : "") + (team && !mine ? " team" : "") + (pin ? " pinned" : "") + '" id="msg' + m.id + '"><div class="bub-who">' + (pin ? "📌 " : "") + this.esc(mine ? t("You") : (m.sender_name || (this.NAMES || {})[m.sender] || "")) + (team ? ' <span class="pill svc">WAREHOUSE</span>' : "") + "</div>" + quote +
         (imgs.length ? '<div class="bub-imgs n' + imgs.length + '">' + imgs.map(p => '<img alt="photo" data-img="' + this.esc(p) + '">').join("") + "</div>" : "") +
         (m.body ? '<div class="bub-txt" dir="auto">' + this.esc(m.body) + "</div>" : "") + '<div class="bub-time">' + time + (m.edited_at ? " · " + this.esc(t("edited")) : "") +
         ' · <button class="linkbtn sm" data-mrep="' + m.id + '">' + this.esc(t("reply")) + "</button>" +
+        (!pin ? ' · <button class="linkbtn sm" data-mpin="' + m.id + '" data-on="1">' + this.esc(t("pin")) + "</button>" : (this.isAdmin() || m.pinned_by === this.user.id) ? ' · <button class="linkbtn sm" data-mpin="' + m.id + '" data-on="0">' + this.esc(t("unpin")) + "</button>" : "") +
         (can && m.body ? ' · <button class="linkbtn sm" data-medit="' + m.id + '">' + this.esc(t("edit")) + "</button>" : "") +
         (can ? ' · <button class="linkbtn sm" data-mdel="' + m.id + '">' + this.esc(t("delete")) + "</button>" : "") + "</div></div>";
     }).join("");
@@ -633,8 +659,15 @@ const BAS = {
     });
   },
   // a whole chat box; target = {section, service, reservation}
+  pinsHTML(msgs) {
+    const P = msgs.filter(m => m.pinned_at && !m.deleted_at).sort((a, b) => a.pinned_at < b.pinned_at ? 1 : -1);
+    if (!P.length) return "";
+    const t = x => this.tr ? this.tr(x) : x;
+    return '<div class="chat-pins"><b>📌 ' + this.esc(t("Pinned")) + " (" + P.length + ")</b>" + P.map(m => '<button type="button" class="pinrow" data-jump="' + m.id + '"><span dir="auto">' +
+      this.esc((m.body || "📷").slice(0, 110)) + "</span><small>" + this.esc((m.sender_name || "") + " · " + this.fmtDate(m.created_at)) + "</small></button>").join("") + "</div>";
+  },
   chatHTML(id, msgs, small) {
-    return '<div class="chat' + (small ? " small" : "") + '" id="' + id + '"><div class="chat-list">' + this.bubbles(msgs) + '</div><div class="chat-prev" hidden></div><div class="chat-reply" hidden></div>' +
+    return '<div class="chat' + (small ? " small" : "") + '" id="' + id + '">' + this.pinsHTML(msgs) + '<div class="chat-list">' + this.bubbles(msgs) + '</div><div class="chat-prev" hidden></div><div class="chat-reply" hidden></div>' +
       '<form class="chat-form"><label class="btn line chat-cam" title="Add photos">📷<input type="file" accept="image/*" multiple hidden></label><textarea rows="1" placeholder="Write a message…" dir="auto"></textarea><button class="btn gold" type="submit">Send</button></form></div>';
   },
   bindChat(id, target, reload, msgs) {
@@ -690,6 +723,14 @@ const BAS = {
       ta.focus();
     });
     box.querySelectorAll("[data-jump]").forEach(q => q.onclick = () => { const el = document.getElementById("msg" + q.dataset.jump); if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 1200); } });
+    box.querySelectorAll("[data-mpin]").forEach(b => b.onclick = async () => {
+      const on = b.dataset.on === "1";
+      if (!on && !confirm(this.tr ? this.tr("Remove this pin?") : "Remove this pin?")) return;
+      const { error } = await supabaseClient.rpc("pin_message", { p_id: Number(b.dataset.mpin), p_pin: on });
+      if (error) return this.toast(this.errText(error), "err");
+      this.toast(on ? "Pinned 📌" : "Pin removed");
+      reload();
+    });
     box.querySelectorAll("[data-medit]").forEach(b => b.onclick = async () => {
       const el = document.getElementById("msg" + b.dataset.medit), cur = (el.querySelector(".bub-txt") || {}).textContent || "";
       const v = prompt(this.tr ? this.tr("Edit your message:") : "Edit your message:", cur);

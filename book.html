@@ -12,9 +12,9 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="BAS Warehouse">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
-<meta name="color-scheme" content="light dark">
+<meta name="color-scheme" content="only light">
 <link rel="stylesheet" href="bas.css">
-<script>try{document.documentElement.dataset.theme=localStorage.getItem("basTheme")==="dark"?"dark":"light"}catch(e){}</script>
+<script>(function(){var t="light";try{t=localStorage.getItem("basTheme")==="dark"?"dark":"light"}catch(e){}document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content="only "+t})()</script>
 </head>
 <body>
 <main class="page">
@@ -26,6 +26,7 @@
     </div>
   </div>
   <div id="editNote"></div>
+  <div class="msg info" id="campHint">This page is for meetings. Going on a camp or trip? <button class="linkbtn" data-tocamp="Camp">⛺ New camp</button> · <button class="linkbtn" data-tocamp="Trip">🚌 New trip</button></div>
   <div id="waitAlerts"></div>
   <div id="drafts"></div>
   <div class="toolbar"><input id="search" type="search" placeholder="Search: shoum, حبل, pot…" aria-label="Search items"></div>
@@ -65,11 +66,14 @@ let STOCK = [], CART = {}, CAT = "All", EDIT = null, OWN = {}, WAIT = [], DRAFTS
     const evId = Number(new URLSearchParams(location.search).get("event"));
     if (evId && !EDIT) {
       const e = await supabaseClient.from("events").select("*").eq("id", evId).single();
+      if (!e.error && (e.data.kind === "Camp" || e.data.kind === "Trip")) { location.replace("camp.html?new=" + e.data.kind + "&event=" + evId); return; }
       if (!e.error) {
         EVENT = e.data;
         $("editNote").innerHTML = '<div class="msg info">' + (EVENT.kind === "Camp" ? "⛺ " : "🚌 ") + esc(BAS.tr ? BAS.tr("Booking items for") : "Booking items for") + " <b>" + esc(EVENT.title) + "</b> · " + esc(BAS.fmtDate(EVENT.start_date, true)) + (EVENT.end_date ? " → " + esc(BAS.fmtDate(EVENT.end_date, true)) : "") + (EVENT.place ? " · " + esc(EVENT.place) : "") + "</div>";
       }
     }
+    if (EDIT) $("campHint").hidden = true;
+    document.querySelectorAll("[data-tocamp]").forEach(b => b.onclick = () => toCamp(b.dataset.tocamp));
     chips(); draw(); waitAlerts();
   } catch (e) { $("grid").innerHTML = '<div class="msg err">' + esc(BAS.errText(e)) + "</div>"; }
 })();
@@ -106,7 +110,13 @@ async function loadDrafts() {
     loadDrafts();
   });
 }
+// camps and trips are made on the camp page (items + people together); the cart goes along
+function toCamp(kind, extra) {
+  try { sessionStorage.setItem("basCampCart", JSON.stringify(CART)); } catch (e) {}
+  location.href = "camp.html?new=" + kind + "&cart=1" + (extra || "");
+}
 function openDraft(d) {
+  if (d.data && (d.data.kind === "Camp" || d.data.kind === "Trip")) { location.href = "camp.html?new=" + d.data.kind + "&draft=" + d.id; return; }
   DRAFT = d; CART = {};
   let dropped = 0;
   Object.keys(d.data.cart || {}).forEach(k => { const n = Math.min(d.data.cart[k], availFor(k)); if (n > 0) CART[k] = n; if (n < d.data.cart[k]) dropped++; });
@@ -273,7 +283,7 @@ function openCheckout() {
     '<div class="panel">' + (lines.length ? '<ul class="lines">' + lines.map(l => "<li><span>" + BAS.icon(l.item.category) + " " + esc(l.item.name_en) + (l.variant ? " (" + esc(l.variant.name) + ")" : "") +
       (r && (OWN[l.key] || 0) !== l.qty ? ' <small class="mut">was ' + (OWN[l.key] || 0) + "</small>" : "") + "</span><b>" + l.qty + "</b></li>").join("") + "</ul>" : '<p class="mut">No items chosen. Add items, or cancel the request from your stage page instead.</p>') + "</div>" +
     '<div class="panel">' + who +
-    (r ? "" : '<div class="grid2"><div class="field"><label>What is it for?</label><select id="coKind"><option value="Meeting">Meeting</option><option value="Trip">Trip</option><option value="Camp">Camp</option></select></div>' +
+    (r ? "" : '<div class="grid2"><div class="field"><label>What is it for?</label><select id="coKind"><option value="Meeting">Meeting</option><option value="Trip">Trip →</option><option value="Camp">Camp →</option></select></div>' +
       '<div class="field" id="coEndW" hidden><label>Last day</label><input type="date" id="coEnd" min="' + BAS.todayISO() + '"></div></div>' +
       '<div class="msg info" id="coP2" hidden>Phase 2: after sending, write who is going (kada' + (BAS.isAdmin() || (BAS.sections.find(x => x.id === BAS.profile.section_id) || {}).has_3eyal ? " and 3eyal" : "") + "). You'll get a reminder every day until it's done.</div>") +
     '<div class="grid2"><div class="field"><label>Meeting date (pickup)</label><input type="date" id="coDate" min="' + BAS.todayISO() + '" value="' + esc(r ? r.meeting_date : "") + '"></div>' +
@@ -295,7 +305,7 @@ function openCheckout() {
   if ($("coWho")) $("coWho").onchange = () => { $("coNew").hidden = $("coWho").value !== "new"; };
   $("coSend").onclick = send;
   if ($("coDraft")) $("coDraft").onclick = saveDraft;
-  if ($("coKind")) $("coKind").onchange = () => { const t = $("coKind").value !== "Meeting"; $("coEndW").hidden = !t; $("coP2").hidden = !t; };
+  if ($("coKind")) $("coKind").onchange = () => { if ($("coKind").value !== "Meeting") toCamp($("coKind").value); };
   if (DRAFT && !r) {
     const d = DRAFT.data, set = (id, v) => { if ($(id) && v != null && v !== "") $(id).value = v; };
     set("coWho", d.who); set("coNew", d.newName); set("coDate", d.date); set("coTime", d.time); set("coUntil", d.until); set("coPlace", d.place); set("coNotes", d.notes); set("coKind", d.kind); set("coEnd", d.end);

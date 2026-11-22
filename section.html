@@ -12,9 +12,9 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="BAS Warehouse">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
-<meta name="color-scheme" content="light dark">
+<meta name="color-scheme" content="only light">
 <link rel="stylesheet" href="bas.css">
-<script>try{document.documentElement.dataset.theme=localStorage.getItem("basTheme")==="dark"?"dark":"light"}catch(e){}</script>
+<script>(function(){var t="light";try{t=localStorage.getItem("basTheme")==="dark"?"dark":"light"}catch(e){}document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content="only "+t})()</script>
 </head>
 <body>
 <main class="page">
@@ -80,7 +80,7 @@ async function load() {
     const f = SVC ? { service_id: SVC } : { section_id: SEC };
     RES = await BAS.loadReservations(BY, f);
     const key = SVC ? "service_id" : "section_id", val = SVC || SEC;
-    LOSSES = await BAS.q(supabaseClient.from("loss_status").select("*").eq(key, val).order("created_at", { ascending: false }));
+    LOSSES = await BAS.q(supabaseClient.from("loss_status").select("*").eq(key, val).order("created_at", { ascending: false })); await BAS.loadLossWho(LOSSES);
     PAYMENTS = await BAS.q(supabaseClient.from("payments").select("*").eq(key, val).order("paid_on", { ascending: false }));
     const a = await supabaseClient.from("announcements").select("*").order("created_at", { ascending: false }).limit(60);
     ANN = (a.data || []).filter(x => x.target === "all" || (SVC ? x.service_id === SVC : x.section_id === SEC));
@@ -105,7 +105,11 @@ function render() {
   const open = RES.filter(r => BAS.OPEN.indexOf(r.status) >= 0).length;
   const out = RES.filter(r => BAS.OUT.indexOf(r.status) >= 0).length;
   const tabs = [["dash", "Dashboard", 0], ["requests", "Requests", open], ["history", "History & search", 0], ["equipment", "Equipment out / back", out],
-    ["money", "Missing & compensation", LOSSES.filter(l => !l.settled && Number(l.amount) > 0).length], ["chat", "Messages", 0], ["news", "Announcements", 0], ["calendar", "Calendar", 0]];
+    ["money", "Missing & compensation", LOSSES.filter(l => !l.settled && Number(l.amount) > 0).length], ["chat", "Messages", 0], ["news", "Announcements", 0]];
+  if (BAS.isAdmin()) tabs.push(["calendar", "Calendar", 0]);
+  if (!SVC) tabs.push(["att", "Attendance", 0]);
+  if (TAB === "calendar" && !BAS.isAdmin()) TAB = "dash";
+  if (TAB === "att") { location.href = "attendance.html" + (BAS.isAdmin() ? "?s=" + SEC : ""); return; }
   if (!SVC) tabs.push(["wait", "Waitlist", WAIT.filter(w => availOf(w.item_id, w.variant_id) > 0).length]);
   $("tabs").innerHTML = tabs.map(t => '<button class="tab' + (TAB === t[0] ? " on" : "") + '" data-t="' + t[0] + '">' + t[1] + (t[2] ? "<b>" + t[2] + "</b>" : "") + "</button>").join("");
   $("tabs").querySelectorAll(".tab").forEach(b => b.onclick = () => go(b.dataset.t));
@@ -138,7 +142,7 @@ function dash() {
       " · return by <b" + (BAS.isOverdue(r) ? ' class="bad"' : "") + ">" + esc(BAS.fmtDate(r.return_by)) + '</b><div class="meta">' + r.items.filter(i => i.out > 0 && i.kind !== "Consumable").map(i => esc(BAS.lineName(i)) + " ×" + i.out).join(", ") + "</div></div>").join("") : "") +
     '</div><div><div class="group-title">Events</div>' +
     (evs.length ? evs.map(e => '<div class="panel"><b>' + esc(e.title) + '</b> <span class="pill mut">' + esc(e.kind.toUpperCase()) + '</span><div class="meta">' + esc(BAS.fmtDate(e.start_date, true)) + (e.end_date && e.end_date !== e.start_date ? " → " + esc(BAS.fmtDate(e.end_date, true)) : "") + (e.place ? " · " + esc(e.place) : "") + "</div></div>").join("")
-      : '<div class="empty">No events yet. <a class="lnk" data-gocal>Add one</a></div>') + "</div></div>";
+      : '<div class="empty">No events yet.' + (BAS.isAdmin() ? ' <a class="lnk" data-gocal>Add one</a>' : "") + "</div>") + "</div></div>";
   $("view").innerHTML = h;
   $("view").querySelectorAll("[data-go]").forEach(el => el.onclick = () => go(el.dataset.go));
   $("view").querySelectorAll("[data-gocal]").forEach(el => el.onclick = () => go("calendar"));

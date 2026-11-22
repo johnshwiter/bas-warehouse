@@ -9,9 +9,9 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="theme-color" content="#17196A">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
-<meta name="color-scheme" content="light dark">
+<meta name="color-scheme" content="only light">
 <link rel="stylesheet" href="bas.css">
-<script>try{document.documentElement.dataset.theme=localStorage.getItem("basTheme")==="dark"?"dark":"light"}catch(e){}</script>
+<script>(function(){var t="light";try{t=localStorage.getItem("basTheme")==="dark"?"dark":"light"}catch(e){}document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content="only "+t})()</script>
 </head>
 <body>
 <main class="page">
@@ -27,16 +27,19 @@
 "use strict";
 const $ = id => document.getElementById(id);
 const esc = s => BAS.esc(s);
-const ID = Number(new URLSearchParams(location.search).get("id"));
+const QS = new URLSearchParams(location.search);
+const ID = Number(QS.get("id"));
+let NEW = null, CART = {}, STOCK = [], NQ = "";
 let TAB = (location.hash || "#p1").slice(1);
 let R = null, BY = {}, SEC = null, ROSTER = [], PEOPLE = [], CUST = [], ACCOUNTS = [], PICK = {}, TYPED = [], GRID = null, EDITP2 = false;
 
 
 
+window.addEventListener("hashchange", () => { const t = location.hash.slice(1); if (R && ["p1", "p2", "ohda"].indexOf(t) >= 0 && t !== TAB) { TAB = t; render(); } });
 (async function () {
   await BAS.init("ohda");
   if (!BAS.requireApproved()) return;
-  await load();
+  if (QS.get("new")) await startNew(); else await load();
 })();
 
 async function load() {
@@ -50,7 +53,6 @@ async function load() {
     ROSTER = R.section_id ? await BAS.q(supabaseClient.from("roster").select("*").eq("section_id", R.section_id).eq("is_active", true).order("name")) : [];
     PEOPLE = await BAS.q(supabaseClient.from("trip_people").select("*").eq("reservation_id", ID).order("id"));
     CUST = await BAS.q(supabaseClient.from("custody").select("*").eq("reservation_id", ID));
-    if (BAS.isAdmin() && R.section_id) ACCOUNTS = await BAS.q(supabaseClient.from("profiles").select("id, full_name").eq("section_id", R.section_id).eq("approval_status", "approved").order("full_name"));
     PICK = {}; PEOPLE.filter(p => p.roster_id).forEach(p => { PICK[p.roster_id] = true; });
     TYPED = PEOPLE.filter(p => !p.roster_id).map(p => ({ name: p.name, gender: p.gender, role: p.role }));
     GRID = null; EDITP2 = !PEOPLE.length;
@@ -60,8 +62,9 @@ async function load() {
 
 const canEdit = () => R && ["Returned", "Completed", "Cancelled", "Rejected"].indexOf(R.status) < 0 && (BAS.isAdmin() || R.section_id === BAS.profile.section_id);
 const has3 = () => !!(SEC && SEC.has_3eyal);
-const roleName = r => r === "kada" ? "Kada" : "3el";
-const gTag = g => '<span class="gender ' + g + '">' + (g === "M" ? "♂" : "♀") + "</span>";
+const roleName = r => r === "kada" ? "Kada" : "Walad";
+const gTag = g => '<span class="gender ' + (g || "null") + '">' + (g === "M" ? "♂" : g === "F" ? "♀" : "?") + "</span>";
+const secOf = () => NEW ? NEW.sec : R.section_id;
 const qtyOf = l => l.issued_qty != null ? l.issued_qty : (l.prepared_qty || l.quantity);
 
 function render() {
@@ -110,11 +113,11 @@ function printPDF() {
     "<h2>" + esc(T("Phase 1: items")) + "</h2><table><tr><th>" + esc(T("Item")) + '</th><th class="num">' + esc(T("Asked")) + '</th><th class="num">' + esc(T("Taken")) + '</th><th class="num">' + esc(T("Back")) + "</th></tr>" +
     R.items.map(i => "<tr><td>" + esc(BAS.lineName(i)) + (BY[i.item_id] && BY[i.item_id].name_ar ? " · " + esc(BY[i.item_id].name_ar) : "") + '</td><td class="num">' + i.quantity + '</td><td class="num">' + (i.issued_qty == null ? "" : i.issued_qty) + '</td><td class="num">' + (i.issued_qty == null ? "" : i.returned_qty) + "</td></tr>").join("") + "</table>" +
     "<h2>" + esc(T("Phase 2: who is going")) + " (" + PEOPLE.length + ")</h2>" +
-    (PEOPLE.length ? "<p><b>" + esc(T("Kada")) + " (" + k.length + "):</b> " + k.map(p => esc(p.name)).join("، ") + "</p>" + (a.length ? "<p><b>" + esc(T("3eyal")) + " (" + a.length + "):</b> " + a.map(p => esc(p.name)).join("، ") + "</p>" : "") : '<p class="mut">—</p>') +
+    (PEOPLE.length ? "<p><b>" + esc(T("Kada")) + " (" + k.length + "):</b> " + k.map(p => esc(p.name)).join("، ") + "</p>" + (R.kids_count ? "<p><b>" + esc(T("Kids")) + ":</b> " + R.kids_count + "</p>" : "") + (a.length ? "<p><b>" + esc(T("Awlad")) + " (" + a.length + "):</b> " + a.map(p => esc(p.name)).join("، ") + "</p>" : "") : '<p class="mut">—</p>') +
     "<h2>" + esc(T("3ohda: who carries what")) + "</h2>" +
     (PEOPLE.length && CUST.length ? "<table><tr><th>" + esc(T("Person")) + "</th><th>" + esc(T("Has")) + '</th><th style="width:22%">' + esc(T("Signature")) + "</th></tr>" +
       PEOPLE.map(p => { const has = cols.filter(l => Number(g[p.id][l.item_id + ":" + (l.variant_id || "")]) > 0).map(l => esc(BAS.lineName(l)) + " ×" + g[p.id][l.item_id + ":" + (l.variant_id || "")]);
-        return "<tr><td>" + esc(p.name) + ' <span class="mut">(' + esc(T(p.role === "kada" ? "Kada" : "3el")) + ")</span></td><td>" + (has.join(" · ") || "—") + "</td><td></td></tr>"; }).join("") + "</table>" : '<p class="mut">' + esc(T("Not distributed yet.")) + "</p>") +
+        return "<tr><td>" + esc(p.name) + ' <span class="mut">(' + esc(T(roleName(p.role))) + ")</span></td><td>" + (has.join(" · ") || "—") + "</td><td></td></tr>"; }).join("") + "</table>" : '<p class="mut">' + esc(T("Not distributed yet.")) + "</p>") +
     '<div class="sig"><div>' + esc(T("Warehouse team")) + "</div><div>" + esc(T("Leader")) + '</div></div><p class="mut" style="margin-top:18px;font-size:10px">' + esc(new Date().toLocaleString(BAS.loc())) + "</p>" +
     "<script>window.onload=function(){setTimeout(function(){window.print()},300)}<\/script></body></html>");
   w.document.close();
@@ -127,29 +130,148 @@ function phase2View() {
   const list = L => L.map(p => '<span class="pick on" style="cursor:default">' + gTag(p.gender) + " " + esc(p.name) + "</span>").join("");
   return '<div class="panel"><div class="meta" style="margin-bottom:8px">' + PEOPLE.length + " people · saved " + esc(BAS.fmtDateTime(R.phase2_at)) + "</div>" +
     "<b>Kada (" + k.length + ')</b><div class="picks" style="margin:6px 0 12px">' + list(k) + "</div>" +
-    (a.length ? "<b>3eyal (" + a.length + ')</b><div class="picks" style="margin-top:6px">' + list(a) + "</div>" : "") +
+    (a.length ? "<b>Awlad (" + a.length + ')</b><div class="picks" style="margin-top:6px">' + list(a) + "</div>" : "") +
+    (R.kids_count ? '<p class="meta" style="margin-top:8px">👧👦 ' + esc(BAS.tr ? BAS.tr("Kids") : "Kids") + ": <b>" + R.kids_count + "</b></p>" : "") +
     (canEdit() ? '<div class="actions"><button class="btn line sm" id="p2Edit">✏️ Edit the list</button></div>' : "") + "</div>";
 }
-function phase2Form() {
+function phase2Form(embedded) {
   const group = role => {
     const L = ROSTER.filter(p => p.role === role);
-    return '<div class="picks">' + (L.length ? L.map(p => '<label class="pick' + (PICK[p.id] ? " on" : "") + '"><input type="checkbox" data-pk="' + p.id + '"' + (PICK[p.id] ? " checked" : "") + ">" + gTag(p.gender) + " " + esc(p.name) +
-      '<span style="margin-inline-start:auto"><button type="button" class="linkbtn sm" data-ren="' + p.id + '">rename</button> · <button type="button" class="linkbtn sm" data-hide="' + p.id + '">remove</button></span></label>').join("") : '<span class="mut">Nobody in the list yet. Add them below.</span>') + "</div>";
+    return '<div class="picks">' + (L.length ? L.map(p => '<label class="pick' + (PICK[p.id] ? " on" : "") + '" data-nm="' + esc(BAS.norm(p.name)) + '"><input type="checkbox" data-pk="' + p.id + '"' + (PICK[p.id] ? " checked" : "") + ">" + gTag(p.gender) + " " + esc(p.name) +
+      (p.profile_id ? "" : '<span style="margin-inline-start:auto"><button type="button" class="linkbtn sm" data-ren="' + p.id + '">rename</button> · <button type="button" class="linkbtn sm" data-hide="' + p.id + '">remove</button></span>') + "</label>").join("") : '<span class="mut">Nobody in the list yet. Add them below.</span>') + "</div>";
   };
-  return '<div class="panel"><p class="meta" style="margin-bottom:10px">Tick everyone who is going. Names you add are saved in the stage\'s list for next time.' + (has3() ? "" : " This stage lists kada only.") + "</p>" +
-    "<b>Kada</b>" + group("kada") + (has3() ? '<div style="margin-top:12px"><b>3eyal</b>' + group("3ayel") + "</div>" : "") +
-    '<div class="group-title">Add to the stage\'s list</div><div class="grid3"><div class="field"><label>Name</label><input id="nName"></div>' +
+  const kids = NEW ? NEW.kids : R.kids_count;
+  return '<div class="panel">' + (embedded ? "<h3>Phase 2: who is going</h3>" : "") + '<p class="meta" style="margin-bottom:10px">Tick everyone who is going. Names you add are saved in the stage\'s list for next time.</p>' + (has3() ? "" : '<p class="meta" style="margin-bottom:10px">In this stage only kada are listed; write the number of kids.</p>') +
+    '<input type="search" class="psearch" id="pq" placeholder="Search a name…" autocomplete="off">' +
+    "<b>Kada</b>" + group("kada") + (has3() ? '<div style="margin-top:12px"><b>Awlad</b>' + group("3ayel") + "</div>" :
+      '<div class="field" style="margin-top:12px;max-width:260px"><label>Number of kids going</label><input type="number" min="0" id="kidsN" inputmode="numeric" value="' + (kids == null ? "" : kids) + '"></div>') +
+    '<details class="mt"><summary class="linkbtn">+ Add names to the stage\'s list</summary><p class="meta">One name per line, or paste a whole list.</p>' +
+    '<div class="field"><textarea id="nNames" rows="3" placeholder="Kiro Samy&#10;Mina Adel"></textarea></div><div class="grid3">' +
     '<div class="field"><label>Boy / girl</label><select id="nGen"><option value="M">Boy / man</option><option value="F">Girl / woman</option></select></div>' +
-    '<div class="field"><label>Kada or 3el</label><select id="nRole"><option value="kada">Kada</option>' + (has3() ? '<option value="3ayel">3el</option>' : "") + "</select></div></div>" +
-    (BAS.isAdmin() && ACCOUNTS.length ? '<div class="field"><label>Link to an account (kada)</label><select id="nAcc"><option value="">No account</option>' + ACCOUNTS.map(a => '<option value="' + a.id + '">' + esc(a.full_name) + "</option>").join("") + "</select></div>" : "") +
-    '<button type="button" class="btn line sm" id="nAdd">+ Add to list</button>' +
-    '<div class="group-title">One-time names (not saved in the list)</div>' +
+    '<div class="field"><label>Kada or walad</label><select id="nRole"><option value="kada">Kada</option>' + (has3() ? '<option value="3ayel" selected>Walad</option>' : "") + "</select></div><div></div></div>" +
+    '<button type="button" class="btn line sm" id="nAdd">+ Add to list</button></details>' +
+    '<details class="mt"><summary class="linkbtn">+ One-time name (not saved in the list)</summary>' +
     TYPED.map((t, i) => '<div class="person"><div>' + gTag(t.gender) + " " + esc(t.name) + ' <span class="pill mut">' + esc(roleName(t.role).toUpperCase()) + '</span></div><button type="button" class="btn danger sm" data-tdel="' + i + '">Remove</button></div>').join("") +
     '<div class="grid3"><div class="field"><label>Name</label><input id="tName" placeholder="Guest leader…"></div><div class="field"><label>Boy / girl</label><select id="tGen"><option value="M">Boy / man</option><option value="F">Girl / woman</option></select></div>' +
-    '<div class="field"><label>Kada or 3el</label><select id="tRole"><option value="kada">Kada</option>' + (has3() ? '<option value="3ayel">3el</option>' : "") + '</select></div></div><button type="button" class="btn line sm" id="tAdd">+ Add one-time name</button>' +
-    '<div id="p2Err" class="msg err" hidden></div><div class="actions"><button class="btn gold" id="p2Save">Save who is going</button>' + (PEOPLE.length ? '<button class="btn line" id="p2Cancel">Back</button>' : "") + "</div>" +
-    (CUST.length ? '<p class="meta mt">Saving the list clears who-carries-what; the warehouse team will distribute again.</p>' : "") + "</div>";
+    '<div class="field"><label>Kada or walad</label><select id="tRole"><option value="kada">Kada</option>' + (has3() ? '<option value="3ayel">Walad</option>' : "") + '</select></div></div><button type="button" class="btn line sm" id="tAdd">+ Add one-time name</button></details>' +
+    (TYPED.length ? '<p class="meta">One-time: ' + TYPED.map(t => esc(t.name)).join("، ") + "</p>" : "") +
+    (embedded ? "" : '<div id="p2Err" class="msg err" hidden></div><div class="actions"><button class="btn gold" id="p2Save">Save who is going</button>' + (PEOPLE.length ? '<button class="btn line" id="p2Cancel">Back</button>' : "") + "</div>" +
+    (CUST.length ? '<p class="meta mt">The 3ohda is kept: people you take off give their items to the others, and new people get a share. The warehouse team gets a note to check it.</p>' : "")) + "</div>";
 }
+function chosenPeople() {
+  return Object.keys(PICK).filter(k => PICK[k] && ROSTER.some(x => x.id === Number(k))).map(k => ({ roster_id: Number(k) })).concat(TYPED);
+}
+function kidsVal() { const v = $("kidsN") ? $("kidsN").value.trim() : ""; return v === "" ? null : Math.max(0, Math.round(Number(v)) || 0); }
+
+// ---------- a new camp or trip, made on this page ----------
+async function startNew() {
+  const kind = QS.get("new") === "Trip" ? "Trip" : "Camp";
+  NEW = { kind, sec: BAS.isAdmin() ? (BAS.profile.section_id || (BAS.sections[0] || {}).id) : BAS.profile.section_id, date: "", end: "", time: "", until: "", place: "", notes: "", kids: null, event: null, draft: null };
+  if (!NEW.sec) { $("view").innerHTML = '<div class="msg err">Your account has no stage. Ask the warehouse team.</div>'; return; }
+  try {
+    const st = await BAS.loadStock(); BY = st.byId; STOCK = st.list.filter(i => i.is_active && i.counted);
+    const ev = Number(QS.get("event")), dr = Number(QS.get("draft"));
+    if (ev) { const e = await supabaseClient.from("events").select("*").eq("id", ev).single();
+      if (!e.error) { const x = e.data; NEW.event = x.id; NEW.kind = x.kind === "Trip" ? "Trip" : "Camp"; NEW.date = x.start_date || ""; NEW.end = x.end_date || ""; NEW.place = x.place || ""; if (x.section_id && BAS.isAdmin()) NEW.sec = x.section_id; } }
+    if (dr) { const d = await supabaseClient.from("drafts").select("*").eq("id", dr).single();
+      if (!d.error) { const x = d.data.data || {}; NEW.draft = d.data.id; CART = Object.assign({}, x.cart || {});
+        ["kind", "date", "end", "time", "until", "place", "notes", "kids"].forEach(k => { if (x[k] != null && x[k] !== "") NEW[k] = x[k]; });
+        if (x.who && x.who[0] === "s" && BAS.isAdmin()) NEW.sec = Number(x.who.slice(1)); if (x.sec && BAS.isAdmin()) NEW.sec = x.sec;
+        (x.people || []).forEach(p => { if (p.roster_id) PICK[p.roster_id] = true; else TYPED.push(p); }); } }
+    if (QS.get("cart")) { try { const c = JSON.parse(sessionStorage.getItem("basCampCart") || "{}"); Object.assign(CART, c); sessionStorage.removeItem("basCampCart"); } catch (e) {} }
+    await loadRosterNew();
+    renderNew();
+  } catch (e) { $("view").innerHTML = '<div class="msg err">' + esc(BAS.errText(e)) + "</div>"; }
+}
+async function loadRosterNew() {
+  SEC = BAS.allSections.find(s => s.id === NEW.sec) || null;
+  ROSTER = await BAS.q(supabaseClient.from("roster").select("*").eq("section_id", NEW.sec).eq("is_active", true).order("name"));
+  Object.keys(PICK).forEach(k => { if (!ROSTER.some(x => x.id === Number(k))) delete PICK[k]; });
+}
+const availOf = key => { const p = key.split(":"), i = BY[Number(p[0])]; if (!i || !i.counted) return 0; if (p[1]) { const v = (i.variants || []).find(x => x.id === Number(p[1])); return v ? v.available : 0; } return i.available || 0; };
+function itemRows() {
+  const q = BAS.norm(NQ);
+  const L = STOCK.filter(i => !q || BAS.norm((i.name_en || "") + " " + (i.name_ar || "") + " " + (i.category || "")).includes(q) || Object.keys(CART).some(k => k.split(":")[0] === String(i.id)));
+  const step = k => { const n = CART[k] || 0, max = availOf(k); return '<div class="qty"><button type="button" data-k="' + k + '" data-d="-1"' + (n ? "" : " disabled") + ' aria-label="Less">−</button><span>' + n + '</span><button type="button" data-k="' + k + '" data-d="1"' + (n < max ? "" : " disabled") + ' aria-label="More">+</button></div>'; };
+  if (!L.length) return '<div class="empty">No items match.</div>';
+  return L.map(i => { const vs = (i.variants || []).filter(v => v.is_active);
+    return '<div class="person"><div><b>' + BAS.icon(i.category) + " " + esc(i.name_en) + "</b>" + (i.name_ar ? ' <small class="mut">' + esc(i.name_ar) + "</small>" : "") + (vs.length ? "" : '<div class="meta">Available ' + (i.available || 0) + "</div>") + "</div>" +
+      (vs.length ? '<div class="vrows">' + vs.map(v => '<div class="vrow"><span class="vn">' + esc(v.name) + " <small>(" + v.available + ")</small></span>" + step(i.id + ":" + v.id) + "</div>").join("") + "</div>" : step(i.id + ":")) + "</div>"; }).join("");
+}
+function cartSummary() {
+  const L = Object.keys(CART).filter(k => CART[k] > 0);
+  const n = L.reduce((t, k) => t + CART[k], 0);
+  return L.length ? L.length + (L.length === 1 ? " item · " : " items · ") + n + (n === 1 ? " piece" : " pieces") : "No items chosen yet";
+}
+function renderNew() {
+  document.title = (NEW.kind === "Camp" ? "New camp" : "New trip") + " | BAS Warehouse";
+  const secSel = BAS.isAdmin() ? '<div class="field"><label>Stage</label><select id="nSec">' + BAS.sections.map(x => '<option value="' + x.id + '"' + (x.id === NEW.sec ? " selected" : "") + ">" + esc(x.name_ar) + " · " + esc(x.name_en) + "</option>").join("") + "</select></div>"
+    : '<div class="field"><label>Stage</label><div class="inline-in">' + BAS.secHTML(NEW.sec) + "</div></div>";
+  let h = '<div class="head"><div><p class="eyebrow">' + (NEW.kind === "Camp" ? "⛺ New camp" : "🚌 New trip") + '</p><h1>' + esc(NEW.kind === "Camp" ? "New camp" : "New trip") + "</h1>" +
+    '<p class="sub">Fill the details, pick the items (Phase 1) and who is going (Phase 2). You can write the names later too.</p></div></div>' +
+    '<div class="tabs"><button class="tab' + (NEW.kind === "Camp" ? " on" : "") + '" data-kind="Camp">⛺ Camp</button><button class="tab' + (NEW.kind === "Trip" ? " on" : "") + '" data-kind="Trip">🚌 Trip</button></div>' +
+    '<div class="panel"><h3>Details</h3>' + secSel +
+    '<div class="grid2"><div class="field"><label>First day (pickup)</label><input type="date" id="nDate" min="' + BAS.todayISO() + '" value="' + esc(NEW.date) + '"></div><div class="field"><label>Last day</label><input type="date" id="nEnd" min="' + BAS.todayISO() + '" value="' + esc(NEW.end) + '"></div></div>' +
+    '<div class="grid2"><div class="field"><label>From</label><input type="time" id="nTime" value="' + esc(NEW.time) + '"></div><div class="field"><label>Until (optional)</label><input type="time" id="nUntil" value="' + esc(NEW.until) + '"></div></div>' +
+    '<div class="field"><label>Place</label><input id="nPlace" placeholder="Wadi El Natrun…" value="' + esc(NEW.place) + '"></div>' +
+    '<div class="field"><label>Notes</label><textarea id="nNotes">' + esc(NEW.notes) + "</textarea></div></div>" +
+    '<div class="panel"><h3>Phase 1: items</h3><p class="meta" id="cartSum">' + esc(cartSummary()) + '</p><input type="search" class="psearch" id="iq" placeholder="Search: shoum, حبل, pot…" value="' + esc(NQ) + '" autocomplete="off"><div id="irows">' + itemRows() + "</div></div>" +
+    phase2Form(true) +
+    '<div class="panel"><label class="check"><input type="checkbox" id="nOk"> We are responsible for returning all items in good condition.</label></div>' +
+    '<div id="nErr" class="msg err" hidden></div><div class="actions"><button class="btn gold" id="nSend">Send ' + (NEW.kind === "Camp" ? "camp" : "trip") + '</button><button class="btn line" id="nDraft">💾 Save draft</button><a class="btn line" href="ohda.html">Cancel</a></div>';
+  $("view").innerHTML = h;
+  bindNew(); bind();
+}
+function keepNew() {
+  const g = id => $(id) ? $(id).value : "";
+  NEW.date = g("nDate"); NEW.end = g("nEnd"); NEW.time = g("nTime"); NEW.until = g("nUntil"); NEW.place = g("nPlace"); NEW.notes = g("nNotes"); NEW.kids = kidsVal();
+}
+function drawItems() {
+  $("irows").innerHTML = itemRows(); $("cartSum").textContent = cartSummary(); if (BAS.tr) $("cartSum").textContent = BAS.tr($("cartSum").textContent);
+  $("irows").querySelectorAll("[data-k]").forEach(b => b.onclick = () => {
+    const k = b.dataset.k; let n = Math.max(0, Math.min((CART[k] || 0) + Number(b.dataset.d), availOf(k)));
+    if (n) CART[k] = n; else delete CART[k]; drawItems();
+  });
+}
+function bindNew() {
+  drawItems();
+  $("iq").oninput = () => { NQ = $("iq").value; drawItems(); };
+  $("view").querySelectorAll("[data-kind]").forEach(b => b.onclick = () => { keepNew(); NEW.kind = b.dataset.kind; renderNew(); });
+  if ($("nSec")) $("nSec").onchange = async () => { keepNew(); NEW.sec = Number($("nSec").value); PICK = {}; await loadRosterNew(); renderNew(); };
+  $("nDraft").onclick = async () => {
+    keepNew();
+    const data = { kind: NEW.kind, date: NEW.date, end: NEW.end, time: NEW.time, until: NEW.until, place: NEW.place, notes: NEW.notes, kids: NEW.kids, cart: CART, sec: NEW.sec, people: chosenPeople() };
+    const names = Object.keys(CART).map(k => (BY[Number(k.split(":")[0])] || {}).name_en + " ×" + CART[k]);
+    const row = { title: (NEW.kind === "Camp" ? "⛺ " : "🚌 ") + (NEW.date ? BAS.fmtDate(NEW.date, true) + " · " : "") + (NEW.place || names.slice(0, 2).join(", ") || "No items yet"), data, section_id: NEW.sec, updated_at: new Date().toISOString() };
+    const r = NEW.draft ? await supabaseClient.from("drafts").update(row).eq("id", NEW.draft).select().single() : await supabaseClient.from("drafts").insert(Object.assign(row, { created_by: BAS.user.id })).select().single();
+    if (r.error) return BAS.toast(BAS.errText(r.error), "err");
+    NEW.draft = r.data.id; BAS.toast("Draft saved. Nothing is booked yet.");
+  };
+  $("nSend").onclick = async () => {
+    keepNew();
+    const err = $("nErr"), fail = m => { err.textContent = BAS.tr ? BAS.tr(m) : m; err.hidden = false; };
+    err.hidden = true;
+    const miss = []; if (!NEW.date) miss.push("the first day"); if (!NEW.end) miss.push("the last day"); if (!NEW.time) miss.push("the time"); if (!NEW.place.trim()) miss.push("the place");
+    if (miss.length) return fail("Fill in " + miss.join(", ") + ".");
+    const items = Object.keys(CART).filter(k => CART[k] > 0).map(k => { const p = k.split(":"); return { item_id: Number(p[0]), variant_id: p[1] ? Number(p[1]) : null, qty: CART[k] }; });
+    if (!items.length) return fail("Pick at least one item (Phase 1).");
+    if (!$("nOk").checked) return fail("Tick the box to confirm first.");
+    const b = $("nSend"); b.disabled = true;
+    const res = await supabaseClient.rpc("create_reservation", { p_meeting_date: NEW.date, p_meeting_time: fmtTimes(NEW.time, NEW.until), p_place: NEW.place.trim(), p_notes: NEW.notes, p_items: items,
+      p_section_id: BAS.isAdmin() ? NEW.sec : null, p_service_id: null, p_kind: NEW.kind, p_end_date: NEW.end, p_event_id: NEW.event });
+    if (res.error) { b.disabled = false; return fail(BAS.errText(res.error)); }
+    const people = chosenPeople();
+    if (people.length) {
+      const r2 = await supabaseClient.rpc("set_trip_people", { p_res: res.data, p_people: people, p_kids: has3() ? null : NEW.kids });
+      if (r2.error) BAS.toast(BAS.errText(r2.error), "err");
+    }
+    if (NEW.draft) await supabaseClient.from("drafts").delete().eq("id", NEW.draft);
+    BAS.toast((NEW.kind === "Camp" ? "Camp" : "Trip") + " sent ✓");
+    location.href = "camp.html?id=" + res.data + (people.length ? "#p1" : "#p2");
+  };
+}
+function to12(v) { if (!v) return ""; let [h, m] = v.split(":").map(Number); const ap = h >= 12 ? "PM" : "AM"; h = h % 12 || 12; return h + ":" + String(m).padStart(2, "0") + " " + ap; }
+function fmtTimes(a, b) { return a ? to12(a) + (b ? " – " + to12(b) : "") : ""; }
 
 // ---------- 3ohda ----------
 const W = { light: 1, medium: 2, heavy: 3 };
@@ -206,34 +328,37 @@ function bind() {
   on("p2Edit", () => { EDITP2 = true; render(); });
   on("p2Cancel", () => { EDITP2 = false; render(); });
   $("view").querySelectorAll("[data-pk]").forEach(c => c.onchange = () => { PICK[c.dataset.pk] = c.checked; c.closest(".pick").classList.toggle("on", c.checked); });
+  if ($("pq")) $("pq").oninput = () => { const q = BAS.norm($("pq").value); $("view").querySelectorAll(".pick[data-nm]").forEach(l => { l.hidden = !!q && !l.dataset.nm.includes(q); }); };
   on("nAdd", async () => {
-    const name = $("nName").value.trim(); if (!name) return BAS.toast("Write the name", "err");
-    const row = { section_id: R.section_id, name, gender: $("nGen").value, role: $("nRole").value, created_by: BAS.user.id };
-    if ($("nAcc") && $("nAcc").value) row.profile_id = $("nAcc").value;
-    const r = await supabaseClient.from("roster").insert(row).select().single();
-    if (r.error) return BAS.toast(BAS.errText(r.error), "err");
-    ROSTER.push(r.data); ROSTER.sort((a, b) => a.name > b.name ? 1 : -1); PICK[r.data.id] = true; render();
+    const names = $("nNames").value.trim(); if (!names) return BAS.toast("Write the name", "err");
+    if (NEW) keepNew();
+    const before = ROSTER.map(x => x.id);
+    const { data, error } = await supabaseClient.rpc("add_names", { p_section: secOf(), p_names: names, p_gender: $("nGen").value, p_role: $("nRole").value, p_tali3a: null });
+    if (error) return BAS.toast(BAS.errText(error), "err");
+    ROSTER = await BAS.q(supabaseClient.from("roster").select("*").eq("section_id", secOf()).eq("is_active", true).order("name"));
+    ROSTER.filter(x => before.indexOf(x.id) < 0).forEach(x => { PICK[x.id] = true; });
+    BAS.toast("Added: " + data); NEW ? renderNew() : render();
   });
   $("view").querySelectorAll("[data-ren]").forEach(b => b.onclick = async e => {
     e.preventDefault(); const p = ROSTER.find(x => x.id === Number(b.dataset.ren));
     const n = prompt("New name:", p.name); if (!n || !n.trim()) return;
     const r = await supabaseClient.from("roster").update({ name: n.trim() }).eq("id", p.id);
     if (r.error) return BAS.toast(BAS.errText(r.error), "err");
-    p.name = n.trim(); render();
+    p.name = n.trim(); if (NEW) { keepNew(); renderNew(); } else render();
   });
   $("view").querySelectorAll("[data-hide]").forEach(b => b.onclick = async e => {
     e.preventDefault(); const p = ROSTER.find(x => x.id === Number(b.dataset.hide));
     if (!confirm("Remove " + p.name + " from the stage's list? Past trips keep the name.")) return;
     const r = await supabaseClient.from("roster").update({ is_active: false }).eq("id", p.id);
     if (r.error) return BAS.toast(BAS.errText(r.error), "err");
-    ROSTER = ROSTER.filter(x => x.id !== p.id); delete PICK[p.id]; render();
+    ROSTER = ROSTER.filter(x => x.id !== p.id); delete PICK[p.id]; if (NEW) { keepNew(); renderNew(); } else render();
   });
-  on("tAdd", () => { const n = $("tName").value.trim(); if (!n) return BAS.toast("Write the name", "err"); TYPED.push({ name: n, gender: $("tGen").value, role: $("tRole").value }); render(); });
-  $("view").querySelectorAll("[data-tdel]").forEach(b => b.onclick = () => { TYPED.splice(Number(b.dataset.tdel), 1); render(); });
+  on("tAdd", () => { const n = $("tName").value.trim(); if (!n) return BAS.toast("Write the name", "err"); TYPED.push({ name: n, gender: $("tGen").value, role: $("tRole").value }); if (NEW) { keepNew(); renderNew(); } else render(); });
+  $("view").querySelectorAll("[data-tdel]").forEach(b => b.onclick = () => { TYPED.splice(Number(b.dataset.tdel), 1); if (NEW) { keepNew(); renderNew(); } else render(); });
   on("p2Save", async () => {
-    const people = Object.keys(PICK).filter(k => PICK[k] && ROSTER.some(x => x.id === Number(k))).map(k => ({ roster_id: Number(k) })).concat(TYPED);
+    const people = chosenPeople();
     if (!people.length) { $("p2Err").textContent = "Choose at least one person."; $("p2Err").hidden = false; return; }
-    const { error } = await supabaseClient.rpc("set_trip_people", { p_res: ID, p_people: people });
+    const { error } = await supabaseClient.rpc("set_trip_people", { p_res: ID, p_people: people, p_kids: has3() ? null : kidsVal() });
     if (error) { $("p2Err").textContent = BAS.errText(error); $("p2Err").hidden = false; return; }
     BAS.toast("Saved: " + people.length + " people"); TAB = "p2"; load();
   });

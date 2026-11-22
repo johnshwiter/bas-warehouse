@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Attendance | BAS Warehouse</title>
+<link rel="icon" href="logo.png">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#17196A">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<meta name="color-scheme" content="only light">
+<link rel="stylesheet" href="bas.css">
+<script>(function(){var t="light";try{t=localStorage.getItem("basTheme")==="dark"?"dark":"light"}catch(e){}document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content="only "+t})()</script>
+</head>
+<body>
+<main class="page">
+  <div class="head"><div><p class="eyebrow">Attendance</p><h1 id="ttl">Who <em>came</em></h1>
+    <p class="sub" id="sub">Take attendance for each meeting. Kada and awlad of the stage are listed.</p></div>
+    <select id="fSec" hidden aria-label="Stage"></select></div>
+  <div class="tabs" id="tabs"></div>
+  <div id="view"><div class="loading">Loading…</div></div>
+</main>
+<div class="overlay" id="sheet" hidden></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="common.js"></script>
+<script src="i18n.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const esc = s => BAS.esc(s);
+const T = x => BAS.tr ? BAS.tr(x) : x;
+const QS = new URLSearchParams(location.search);
+let SECID = null, SEC = null, TAB = (location.hash || "#take").slice(1), MEET = [], ROSTER = [], TAL = [], TL = [], RECS = [], PROF = [];
+let CUR = null, STATE = {}, DIRTY = false, Q = "", GROUP = "tali3a";
+
+(async function () {
+  await BAS.init("attendance");
+  if (!BAS.requireApproved()) return;
+  SECID = BAS.isAdmin() ? Number(QS.get("s")) || BAS.profile.section_id || (BAS.sections[0] || {}).id : BAS.profile.section_id;
+  if (!SECID) { $("view").innerHTML = '<div class="msg err">Your account has no stage. Ask the warehouse team.</div>'; return; }
+  if (BAS.isAdmin()) {
+    $("fSec").hidden = false;
+    $("fSec").innerHTML = BAS.sections.map(s => '<option value="' + s.id + '"' + (s.id === SECID ? " selected" : "") + ">" + esc(s.name_ar) + " · " + esc(s.name_en) + "</option>").join("");
+    $("fSec").onchange = () => { if (DIRTY && !confirm("You have attendance that isn't saved. Leave it?")) { $("fSec").value = SECID; return; } location.href = "attendance.html?s=" + $("fSec").value + "#" + TAB; };
+  }
+  window.addEventListener("hashchange", () => { const t = location.hash.slice(1); if (t && t !== TAB && ["take", "sum", "people", "set"].indexOf(t) >= 0) { TAB = t; render(); } });
+  window.addEventListener("beforeunload", e => { if (DIRTY) { e.preventDefault(); e.returnValue = ""; } });
+  await load(Number(QS.get("m")) || null);
+})();
+
+const yearStart = () => (BAS.settings && BAS.settings.att_year_start) || "2000-01-01";
+async function load(meetId) {
+  try {
+    SEC = BAS.allSections.find(s => s.id === SECID) || {};
+    $("ttl").innerHTML = "<bdi>" + esc(SEC.name_ar || "") + "</bdi> · <em>" + esc(T("Attendance")) + "</em>";
+    MEET = await BAS.q(supabaseClient.from("att_meetings").select("*").eq("section_id", SECID).gte("meet_date", yearStart()).order("meet_date", { ascending: false }));
+    ROSTER = await BAS.q(supabaseClient.from("roster").select("*").eq("section_id", SECID).eq("is_active", true).order("name"));
+    TAL = await BAS.q(supabaseClient.from("tali3as").select("*").eq("section_id", SECID).eq("is_active", true).order("name"));
+    TL = TAL.length ? await BAS.q(supabaseClient.from("tali3a_leaders").select("*").in("tali3a_id", TAL.map(t => t.id))) : [];
+    const ids = MEET.map(m => m.id);
+    RECS = ids.length ? await BAS.q(supabaseClient.from("att_records").select("*").in("meeting_id", ids)) : [];
+    if (BAS.isAdmin()) PROF = await BAS.q(supabaseClient.from("profiles").select("id, full_name, stage_role").eq("section_id", SECID).eq("approval_status", "approved"));
+    pickMeeting(meetId || (CUR && CUR.id));
+    render();
+  } catch (e) { $("view").innerHTML = '<div class="msg err">' + esc(BAS.errText(e)) + "</div>"; }
+}
+function pickMeeting(id) {
+  const today = BAS.todayISO();
+  CUR = MEET.find(m => m.id === id) || MEET.find(m => m.meet_date === today) || MEET.find(m => m.meet_date <= today && m.status !== "done") || MEET.find(m => m.meet_date <= today) || MEET[MEET.length - 1] || null;
+  STATE = {}; DIRTY = false;
+  if (!CUR) return;
+  const R = RECS.filter(r => r.meeting_id === CUR.id);
+  ROSTER.forEach(p => { const r = R.find(x => x.roster_id === p.id); STATE[p.id] = r ? { status: r.status, arrived: (r.arrived || "").slice(0, 5), uniform: r.uniform } : { status: "present", arrived: "", uniform: true }; });
+}
+
+function render() {
+  const tabs = [["take", "Take attendance"], ["sum", "Summary"], ["people", "People & tali3as"], ["set", "Settings"]];
+  $("tabs").innerHTML = tabs.map(t => '<button class="tab' + (TAB === t[0] ? " on" : "") + '" data-t="' + t[0] + '">' + t[1] + "</button>").join("");
+  $("tabs").querySelectorAll("[data-t]").forEach(b => b.onclick = () => { TAB = b.dataset.t; history.replaceState(null, "", location.search + "#" + TAB); render(); });
+  ({ take: takeView, sum: sumView, people: peopleView, set: setView }[TAB] || takeView)();
+}
+
+// ---------- helpers ----------
+const tName = id => (TAL.find(t => t.id === id) || {}).name || "";
+const gTag = g => '<span class="gender ' + (g || "null") + '">' + (g === "M" ? "♂" : g === "F" ? "♀" : "?") + "</span>";
+const fmtT = t => { if (!t) return ""; let [h, m] = t.slice(0, 5).split(":").map(Number); const ap = h >= 12 ? "PM" : "AM"; h = h % 12 || 12; return h + ":" + String(m).padStart(2, "0") + " " + ap; };
+function lateOf(arrived) {
+  if (!arrived || !CUR || !CUR.start_time) return false;
+  const [h, m] = CUR.start_time.split(":").map(Number), [ah, am] = arrived.split(":").map(Number);
+  return ah * 60 + am > h * 60 + m + (SEC.att_late_min == null ? 15 : SEC.att_late_min);
+}
+function ordered() {
+  const k = ROSTER.filter(p => p.role === "kada"), a = ROSTER.filter(p => p.role !== "kada");
+  const groups = [{ title: "Kada", list: k }];
+  TAL.forEach(t => groups.push({ title: t.name, list: a.filter(p => p.tali3a_id === t.id) }));
+  const none = a.filter(p => !p.tali3a_id || !TAL.some(t => t.id === p.tali3a_id));
+  if (none.length) groups.push({ title: TAL.length ? "No tali3a yet" : "Awlad", list: none });
+  return groups.filter(g => g.list.length);
+}
+
+// ---------- take attendance ----------
+function takeView() {
+  const today = BAS.todayISO();
+  let h = '<div class="actions" style="margin:0 0 8px"><button class="btn line sm" id="mAdd">+ Meeting without items</button>' + (CUR && (BAS.isAdmin() || !RECS.some(r => r.meeting_id === CUR.id)) ? '<button class="btn danger sm" id="mDel">Delete this meeting</button>' : "") + "</div>";
+  h += MEET.length ? '<div class="meets">' + MEET.slice().reverse().map(m => '<button class="meet ' + m.status + (CUR && m.id === CUR.id ? " on" : "") + '" data-m="' + m.id + '"><b>' + esc(BAS.fmtDate(m.meet_date, true)) + "</b>" +
+    esc(m.start_time ? fmtT(m.start_time) : "—") + " · " + (m.status === "done" ? "✅" : m.status === "draft" ? "📝" : m.meet_date > today ? "🕓" : "⬜") + (m.title ? " · " + esc(m.title) : "") + "</button>").join("") + "</div>"
+    : '<div class="empty">No meetings yet. Meetings come from the dates you book items for. For a meeting without items, press + Meeting without items.</div>';
+  if (!CUR) { $("view").innerHTML = h; bindTake(); return; }
+  const fut = CUR.meet_date > today;
+  h += '<div class="panel"><div class="req-top"><h3>' + esc(BAS.fmtDate(CUR.meet_date, true)) + "<small>" + esc(CUR.start_time ? T("Starts") + " " + fmtT(CUR.start_time) : T("No start time")) + (CUR.title ? " · " + esc(CUR.title) : "") +
+    (CUR.reservation_id ? " · #" + CUR.reservation_id : "") + '</small></h3><div><button class="linkbtn" id="mEdit">✏️ Time / title</button></div></div>' +
+    '<div class="meta">' + (CUR.status === "done" ? "✅ Taken by " + esc(CUR.taken_by_name || "") + " · " + esc(BAS.fmtDateTime(CUR.taken_at)) : CUR.status === "draft" ? "📝 Draft saved by " + esc(CUR.taken_by_name || "") + " · " + esc(BAS.fmtDateTime(CUR.taken_at)) : "Not taken yet") +
+    " · " + esc(T("Late after")) + " " + (SEC.att_late_min == null ? 15 : SEC.att_late_min) + " " + esc(T("min")) + (SEC.att_late_absent ? " · " + esc(T("late counts as absent")) : "") + "</div></div>";
+  if (fut) { $("view").innerHTML = h + '<div class="empty">This meeting hasn\'t happened yet.</div>'; bindTake(); return; }
+  if (!ROSTER.length) { $("view").innerHTML = h + '<div class="empty">Nobody in the stage\'s list yet. <a class="lnk" href="#people" data-go="people">Add names</a></div>'; bindTake(); return; }
+  h += '<input type="search" class="psearch" id="aq" placeholder="Search a name…" value="' + esc(Q) + '" autocomplete="off">' +
+    '<div class="actions" style="margin:0 0 8px"><button class="btn line sm" id="allP">✓ Everyone present</button><button class="btn line sm" id="allU">👕 Everyone in uniform</button></div>';
+  ordered().forEach(g => {
+    h += '<div class="group-title">' + esc(T(g.title)) + " (" + g.list.length + ')</div><div class="att-list">' + g.list.map(rowHTML).join("") + "</div>";
+  });
+  h += '<div class="att-sticky"><div class="meta" id="aCount"></div><div class="actions" style="margin:6px 0 0"><button class="btn gold" id="aFin">✅ Finish</button><button class="btn line" id="aDraft">💾 Save draft</button></div></div>';
+  $("view").innerHTML = h;
+  bindTake(); counts(); filter();
+}
+function rowHTML(p) {
+  const s = STATE[p.id], late = s.status === "late" || ((s.status === "present") && lateOf(s.arrived)), here = s.status === "present" || s.status === "late";
+  return '<div class="att-row ' + (late ? "late" : s.status) + '" data-row="' + p.id + '" data-nm="' + esc(BAS.norm(p.name)) + '"><div class="att-name">' + gTag(p.gender) + " " + esc(p.name) + (late ? ' <span class="pill warn">' + esc(T("LATE")) + "</span>" : "") + "</div>" +
+    '<div class="att-ctl"><span class="seg">' + [["present", "✓"], ["absent", "Absent"], ["excused", "Excused"]].map(x => '<button type="button" data-st="' + x[0] + '" class="' + (s.status === x[0] || (x[0] === "present" && s.status === "late") ? "on" : "") + '">' + esc(T(x[1])) + "</button>").join("") + "</span>" +
+    (here ? '<input type="time" data-arr="' + p.id + '" value="' + esc(s.arrived) + '" title="' + esc(T("Arrived at")) + '" aria-label="' + esc(T("Arrived at")) + '"><label class="uni"><input type="checkbox" data-uni="' + p.id + '"' + (s.uniform ? " checked" : "") + "> 👕 " + esc(T("Uniform")) + "</label>" : "") + "</div></div>";
+}
+function redrawRow(id) {
+  const el = document.querySelector('[data-row="' + id + '"]'); if (!el) return;
+  const tmp = document.createElement("div"); tmp.innerHTML = rowHTML(ROSTER.find(p => p.id === id)); el.replaceWith(tmp.firstChild);
+  bindRows(); counts(); filter();
+}
+function counts() {
+  const L = ROSTER.map(p => STATE[p.id]), n = x => L.filter(x).length;
+  if ($("aCount")) $("aCount").textContent = T("Present") + " " + n(s => s.status === "present" || s.status === "late") + " · " + T("Absent") + " " + n(s => s.status === "absent") + " · " + T("Excused") + " " + n(s => s.status === "excused") + " · " + T("No uniform") + " " + n(s => (s.status === "present" || s.status === "late") && !s.uniform);
+}
+function filter() { const q = BAS.norm(Q); document.querySelectorAll(".att-row[data-nm]").forEach(r => { r.hidden = !!q && !r.dataset.nm.includes(q); }); }
+function bindRows() {
+  document.querySelectorAll(".att-row").forEach(r => {
+    const id = Number(r.dataset.row);
+    r.querySelectorAll("[data-st]").forEach(b => b.onclick = () => { const s = STATE[id]; s.status = b.dataset.st; if (s.status !== "present") s.arrived = s.status === "late" ? s.arrived : ""; DIRTY = true; redrawRow(id); });
+    const a = r.querySelector("[data-arr]"); if (a) a.onchange = () => { STATE[id].arrived = a.value; STATE[id].status = "present"; DIRTY = true; redrawRow(id); };
+    const u = r.querySelector("[data-uni]"); if (u) u.onchange = () => { STATE[id].uniform = u.checked; DIRTY = true; counts(); };
+  });
+}
+function bindTake() {
+  document.querySelectorAll("[data-m]").forEach(b => b.onclick = () => {
+    if (DIRTY && !confirm("You have attendance that isn't saved. Leave it?")) return;
+    pickMeeting(Number(b.dataset.m)); history.replaceState(null, "", "?" + (BAS.isAdmin() ? "s=" + SECID + "&" : "") + "m=" + CUR.id + "#take"); takeView();
+  });
+  document.querySelectorAll("[data-go]").forEach(a => a.onclick = e => { e.preventDefault(); TAB = a.dataset.go; render(); });
+  if ($("mAdd")) $("mAdd").onclick = () => meetingSheet(null);
+  if ($("mEdit")) $("mEdit").onclick = () => meetingSheet(CUR);
+  if ($("mDel")) $("mDel").onclick = async () => {
+    if (!confirm("Delete this meeting" + (RECS.some(r => r.meeting_id === CUR.id) ? " and its attendance" : "") + "?")) return;
+    const { error } = await supabaseClient.rpc("delete_meeting", { p_id: CUR.id });
+    if (error) return BAS.toast(BAS.errText(error), "err");
+    CUR = null; DIRTY = false; BAS.toast("Deleted"); load();
+  };
+  if ($("aq")) $("aq").oninput = () => { Q = $("aq").value; filter(); };
+  if ($("allP")) $("allP").onclick = () => { ROSTER.forEach(p => { STATE[p.id].status = "present"; }); DIRTY = true; takeView(); };
+  if ($("allU")) $("allU").onclick = () => { ROSTER.forEach(p => { STATE[p.id].uniform = true; }); DIRTY = true; takeView(); };
+  if ($("aFin")) $("aFin").onclick = () => save(true);
+  if ($("aDraft")) $("aDraft").onclick = () => save(false);
+  bindRows();
+}
+async function save(finish) {
+  if (finish && !confirm("Finish attendance for " + BAS.fmtDate(CUR.meet_date, true) + "? Alerts are sent now (absences, uniform).")) return;
+  const rows = ROSTER.map(p => ({ roster_id: p.id, status: STATE[p.id].status, arrived: STATE[p.id].arrived || null, uniform: STATE[p.id].uniform }));
+  const bs = [$("aFin"), $("aDraft")]; bs.forEach(b => { b.disabled = true; });
+  const { error } = await supabaseClient.rpc("save_attendance", { p_meeting: CUR.id, p_rows: rows, p_finish: finish });
+  bs.forEach(b => { b.disabled = false; });
+  if (error) return BAS.toast(BAS.errText(error), "err");
+  DIRTY = false; BAS.toast(finish ? "Attendance saved ✓" : "Draft saved"); load(CUR.id);
+}
+function meetingSheet(m) {
+  const o = $("sheet");
+  o.innerHTML = '<div class="sheet" style="max-width:480px"><h2>' + (m ? "Meeting · " + esc(BAS.fmtDate(m.meet_date, true)) : "Meeting without items") + "</h2>" +
+    (m ? "" : '<div class="field"><label>Date</label><input type="date" id="mD" value="' + BAS.todayISO() + '"></div>') +
+    '<div class="field"><label>Starts at</label><input type="time" id="mT" value="' + esc(m && m.start_time ? m.start_time.slice(0, 5) : "") + '"></div>' +
+    '<div class="field"><label>Title (optional)</label><input id="mN" value="' + esc(m ? m.title || "" : "") + '" placeholder="Games day…"></div>' +
+    '<div class="actions"><button class="btn gold" id="mGo">Save</button><button class="btn line" id="mBack">Back</button></div></div>';
+  o.hidden = false; $("mBack").onclick = () => { o.hidden = true; };
+  $("mGo").onclick = async () => {
+    const t = $("mT").value;
+    const r = m ? await supabaseClient.rpc("edit_meeting", { p_id: m.id, p_time: t, p_title: $("mN").value })
+                : await supabaseClient.rpc("add_meeting", { p_section: SECID, p_date: $("mD").value, p_time: t, p_title: $("mN").value });
+    if (r.error) return BAS.toast(BAS.errText(r.error), "err");
+    o.hidden = true; DIRTY = false; load(m ? m.id : r.data);
+  };
+}
+
+// ---------- summary ----------
+function stats(p) {
+  const done = MEET.filter(m => m.status === "done").map(m => m.id);
+  const R = RECS.filter(r => r.roster_id === p.id && done.indexOf(r.meeting_id) >= 0);
+  const c = x => R.filter(r => r.status === x).length;
+  const lateAbs = !!SEC.att_late_absent;
+  const o = { total: R.length, present: c("present"), absent: c("absent"), excused: c("excused"), late: c("late"), noUni: R.filter(r => (r.status === "present" || r.status === "late") && !r.uniform).length };
+  o.missed = o.absent + o.excused + (lateAbs ? o.late : 0);
+  o.unexcused = o.absent + (lateAbs ? o.late : 0);
+  o.pct = o.total ? Math.round(o.missed * 100 / o.total) : 0;
+  o.band = !o.total ? "" : o.pct >= 75 ? "rr" : o.pct >= 50 ? "r" : o.pct >= 25 ? "y" : "g";
+  return o;
+}
+function sumView() {
+  const done = MEET.filter(m => m.status === "done").length;
+  let h = '<p class="meta" style="margin-bottom:8px">' + done + " " + esc(T("finished meetings since")) + " " + esc(BAS.fmtDate(yearStart(), true)) + ". " + esc(T("Excused absences count in the percentage.")) + "</p>";
+  const K = ROSTER.filter(p => p.role === "kada"), A = ROSTER.filter(p => p.role !== "kada");
+  const krow = p => { const s = stats(p); return "<tr><td>" + gTag(p.gender) + " " + esc(p.name) + (s.unexcused >= 2 ? " ⚠️" : "") + '</td><td class="num">' + s.total + '</td><td class="num">' + s.present + '</td><td class="num">' + s.late + '</td><td class="num"><b class="' + (s.unexcused >= 2 ? "bad" : "") + '">' + s.unexcused + '</b></td><td class="num">' + s.excused + '</td><td class="num">' + s.noUni + "</td></tr>"; };
+  h += '<div class="group-title">Kada</div><div class="panel tscroll"><table class="ltable"><tr><th>Name</th><th class="num">Meetings</th><th class="num">Present</th><th class="num">Late</th><th class="num">Absent, no excuse</th><th class="num">Excused</th><th class="num">No uniform</th></tr>' +
+    (K.length ? K.map(krow).join("") : '<tr><td colspan="7" class="mut">—</td></tr>') + "</table></div>";
+  const arow = p => { const s = stats(p); return "<tr><td>" + gTag(p.gender) + " " + esc(p.name) + (s.band === "rr" ? " ⚠️" : "") + (p.tali3a_id ? ' <small class="mut">' + esc(tName(p.tali3a_id)) + "</small>" : "") + '</td><td class="num">' + (s.total ? '<span class="band ' + s.band + '">' + s.pct + "%</span>" : "—") +
+    '</td><td class="num">' + s.total + '</td><td class="num">' + s.present + '</td><td class="num">' + s.late + '</td><td class="num">' + s.absent + '</td><td class="num">' + s.excused + '</td><td class="num">' + s.noUni + "</td></tr>"; };
+  const head = '<tr><th>Name</th><th class="num">Absent %</th><th class="num">Meetings</th><th class="num">Present</th><th class="num">Late</th><th class="num">Absent</th><th class="num">Excused</th><th class="num">No uniform</th></tr>';
+  h += '<div class="group-title">Awlad</div><div class="tabs" style="margin-bottom:8px"><button class="tab' + (GROUP === "tali3a" ? " on" : "") + '" data-g="tali3a">By tali3a</button><button class="tab' + (GROUP === "colour" ? " on" : "") + '" data-g="colour">By colour</button></div>';
+  if (!A.length) h += '<div class="empty">No awlad in the list yet.</div>';
+  else if (GROUP === "colour") {
+    [["rr", "🔴 ⚠️ 75–100% absent"], ["r", "🔴 50–75% absent"], ["y", "🟡 25–50% absent"], ["g", "🟢 0–25% absent"], ["", "No meetings yet"]].forEach(b => {
+      const L = A.filter(p => stats(p).band === b[0]).sort((x, y) => stats(y).pct - stats(x).pct);
+      if (L.length) h += '<div class="colgrp"><h3>' + esc(T(b[1])) + " (" + L.length + ')</h3><div class="panel tscroll"><table class="ltable">' + head + L.map(arow).join("") + "</table></div></div>";
+    });
+  } else {
+    ordered().filter(g => g.title !== "Kada").forEach(g => { h += '<div class="colgrp"><h3>' + esc(T(g.title)) + '</h3><div class="panel tscroll"><table class="ltable">' + head + g.list.map(arow).join("") + "</table></div></div>"; });
+  }
+  $("view").innerHTML = h;
+  document.querySelectorAll("[data-g]").forEach(b => b.onclick = () => { GROUP = b.dataset.g; sumView(); });
+}
+
+// ---------- people and tali3as ----------
+function peopleView() {
+  const tOpts = sel => '<option value="">No tali3a</option>' + TAL.map(t => '<option value="' + t.id + '"' + (t.id === sel ? " selected" : "") + ">" + esc(t.name) + "</option>").join("");
+  const role = p => { const x = PROF.find(r => r.id === p.profile_id); return x && x.stage_role && x.stage_role !== "leader" ? ' <span class="pill info">' + esc({ head: "قائد المرحلة", deputy: "نائب قائد المرحلة", assistant: "مساعد قائد المرحلة" }[x.stage_role]) + "</span>" : ""; };
+  const row = p => '<div class="person" data-p="' + p.id + '"><div><b>' + esc(p.name) + "</b>" + (p.profile_id ? ' <span class="pill mut">ACCOUNT</span>' : "") + role(p) + "</div>" +
+    '<div class="actions" style="margin:0"><select data-gen aria-label="Boy / girl"><option value=""' + (p.gender ? "" : " selected") + '>?</option><option value="M"' + (p.gender === "M" ? " selected" : "") + '>♂ Boy</option><option value="F"' + (p.gender === "F" ? " selected" : "") + ">♀ Girl</option></select>" +
+    (p.role !== "kada" ? '<select data-tal aria-label="Tali3a">' + tOpts(p.tali3a_id) + "</select>" : "") +
+    (p.profile_id ? "" : '<button class="btn line sm" data-ren>Rename</button><button class="btn danger sm" data-hide>Remove</button>') + "</div></div>";
+  const K = ROSTER.filter(p => p.role === "kada"), A = ROSTER.filter(p => p.role !== "kada");
+  const kadaAcc = K.filter(p => p.profile_id);
+  let h = '<div class="cols"><div><div class="panel"><h3>+ Add names</h3><p class="meta">One name per line. You can paste a whole list (numbers at the start are removed).</p>' +
+    '<div class="field"><textarea id="pNames" rows="6" placeholder="Kiro Samy&#10;Mina Adel&#10;Bola Nabil"></textarea></div><div class="grid3">' +
+    '<div class="field"><label>Kada or walad</label><select id="pRole"><option value="3ayel">Walad</option><option value="kada">Kada</option></select></div>' +
+    '<div class="field"><label>Boy / girl</label><select id="pGen"><option value="M">Boy / man</option><option value="F">Girl / woman</option></select></div>' +
+    '<div class="field"><label>Tali3a</label><select id="pTal">' + tOpts(null) + "</select></div></div>" +
+    '<button class="btn gold" id="pAdd">Add to the list</button><p class="meta mt">Leaders with an account are added by themselves once the warehouse team approves them.</p></div>' +
+    '<div class="panel"><h3>Tali3as</h3>' + (TAL.length ? TAL.map(t => { const ls = TL.filter(x => x.tali3a_id === t.id).map(x => (K.find(k => k.profile_id === x.profile_id) || {}).name).filter(Boolean);
+      return '<div class="person"><div><b>' + esc(t.name) + '</b><div class="meta">' + A.filter(p => p.tali3a_id === t.id).length + " " + esc(T("awlad")) + " · " + (ls.length ? esc(ls.join("، ")) : esc(T("no leaders yet"))) + '</div></div><button class="btn line sm" data-tal-edit="' + t.id + '">Edit</button></div>'; }).join("") : '<div class="empty">No tali3as yet.</div>') +
+    '<button class="btn line" id="tNew">+ New tali3a</button></div></div>' +
+    '<div><input type="search" class="psearch" id="pq" placeholder="Search a name…" autocomplete="off"><div class="group-title">Kada (' + K.length + ")</div>" + (K.length ? K.map(row).join("") : '<div class="empty">—</div>') +
+    '<div class="group-title">Awlad (' + A.length + ")</div>" + (A.length ? A.map(row).join("") : '<div class="empty">No awlad yet. Add them on the left.</div>') + "</div></div>";
+  $("view").innerHTML = h;
+  $("pq").oninput = () => { const q = BAS.norm($("pq").value); document.querySelectorAll(".person[data-p]").forEach(el => { el.hidden = !!q && !BAS.norm(el.querySelector("b").textContent).includes(q); }); };
+  $("pRole").onchange = () => { $("pTal").disabled = $("pRole").value === "kada"; };
+  $("pAdd").onclick = async () => {
+    const names = $("pNames").value.trim(); if (!names) return BAS.toast("Write the names", "err");
+    const { data, error } = await supabaseClient.rpc("add_names", { p_section: SECID, p_names: names, p_gender: $("pGen").value, p_role: $("pRole").value, p_tali3a: $("pTal").value ? Number($("pTal").value) : null });
+    if (error) return BAS.toast(BAS.errText(error), "err");
+    BAS.toast("Added: " + data); load();
+  };
+  const upd = async (id, row) => { const { error } = await supabaseClient.from("roster").update(row).eq("id", id); if (error) { BAS.toast(BAS.errText(error), "err"); return false; } Object.assign(ROSTER.find(p => p.id === id), row); return true; };
+  document.querySelectorAll(".person[data-p]").forEach(el => {
+    const id = Number(el.dataset.p), p = ROSTER.find(x => x.id === id);
+    el.querySelector("[data-gen]").onchange = e => upd(id, { gender: e.target.value || null }).then(ok => ok && BAS.toast("Saved"));
+    const tl = el.querySelector("[data-tal]"); if (tl) tl.onchange = () => upd(id, { tali3a_id: tl.value ? Number(tl.value) : null }).then(ok => ok && BAS.toast("Saved"));
+    const rn = el.querySelector("[data-ren]"); if (rn) rn.onclick = async () => { const n = prompt("New name:", p.name); if (n && n.trim() && await upd(id, { name: n.trim() })) peopleView(); };
+    const hd = el.querySelector("[data-hide]"); if (hd) hd.onclick = async () => { if (confirm("Remove " + p.name + " from the stage's list? Past attendance keeps the name.") && await upd(id, { is_active: false })) { ROSTER = ROSTER.filter(x => x.id !== id); peopleView(); } };
+  });
+  const talSheet = t => {
+    const o = $("sheet"), on = t ? TL.filter(x => x.tali3a_id === t.id).map(x => x.profile_id) : [];
+    o.innerHTML = '<div class="sheet" style="max-width:480px"><h2>' + (t ? "Edit tali3a" : "New tali3a") + '</h2><div class="field"><label>Name</label><input id="tN" value="' + esc(t ? t.name : "") + '"></div>' +
+      '<div class="field"><label>Its leaders (2 or 3)</label><div class="picks">' + (kadaAcc.length ? kadaAcc.map(k => '<label class="pick' + (on.indexOf(k.profile_id) >= 0 ? " on" : "") + '"><input type="checkbox" data-lead="' + k.profile_id + '"' + (on.indexOf(k.profile_id) >= 0 ? " checked" : "") + "> " + esc(k.name) + "</label>").join("") : '<span class="mut">No leaders with an account in this stage yet.</span>') + "</div></div>" +
+      '<div id="tErr" class="msg err" hidden></div><div class="actions"><button class="btn gold" id="tGo">Save</button>' + (t ? '<button class="btn danger" id="tDel">Delete tali3a</button>' : "") + '<button class="btn line" id="tBack">Back</button></div></div>';
+    o.hidden = false; $("tBack").onclick = () => { o.hidden = true; };
+    o.querySelectorAll("[data-lead]").forEach(c => c.onchange = () => c.closest(".pick").classList.toggle("on", c.checked));
+    const go = async active => {
+      const leads = [...o.querySelectorAll("[data-lead]:checked")].map(c => c.dataset.lead);
+      if (active && leads.length > 3) { $("tErr").textContent = T("A tali3a has 3 leaders at most."); $("tErr").hidden = false; return; }
+      const { error } = await supabaseClient.rpc("save_tali3a", { p_id: t ? t.id : null, p_section: SECID, p_name: $("tN").value, p_leaders: leads, p_active: active });
+      if (error) { $("tErr").textContent = BAS.errText(error); $("tErr").hidden = false; return; }
+      o.hidden = true; BAS.toast("Saved"); load();
+    };
+    $("tGo").onclick = () => go(true);
+    if ($("tDel")) $("tDel").onclick = () => { if (confirm("Delete this tali3a? Its awlad stay in the list without a tali3a.")) go(false); };
+  };
+  $("tNew").onclick = () => talSheet(null);
+  document.querySelectorAll("[data-tal-edit]").forEach(b => b.onclick = () => talSheet(TAL.find(t => t.id === Number(b.dataset.talEdit))));
+}
+
+// ---------- settings for this stage ----------
+function setView() {
+  const roles = BAS.isAdmin() ? PROF.filter(p => p.stage_role && p.stage_role !== "leader") : [];
+  $("view").innerHTML = '<div class="panel" style="max-width:600px"><h3>Late</h3><p class="meta">Every stage can have its own rule.</p>' +
+    '<div class="grid2"><div class="field"><label>Late after (minutes from the start)</label><input type="number" min="0" max="180" id="sMin" value="' + (SEC.att_late_min == null ? 15 : SEC.att_late_min) + '"></div>' +
+    '<div class="field"><label>Does late count as absent?</label><select id="sAbs"><option value="0"' + (SEC.att_late_absent ? "" : " selected") + '>No</option><option value="1"' + (SEC.att_late_absent ? " selected" : "") + ">Yes</option></select></div></div>" +
+    '<button class="btn ok" id="sSave">Save</button></div>' +
+    '<div class="panel" style="max-width:600px"><h3>Alerts</h3><ul class="meta" style="padding-inline-start:18px;line-height:1.8">' +
+    "<li>" + esc(T("30 minutes after a meeting starts, if attendance isn't finished: every leader of the stage.")) + "</li>" +
+    "<li>" + esc(T("A leader absent without an excuse 2 times this year (and every time after): قائد المرحلة and نائب قائد المرحلة.")) + "</li>" +
+    "<li>" + esc(T("A walad absent 75% or more (after 4 meetings): the leaders of his tali3a.")) + "</li>" +
+    "<li>" + esc(T("Anyone without the uniform (with the foulard) 2 meetings in a row: the 4 kada of the stage.")) + "</li></ul>" +
+    '<p class="meta">' + esc(T("The stage roles (قائد المرحلة, نائب, مساعدين) are set by the warehouse team.")) + (BAS.isAdmin() ? ' <a class="lnk" href="team.html#people">' + esc(T("Set them in Accounts")) + "</a>" : "") + "</p>" +
+    (roles.length ? '<div class="meta">' + roles.map(p => esc(p.full_name) + ": " + esc({ head: "قائد المرحلة", deputy: "نائب قائد المرحلة", assistant: "مساعد قائد المرحلة" }[p.stage_role])).join(" · ") + "</div>" : "") + "</div>";
+  $("sSave").onclick = async () => {
+    const n = Number($("sMin").value);
+    const { error } = await supabaseClient.rpc("save_att_settings", { p_section: SECID, p_late_min: n, p_late_absent: $("sAbs").value === "1" });
+    if (error) return BAS.toast(BAS.errText(error), "err");
+    SEC.att_late_min = n; SEC.att_late_absent = $("sAbs").value === "1"; BAS.toast("Saved");
+  };
+}
+</script>
+</body>
+</html>
