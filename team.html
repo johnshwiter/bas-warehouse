@@ -92,8 +92,9 @@ function render() {
     ["stock", "Stock", STOCK.filter(i => !i.counted && i.is_active).length], ["maint", "Maintenance", MAINT.filter(m => m.status === "Open").length],
     ["wait", "Waitlist", WAIT.filter(w => availOf(w.item_id, w.variant_id) > 0).length], ["chat", "Messages", 0], ["news", "Announcements", 0],
     ["people", "Accounts", PEOPLE.filter(p => p.approval_status === "pending").length + TRANSFERS.filter(t => t.status === "Pending").length], ["trash", "Deleted", TRASH.length], ["log", "Activity", 0], ["settings", "Settings", 0]];
-  $("tabs").innerHTML = tabs.map(t => '<button class="tab' + (TAB === t[0] ? " on" : "") + '" data-t="' + t[0] + '">' + t[1] + (t[2] ? "<b>" + t[2] + "</b>" : "") + "</button>").join("");
-  $("tabs").querySelectorAll(".tab").forEach(b => b.onclick = () => { location.hash = b.dataset.t; });
+  // the tabs live in the side menu now; their counts go there as badges
+  $("tabs").classList.add("hidden-tabs");
+  const bd = {}; tabs.forEach(t => { bd[t[0]] = t[2]; }); BAS.menuBadges(bd);
   $("title").innerHTML = TITLES[TAB];
   document.querySelectorAll(".nav a").forEach(a => a.classList.toggle("on", a.dataset.nav === (TAB === "stock" ? "stock" : TAB === "requests" ? "requests" : TAB === "overview" ? "overview" : "")));
   ({ overview, requests: requestsView, money: moneyView, stock: stockView, maint: maintView, wait: waitView, chat: chatView, news: newsView, people: peopleView, trash: trashView, log: logView, settings: settingsView }[TAB] || overview)();
@@ -104,7 +105,7 @@ function overview() {
   const active = STOCK.filter(i => i.is_active);
   const n = s => RES.filter(r => s.indexOf(r.status) >= 0).length;
   const owed = LOSSES.reduce((t, l) => t + Number(l.remaining || 0), 0);
-  const k = (label, val, go, cls) => '<div class="kpi ' + (cls || "") + '" data-go="' + go + '"><p>' + label + "</p><h3>" + val + "</h3></div>";
+  const k = (label, val, go, cls, hide0) => hide0 && (!val || val === BAS.money(0)) ? "" : '<div class="kpi ' + (cls || "") + '" data-go="' + go + '"><p>' + label + "</p><h3>" + val + "</h3></div>";
   const stats = (secId, svcId) => {
     const R = RES.filter(r => svcId ? r.service_id === svcId : r.section_id === secId);
     const L = LOSSES.filter(l => svcId ? l.service_id === svcId : l.section_id === secId);
@@ -113,16 +114,17 @@ function overview() {
       owed: L.reduce((t, l) => t + Number(l.remaining || 0), 0), total: R.length };
   };
   const scard = (name, en, url, s, svc) => '<a class="stage' + (svc ? " svc" : "") + '" href="' + url + '"><h4><bdi>' + esc(name) + "</bdi></h4>" + (en && en !== name ? '<div class="en">' + esc(en) + "</div>" : "") +
-    "<dl><dt>To prepare</dt><dd>" + s.open + "</dd><dt>Out now</dt><dd>" + s.out + "</dd><dt>Overdue</dt><dd" + (s.late ? ' class="bad"' : "") + ">" + s.late + "</dd><dt>Missing / damaged</dt><dd" + (s.missing + s.damaged ? ' class="bad"' : "") + ">" + s.missing + " / " + s.damaged +
-    "</dd><dt>Still owed</dt><dd" + (s.owed ? ' class="bad"' : "") + ">" + BAS.money(s.owed) + "</dd><dt>All requests</dt><dd>" + s.total + "</dd></dl></a>";
+    "<dl><dt>To prepare</dt><dd>" + s.open + "</dd><dt>Out now</dt><dd>" + s.out + "</dd>" + (s.late ? '<dt>Overdue</dt><dd class="bad">' + s.late + "</dd>" : "") +
+    (s.missing + s.damaged ? '<dt>Missing / damaged</dt><dd class="bad">' + s.missing + " / " + s.damaged + "</dd>" : "") +
+    (s.owed ? '<dt>Still owed</dt><dd class="bad">' + BAS.money(s.owed) + "</dd>" : "") + "<dt>All requests</dt><dd>" + s.total + "</dd></dl></a>";
   const usedSvc = BAS.services.filter(v => v.is_active || RES.some(r => r.service_id === v.id));
-  let h = '<div class="quick"><a href="book.html"><span>➕</span>New booking</a><a href="book.html" class="gold"><span>⛺</span>New camp / trip</a>' +
+  let h = '<div class="quick"><a href="book.html"><span>➕</span>New booking</a><a href="camp.html?new=Camp" class="gold"><span>⛺</span>New camp / trip</a>' +
     '<button data-q="return"><span>↩</span>Record a return</button><button data-q="item"><span>📦</span>Add an item</button><button data-q="loss"><span>⚠️</span>Record missing / damaged</button><a href="mizania.html"><span>💰</span>Money in / out</a></div>' +
     '<div class="kpis">' + k("To prepare", n(["Pending", "Preparing"]), "requests", "warn") + k("Ready to collect", n(["Ready"]), "requests") + k("Out with stages", n(BAS.OUT), "requests") +
-    k("Overdue", RES.filter(r => BAS.isOverdue(r)).length, "requests", "bad") + k("Changes to approve", CHANGES.length, "requests", "gold") +
-    k("Missing pieces", LOSSES.filter(l => l.kind === "missing").reduce((t, l) => t + l.qty, 0), "money", "bad") + k("Damaged pieces", LOSSES.filter(l => l.kind === "damaged").reduce((t, l) => t + l.qty, 0), "money", "warn") +
-    k("Still owed", BAS.money(owed), "money", owed ? "bad" : "ok") + k("In maintenance", MAINT.filter(m => m.status === "Open").reduce((t, m) => t + m.qty, 0), "maint", "fix") +
-    k("Need recount", active.filter(i => !i.counted).length, "stock") + "</div>";
+    k("Overdue", RES.filter(r => BAS.isOverdue(r)).length, "requests", "bad", 1) + k("Changes to approve", CHANGES.length, "requests", "gold", 1) +
+    k("Missing pieces", LOSSES.filter(l => l.kind === "missing").reduce((t, l) => t + l.qty, 0), "money", "bad", 1) + k("Damaged pieces", LOSSES.filter(l => l.kind === "damaged").reduce((t, l) => t + l.qty, 0), "money", "warn", 1) +
+    k("Still owed", BAS.money(owed), "money", "bad", 1) + k("In maintenance", MAINT.filter(m => m.status === "Open").reduce((t, m) => t + m.qty, 0), "maint", "fix", 1) +
+    k("Need recount", active.filter(i => !i.counted).length, "stock", "", 1) + "</div>";
   h += '<div class="group-title">Scout stages</div><div class="stages">' + BAS.sections.map(s => scard(s.name_ar, s.name_en, BAS.borrowerURL(s.id), stats(s.id, null))).join("") + "</div>";
   h += '<div class="group-title">Other church services</div><div class="stages">' + usedSvc.map(v => scard(v.name_ar, v.name_en, BAS.borrowerURL(null, v.id), stats(null, v.id), true)).join("") + "</div>";
   const next = RES.filter(r => BAS.PRE.indexOf(r.status) >= 0).sort((a, b) => a.meeting_date > b.meeting_date ? 1 : -1).slice(0, 5);
@@ -138,16 +140,24 @@ function overview() {
 }
 
 // ---------- requests ----------
-const GROUPS = { prepare: ["Pending", "Preparing"], ready: ["Ready"], out: ["Issued", "Partially Returned"], returned: ["Returned"], done: ["Completed", "Cancelled", "Rejected"] };
+const GROUPS = { prepare: ["Pending", "Preparing"], ready: ["Ready"], out: ["Issued", "Partially Returned"], done: ["Returned", "Completed", "Cancelled", "Rejected"] };
+let DF = "all";
 function requestsView() {
-  const subs = [["changes", "Changes to approve", CHANGES.length], ["prepare", "To prepare"], ["ready", "Ready"], ["out", "To return"], ["returned", "Returned"], ["done", "Closed"]];
+  if (SUB === "returned") SUB = "done";
+  const subs = [["changes", "Changes to approve", CHANGES.length], ["prepare", "To prepare"], ["ready", "Ready"], ["out", "To return"], ["done", "Returned"]];
   const cnt = s => s[0] === "changes" ? s[2] : s[0] === "done" ? 0 : RES.filter(r => GROUPS[s[0]].indexOf(r.status) >= 0).length;
   let h = '<div class="tabs sub">' + subs.map(s => '<button class="tab' + (SUB === s[0] ? " on" : "") + '" data-sub="' + s[0] + '">' + s[1] + (cnt(s) ? "<b>" + cnt(s) + "</b>" : "") + "</button>").join("") + "</div>";
   if (SUB === "changes") {
     h += CHANGES.length ? CHANGES.map(card).join("") : '<div class="empty">No change requests waiting.</div>';
   } else {
     let list = RES.filter(r => GROUPS[SUB].indexOf(r.status) >= 0);
-    if (SUB === "done") { list.sort((a, b) => a.meeting_date < b.meeting_date ? 1 : -1); h += list.slice(0, 80).map(card).join("") || '<div class="empty">Nothing here.</div>'; }
+    if (SUB === "done") {
+      const F = { all: GROUPS.done, returned: ["Returned", "Completed"], cancelled: ["Cancelled"], rejected: ["Rejected"] };
+      list = list.filter(r => F[DF].indexOf(r.status) >= 0).sort((a, b) => (a.returned_at || a.meeting_date) < (b.returned_at || b.meeting_date) ? 1 : -1);
+      h += '<div class="actions" style="margin:0 0 10px">' + [["all", "All"], ["returned", "Returned"], ["cancelled", "Cancelled"], ["rejected", "Rejected"]].map(f => '<button class="chipbtn' + (DF === f[0] ? " on" : "") + '" data-df="' + f[0] + '">' + f[1] + "</button>").join("") +
+        '<a class="lnk" style="margin-inline-start:auto" href="history.html">Older ones: History →</a></div>';
+      h += list.slice(0, 40).map(card).join("") || '<div class="empty">Nothing here.</div>';
+    }
     else {
       list.sort((a, b) => a.meeting_date > b.meeting_date ? 1 : -1);
       const groups = {}, order = [];
@@ -157,6 +167,7 @@ function requestsView() {
   }
   $("view").innerHTML = h;
   $("view").querySelectorAll("[data-sub]").forEach(b => b.onclick = () => { SUB = b.dataset.sub; FORM = null; render(); });
+  $("view").querySelectorAll("[data-df]").forEach(b => b.onclick = () => { DF = b.dataset.df; render(); });
   bindRequestButtons();
 }
 function whenGroup(r) {
@@ -190,12 +201,13 @@ function card(r) {
         '<td><input type="number" min="0" max="' + i.quantity + '" value="' + i.prepared_qty + '" data-pq="' + i.id + '"></td>' +
         '<td><input class="wide" value="' + esc(i.prep_note || "") + '" data-pn="' + i.id + '" placeholder="e.g. only 8 clean"></td>' +
         '<td><button class="btn line sm" data-act="prep" data-line="' + i.id + '">Save</button></td></tr>').join("") + "</table></div>" +
-      '<div class="actions"><button class="btn line" data-act="prepall" data-id="' + r.id + '">Prepare all ✓</button>' + (r.status === "Ready" ? '<button class="btn ok" data-act="takenback" data-id="' + r.id + '">All back OK</button><button class="btn line" data-act="takenret" data-id="' + r.id + '">Receive return…</button>' : "") + '' +
+      '<div class="actions">' + (r.status === "Ready" ? '<button class="btn ok" data-act="taken" data-id="' + r.id + '">Taken ✓</button>' : '<button class="btn line" data-act="prepall" data-id="' + r.id + '">Prepare all ✓</button>') +
       '<a class="btn line sm" href="book.html?edit=' + r.id + '">✏️ Edit</a><button class="btn danger sm" data-act="cancel" data-id="' + r.id + '">Cancel</button><button class="btn danger sm" data-act="reject" data-id="' + r.id + '">Reject</button><button class="btn danger sm" data-act="trash" data-id="' + r.id + '">🗑 Delete</button></div>';
   } else {
-    h += '<div class="tscroll"><table class="ltable"><tr><th>Item</th><th class="num">Asked</th><th class="num">Issued</th><th class="num">Back</th><th class="num">Missing</th><th class="num">Damaged</th><th class="num">Still out</th></tr>' +
+    const anyM = r.items.some(i => i.missing_qty), anyD = r.items.some(i => i.damaged_qty);
+    h += '<div class="tscroll"><table class="ltable"><tr><th>Item</th><th class="num">Asked</th><th class="num">Issued</th><th class="num">Back</th>' + (anyM ? '<th class="num">Missing</th>' : "") + (anyD ? '<th class="num">Damaged</th>' : "") + '<th class="num">Still out</th></tr>' +
       r.items.map(i => '<tr><td><a class="lnk" href="item.html?id=' + i.item_id + '">' + esc(BAS.lineName(i)) + '</a></td><td class="num">' + i.quantity + '</td><td class="num">' + (i.issued_qty == null ? "—" : i.issued_qty) + '</td><td class="num">' + i.returned_qty +
-        '</td><td class="num">' + i.missing_qty + '</td><td class="num">' + i.damaged_qty + '</td><td class="num">' + (i.kind === "Consumable" && r.status !== "Issued" ? "used" : i.out) + "</td></tr>").join("") + "</table></div>";
+        "</td>" + (anyM ? '<td class="num">' + i.missing_qty + "</td>" : "") + (anyD ? '<td class="num">' + i.damaged_qty + "</td>" : "") + '<td class="num">' + (i.kind === "Consumable" && r.status !== "Issued" ? "used" : i.out) + "</td></tr>").join("") + "</table></div>";
     h += '<div class="actions">' + (out ? '<button class="btn ok" data-act="allback" data-id="' + r.id + '">All back OK</button><button class="btn line" data-act="return" data-id="' + r.id + '">Receive return…</button>' : "") +
       (r.status === "Returned" ? '<button class="btn line" data-act="complete" data-id="' + r.id + '">Mark completed</button>' : "") +
       '<button class="btn line sm" data-act="fix" data-id="' + r.id + '">✏️ Fix numbers</button><button class="btn danger sm" data-act="trash" data-id="' + r.id + '">🗑 Delete</button></div>';
@@ -218,21 +230,49 @@ function issueForm(r) {
       '<td><input type="number" min="0" max="' + i.quantity + '" value="' + (i.prepared_qty || i.quantity) + '" data-iq="' + i.id + '"></td></tr>').join("") + "</table></div>" +
     '<div id="fErr" class="msg err" hidden></div><div class="actions"><button class="btn ok" data-act="doissue" data-id="' + r.id + '">Confirm issue</button><button class="btn line" data-act="close">Back</button></div></div>';
 }
+// every row starts as "all back OK"; tap Missing or Damaged only for what didn't come back right
+function retState(r) {
+  if (!FORM.st) { FORM.st = {}; r.items.filter(i => i.out > 0).forEach(i => { FORM.st[i.id] = { back: i.kind === "Consumable" ? 0 : i.out, m: 0, d: 0, price: Number((BY[i.item_id] || {}).price || 0), showM: false, showD: false }; }); }
+  return FORM.st;
+}
 function returnForm(r) {
-  const lines = r.items.filter(i => i.out > 0);
-  return '<div class="panel" style="margin-top:12px;border-color:var(--gold)"><h3>Receive return · #' + r.id + '</h3><p class="meta" style="margin-bottom:8px">Type what came back this time. You can do it in several goes. Consumables: put leftovers in "Back"; the rest counts as used. Missing and damaged are charged to the whole ' + (r.service_id ? "service" : "stage") + ".</p>" +
-    '<div class="tscroll"><table class="ltable"><tr><th>Item</th><th class="num">Still out</th><th>Back OK</th><th>Missing</th><th>Damaged</th><th>Price per piece (EGP)</th></tr>' +
-    lines.map(i => "<tr><td>" + esc(BAS.lineName(i)) + '</td><td class="num">' + i.out + "</td>" +
-      '<td><input type="number" min="0" max="' + i.out + '" value="' + (i.kind === "Consumable" ? 0 : i.out) + '" data-rr="' + i.id + '"></td>' +
-      '<td><input type="number" min="0" value="0" data-rm="' + i.id + '"></td><td><input type="number" min="0" value="0" data-rd="' + i.id + '"></td>' +
-      '<td><input type="number" min="0" value="0" data-rp="' + i.id + '"></td></tr>').join("") + "</table></div>" +
-    '<div class="field" style="margin-top:10px"><label>What happened (optional)</label><input id="fNote"></div>' +
+  const st = retState(r), lines = r.items.filter(i => i.out > 0);
+  const step = (id, f, v) => '<span class="rstep"><button type="button" data-rs="' + id + "|" + f + '|-1" aria-label="Less">−</button><b>' + v + '</b><button type="button" data-rs="' + id + "|" + f + '|1" aria-label="More">+</button></span>';
+  return '<div class="panel" style="margin-top:12px;border-color:var(--gold)"><h3>Receive return · #' + r.id + '</h3><p class="meta" style="margin-bottom:6px"><span>Everything starts as back OK. Tap Missing or Damaged only for what didn\'t come back right.</span>' +
+    (lines.some(i => i.kind === "Consumable") ? " <span>Consumables: put the leftovers in Back; the rest counts as used.</span>" : "") + "</p>" +
+    lines.map(i => { const x = st[i.id], left = i.out - x.back - x.m - x.d;
+      return '<div class="rrow"><div class="rn"><b>' + esc(BAS.lineName(i)) + "</b><small>" + i.out + " " + esc(BAS.tr ? BAS.tr("out") : "out") + (left > 0 && i.kind !== "Consumable" ? " · " + left + " " + esc(BAS.tr ? BAS.tr("still out after this") : "still out after this") : "") + "</small></div>" +
+        '<div class="rctl"><span class="mut" style="font-size:12px;font-weight:700">' + esc(BAS.tr ? BAS.tr("Back OK") : "Back OK") + "</span>" + step(i.id, "back", x.back) +
+        '<button type="button" class="chipbtn m' + (x.m || x.showM ? " on" : "") + '" data-rt="' + i.id + '|m">' + esc(BAS.tr ? BAS.tr("Missing") : "Missing") + (x.m ? " " + x.m : "") + "</button>" +
+        '<button type="button" class="chipbtn d' + (x.d || x.showD ? " on" : "") + '" data-rt="' + i.id + '|d">' + esc(BAS.tr ? BAS.tr("Damaged") : "Damaged") + (x.d ? " " + x.d : "") + "</button></div>" +
+        (x.showM || x.showD || x.m || x.d ? '<div class="rx">' + (x.showM || x.m ? "<label>" + esc(BAS.tr ? BAS.tr("Missing") : "Missing") + " " + step(i.id, "m", x.m) + "</label>" : "") +
+          (x.showD || x.d ? "<label>" + esc(BAS.tr ? BAS.tr("Damaged") : "Damaged") + " " + step(i.id, "d", x.d) + "</label>" : "") +
+          (x.m || x.d ? '<label>' + esc(BAS.tr ? BAS.tr("Price per piece (EGP)") : "Price per piece (EGP)") + ' <input type="number" min="0" value="' + (x.price || "") + '" data-rp="' + i.id + '" placeholder="0"></label>' : "") + "</div>" : "") + "</div>"; }).join("") +
+    '<div class="field" style="margin-top:10px"><label>What happened (optional)</label><input id="fNote" value="' + esc(FORM.note || "") + '"></div>' +
     '<div id="fErr" class="msg err" hidden></div><div class="actions"><button class="btn ok" data-act="doreturn" data-id="' + r.id + '">Save return</button><button class="btn line" data-act="close">Back</button></div></div>';
+}
+function bindReturn(r) {
+  const st = retState(r), keep = () => { if ($("fNote")) FORM.note = $("fNote").value; document.querySelectorAll("[data-rp]").forEach(el => { st[el.dataset.rp].price = Number(el.value || 0); }); };
+  document.querySelectorAll("[data-rs]").forEach(b => b.onclick = () => {
+    keep(); const [id, f, d] = b.dataset.rs.split("|"), i = r.items.find(x => x.id === Number(id)), x = st[id], dv = Number(d);
+    if (f === "back") x.back = Math.max(0, Math.min(i.out - x.m - x.d, x.back + dv));
+    else { const nv = Math.max(0, x[f] + dv); const room = i.out - x.back - (f === "m" ? x.d : x.m);
+      if (nv > room) { if (x.back > 0 && i.kind !== "Consumable") x.back -= 1; else return; }
+      x[f] = Math.min(nv, i.out - x.back - (f === "m" ? x.d : x.m)); }
+    render();
+  });
+  document.querySelectorAll("[data-rt]").forEach(b => b.onclick = () => {
+    keep(); const [id, f] = b.dataset.rt.split("|"), i = r.items.find(x => x.id === Number(id)), x = st[id];
+    if (f === "m") x.showM = true; else x.showD = true;
+    if (!x[f] && i.out - x.back - x.m - x.d <= 0 && x.back > 0) { x.back -= 1; x[f] = 1; } else if (!x[f] && i.out - x.back - x.m - x.d > 0) x[f] = 1;
+    render();
+  });
 }
 function fail(m) { const e = $("fErr"); if (e) { e.textContent = m; e.hidden = false; } else BAS.toast(m, "err"); }
 const num = sel => { const el = document.querySelector(sel); return el ? Number(el.value || 0) : 0; };
 
 function bindRequestButtons() {
+  if (FORM && FORM.kind === "return") { const rr = RES.find(x => x.id === FORM.id); if (rr) bindReturn(rr); }
   BAS.bindComments($("view"), async fresh => { if (fresh) MSGS = await BAS.loadMessages(); render(); });
   $("view").querySelectorAll("[data-act]").forEach(b => b.onclick = () => {
     const id = Number(b.dataset.id), a = b.dataset.act, r = RES.find(x => x.id === id);
@@ -241,6 +281,10 @@ function bindRequestButtons() {
       rpc("prepare_line", { p_line_id: line, p_prepared: num('[data-pq="' + line + '"]'), p_note: document.querySelector('[data-pn="' + line + '"]').value }, s => s === "Ready" ? "All prepared: ready to collect" : "Saved");
     }
     if (a === "prepall") rpc("prepare_all", { p_id: id }, "Ready to collect");
+    if (a === "taken") {
+      if (!confirm("Did the stage take request #" + id + " now? It moves to To return.")) return;
+      rpc("mark_taken", { p_id: id }, "Taken ✓ · now in To return").then(() => { SUB = "out"; render(); });
+    }
     if (a === "takenback" || a === "takenret") {
       if (a === "takenback" && !confirm("Everything came back in good condition?")) return;
       supabaseClient.rpc("mark_taken", { p_id: id }).then(async ({ error }) => {
@@ -283,8 +327,9 @@ function bindRequestButtons() {
     }
     if (a === "doreturn") {
       let bad = "", any = false;
+      document.querySelectorAll("[data-rp]").forEach(el => { FORM.st[el.dataset.rp].price = Number(el.value || 0); });
       const lines = r.items.filter(i => i.out > 0).map(i => {
-        const x = { line_id: i.id, returned: num('[data-rr="' + i.id + '"]'), missing: num('[data-rm="' + i.id + '"]'), damaged: num('[data-rd="' + i.id + '"]'), unit_price: num('[data-rp="' + i.id + '"]') };
+        const y = FORM.st[i.id], x = { line_id: i.id, returned: y.back, missing: y.m, damaged: y.d, unit_price: (y.m || y.d) ? y.price : 0 };
         if ([x.returned, x.missing, x.damaged].some(v => !Number.isInteger(v) || v < 0)) bad = "Use whole numbers, 0 or more.";
         if (x.returned + x.missing + x.damaged > i.out) bad = BAS.lineName(i) + ": only " + i.out + " still out.";
         if ((x.missing || x.damaged) && x.unit_price <= 0 && !bad) x.noPrice = true;
@@ -393,9 +438,9 @@ function level(i) {
 function stockView() {
   const active = STOCK.filter(i => i.is_active);
   const chips = ["All", "Needs recount", "Low / out", "In maintenance", "Hidden"].concat(cats());
-  $("view").innerHTML = '<div class="kpis"><div class="kpi"><p>Items</p><h3>' + active.length + '</h3></div><div class="kpi warn"><p>Need recount</p><h3>' + active.filter(i => !i.counted).length +
-    '</h3></div><div class="kpi bad"><p>Low or out</p><h3>' + active.filter(i => i.counted && level(i)).length + '</h3></div><div class="kpi fix"><p>Pieces in maintenance</p><h3>' + active.reduce((t, i) => t + Number(i.maintenance || 0), 0) +
-    '</h3></div><div class="kpi"><p>Missing + damaged</p><h3>' + active.reduce((t, i) => t + Number(i.missing) + Number(i.damaged), 0) + "</h3></div></div>" +
+  $("view").innerHTML = (() => { const kp = (l, v, c) => v ? '<div class="kpi ' + c + '"><p>' + l + "</p><h3>" + v + "</h3></div>" : "";
+    return '<div class="kpis"><div class="kpi"><p>Items</p><h3>' + active.length + "</h3></div>" + kp("Need recount", active.filter(i => !i.counted).length, "warn") + kp("Low or out", active.filter(i => i.counted && level(i)).length, "bad") +
+      kp("Pieces in maintenance", active.reduce((t, i) => t + Number(i.maintenance || 0), 0), "fix") + kp("Missing + damaged", active.reduce((t, i) => t + Number(i.missing) + Number(i.damaged), 0), "") + "</div>"; })() +
     '<div class="toolbar"><input id="sq" placeholder="Search stock" value="' + esc(SQ) + '"><button class="btn gold" id="addBtn">+ Add item</button></div>' +
     '<div class="chips">' + chips.map(c => '<button class="tab' + (c === SCAT ? " on" : "") + '" data-c="' + esc(c) + '">' + esc(c) + "</button>").join("") + "</div><div id=\"slist\"></div>";
   $("sq").oninput = e => { SQ = e.target.value; drawStock(); };
@@ -733,7 +778,7 @@ function settingsView() {
       '<div class="actions" style="margin:0"><a class="btn line sm" href="' + BAS.borrowerURL(null, v.id) + '">Open page</a><button class="btn line sm" data-svc="' + v.id + '" data-on="' + (!v.is_active) + '">' + (v.is_active ? "Hide" : "Show") + "</button><button class=\"btn danger sm\" data-svdel=\"" + v.id + "\">Delete</button></div></div>").join("") +
     '<div class="grid2" style="margin-top:10px"><div class="field"><label>New service or church (name)</label><input id="svAr"></div><div class="field"><label>Other spelling (optional)</label><input id="svEn"></div></div>' +
     '<button class="btn gold" id="svAdd">Add service</button></div>' +
-    '<div class="group-title">Attendance</div><div class="panel" style="max-width:640px"><p class="meta">The scout year started on <b>' + esc(BAS.fmtDate(s.att_year_start || BAS.todayISO(), true)) + '</b>. Percentages and absence counts start from this day.</p>' +
+    '<div class="group-title">Attendance</div><div class="panel" style="max-width:640px"><p class="meta"><span>The scout year started on</span> <b>' + esc(BAS.fmtDate(s.att_year_start || BAS.todayISO(), true)) + '</b> · <span>Percentages and absence counts start from this day.</span></p>' +
     '<div class="grid2"><div class="field"><label>First day of the new scout year</label><input type="date" id="nyDate" value="' + BAS.todayISO() + '"></div><div></div></div><button class="btn line" id="nyGo">Start a new scout year</button></div>' +
     '<div class="group-title">Reset</div><div class="panel" style="max-width:640px;border-color:var(--bad)"><h3>🧹 Reset the history</h3>' +
     '<p class="meta">Deletes every request, missing/damaged record, payment, 3ohda, message, notification, activity log, waitlist, finished maintenance, calendar event and money entry. ' +

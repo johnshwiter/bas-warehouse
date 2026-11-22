@@ -45,7 +45,7 @@ async function load() {
   try {
     const st = await BAS.loadStock(); BY = st.byId; IT = BY[ID];
     if (!IT) { $("view").innerHTML = '<div class="empty">This item was not found or was deleted.</div>'; return; }
-    document.title = IT.name_en + " | BAS Warehouse";
+    document.title = IT.name_en + " | BAS Warehouse"; BAS.addRecent("📦 " + IT.name_en, "item.html?id=" + IT.id);
     const lines = await BAS.q(supabaseClient.from("reservation_items").select("id, reservation_id, item_id, variant_id, quantity, prepared_qty, issued_qty, returned_qty, missing_qty, damaged_qty").eq("item_id", ID));
     const ids = [...new Set(lines.map(l => l.reservation_id))];
     let res = [];

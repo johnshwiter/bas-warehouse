@@ -72,7 +72,7 @@ function pickMeeting(id) {
   STATE = {}; DIRTY = false;
   if (!CUR) return;
   const R = RECS.filter(r => r.meeting_id === CUR.id);
-  ROSTER.forEach(p => { const r = R.find(x => x.roster_id === p.id); STATE[p.id] = r ? { status: r.status, arrived: (r.arrived || "").slice(0, 5), uniform: r.uniform } : { status: "present", arrived: "", uniform: true }; });
+  ROSTER.forEach(p => { const r = R.find(x => x.roster_id === p.id); STATE[p.id] = r ? { status: r.status, arrived: (r.arrived || "").slice(0, 5), uniform: r.uniform, foulard: r.foulard !== false } : { status: "present", arrived: "", uniform: true, foulard: true }; });
 }
 
 function render() {
@@ -116,7 +116,7 @@ function takeView() {
   if (fut) { $("view").innerHTML = h + '<div class="empty">This meeting hasn\'t happened yet.</div>'; bindTake(); return; }
   if (!ROSTER.length) { $("view").innerHTML = h + '<div class="empty">Nobody in the stage\'s list yet. <a class="lnk" href="#people" data-go="people">Add names</a></div>'; bindTake(); return; }
   h += '<input type="search" class="psearch" id="aq" placeholder="Search a name…" value="' + esc(Q) + '" autocomplete="off">' +
-    '<div class="actions" style="margin:0 0 8px"><button class="btn line sm" id="allP">✓ Everyone present</button><button class="btn line sm" id="allU">👕 Everyone in uniform</button></div>';
+    '<div class="actions" style="margin:0 0 8px"><button class="btn line sm" id="allP">✓ Everyone present</button><button class="btn line sm" id="allU">👕🧣 Everyone in uniform + foulard</button></div>';
   ordered().forEach(g => {
     h += '<div class="group-title">' + esc(T(g.title)) + " (" + g.list.length + ')</div><div class="att-list">' + g.list.map(rowHTML).join("") + "</div>";
   });
@@ -128,7 +128,8 @@ function rowHTML(p) {
   const s = STATE[p.id], late = s.status === "late" || ((s.status === "present") && lateOf(s.arrived)), here = s.status === "present" || s.status === "late";
   return '<div class="att-row ' + (late ? "late" : s.status) + '" data-row="' + p.id + '" data-nm="' + esc(BAS.norm(p.name)) + '"><div class="att-name">' + gTag(p.gender) + " " + esc(p.name) + (late ? ' <span class="pill warn">' + esc(T("LATE")) + "</span>" : "") + "</div>" +
     '<div class="att-ctl"><span class="seg">' + [["present", "✓"], ["absent", "Absent"], ["excused", "Excused"]].map(x => '<button type="button" data-st="' + x[0] + '" class="' + (s.status === x[0] || (x[0] === "present" && s.status === "late") ? "on" : "") + '">' + esc(T(x[1])) + "</button>").join("") + "</span>" +
-    (here ? '<input type="time" data-arr="' + p.id + '" value="' + esc(s.arrived) + '" title="' + esc(T("Arrived at")) + '" aria-label="' + esc(T("Arrived at")) + '"><label class="uni"><input type="checkbox" data-uni="' + p.id + '"' + (s.uniform ? " checked" : "") + "> 👕 " + esc(T("Uniform")) + "</label>" : "") + "</div></div>";
+    (here ? '<input type="time" data-arr="' + p.id + '" value="' + esc(s.arrived) + '" title="' + esc(T("Arrived at")) + '" aria-label="' + esc(T("Arrived at")) + '"><label class="uni"><input type="checkbox" data-uni="' + p.id + '"' + (s.uniform ? " checked" : "") + "> 👕 " + esc(T("Uniform")) + "</label>" +
+      '<label class="uni"><input type="checkbox" data-foul="' + p.id + '"' + (s.foulard ? " checked" : "") + "> 🧣 " + esc(T("Foulard")) + "</label>" : "") + "</div></div>";
 }
 function redrawRow(id) {
   const el = document.querySelector('[data-row="' + id + '"]'); if (!el) return;
@@ -137,7 +138,7 @@ function redrawRow(id) {
 }
 function counts() {
   const L = ROSTER.map(p => STATE[p.id]), n = x => L.filter(x).length;
-  if ($("aCount")) $("aCount").textContent = T("Present") + " " + n(s => s.status === "present" || s.status === "late") + " · " + T("Absent") + " " + n(s => s.status === "absent") + " · " + T("Excused") + " " + n(s => s.status === "excused") + " · " + T("No uniform") + " " + n(s => (s.status === "present" || s.status === "late") && !s.uniform);
+  if ($("aCount")) $("aCount").textContent = T("Present") + " " + n(s => s.status === "present" || s.status === "late") + " · " + T("Absent") + " " + n(s => s.status === "absent") + " · " + T("Excused") + " " + n(s => s.status === "excused") + " · " + T("No uniform") + " " + n(s => (s.status === "present" || s.status === "late") && !s.uniform) + " · " + T("No foulard") + " " + n(s => (s.status === "present" || s.status === "late") && !s.foulard);
 }
 function filter() { const q = BAS.norm(Q); document.querySelectorAll(".att-row[data-nm]").forEach(r => { r.hidden = !!q && !r.dataset.nm.includes(q); }); }
 function bindRows() {
@@ -146,6 +147,7 @@ function bindRows() {
     r.querySelectorAll("[data-st]").forEach(b => b.onclick = () => { const s = STATE[id]; s.status = b.dataset.st; if (s.status !== "present") s.arrived = s.status === "late" ? s.arrived : ""; DIRTY = true; redrawRow(id); });
     const a = r.querySelector("[data-arr]"); if (a) a.onchange = () => { STATE[id].arrived = a.value; STATE[id].status = "present"; DIRTY = true; redrawRow(id); };
     const u = r.querySelector("[data-uni]"); if (u) u.onchange = () => { STATE[id].uniform = u.checked; DIRTY = true; counts(); };
+    const f = r.querySelector("[data-foul]"); if (f) f.onchange = () => { STATE[id].foulard = f.checked; DIRTY = true; counts(); };
   });
 }
 function bindTake() {
@@ -164,14 +166,14 @@ function bindTake() {
   };
   if ($("aq")) $("aq").oninput = () => { Q = $("aq").value; filter(); };
   if ($("allP")) $("allP").onclick = () => { ROSTER.forEach(p => { STATE[p.id].status = "present"; }); DIRTY = true; takeView(); };
-  if ($("allU")) $("allU").onclick = () => { ROSTER.forEach(p => { STATE[p.id].uniform = true; }); DIRTY = true; takeView(); };
+  if ($("allU")) $("allU").onclick = () => { ROSTER.forEach(p => { STATE[p.id].uniform = true; STATE[p.id].foulard = true; }); DIRTY = true; takeView(); };
   if ($("aFin")) $("aFin").onclick = () => save(true);
   if ($("aDraft")) $("aDraft").onclick = () => save(false);
   bindRows();
 }
 async function save(finish) {
   if (finish && !confirm("Finish attendance for " + BAS.fmtDate(CUR.meet_date, true) + "? Alerts are sent now (absences, uniform).")) return;
-  const rows = ROSTER.map(p => ({ roster_id: p.id, status: STATE[p.id].status, arrived: STATE[p.id].arrived || null, uniform: STATE[p.id].uniform }));
+  const rows = ROSTER.map(p => ({ roster_id: p.id, status: STATE[p.id].status, arrived: STATE[p.id].arrived || null, uniform: STATE[p.id].uniform, foulard: STATE[p.id].foulard }));
   const bs = [$("aFin"), $("aDraft")]; bs.forEach(b => { b.disabled = true; });
   const { error } = await supabaseClient.rpc("save_attendance", { p_meeting: CUR.id, p_rows: rows, p_finish: finish });
   bs.forEach(b => { b.disabled = false; });
@@ -201,7 +203,7 @@ function stats(p) {
   const R = RECS.filter(r => r.roster_id === p.id && done.indexOf(r.meeting_id) >= 0);
   const c = x => R.filter(r => r.status === x).length;
   const lateAbs = !!SEC.att_late_absent;
-  const o = { total: R.length, present: c("present"), absent: c("absent"), excused: c("excused"), late: c("late"), noUni: R.filter(r => (r.status === "present" || r.status === "late") && !r.uniform).length };
+  const o = { total: R.length, present: c("present"), absent: c("absent"), excused: c("excused"), late: c("late"), noUni: R.filter(r => (r.status === "present" || r.status === "late") && !r.uniform).length, noFoul: R.filter(r => (r.status === "present" || r.status === "late") && r.foulard === false).length };
   o.missed = o.absent + o.excused + (lateAbs ? o.late : 0);
   o.unexcused = o.absent + (lateAbs ? o.late : 0);
   o.pct = o.total ? Math.round(o.missed * 100 / o.total) : 0;
@@ -212,12 +214,12 @@ function sumView() {
   const done = MEET.filter(m => m.status === "done").length;
   let h = '<p class="meta" style="margin-bottom:8px">' + done + " " + esc(T("finished meetings since")) + " " + esc(BAS.fmtDate(yearStart(), true)) + ". " + esc(T("Excused absences count in the percentage.")) + "</p>";
   const K = ROSTER.filter(p => p.role === "kada"), A = ROSTER.filter(p => p.role !== "kada");
-  const krow = p => { const s = stats(p); return "<tr><td>" + gTag(p.gender) + " " + esc(p.name) + (s.unexcused >= 2 ? " ⚠️" : "") + '</td><td class="num">' + s.total + '</td><td class="num">' + s.present + '</td><td class="num">' + s.late + '</td><td class="num"><b class="' + (s.unexcused >= 2 ? "bad" : "") + '">' + s.unexcused + '</b></td><td class="num">' + s.excused + '</td><td class="num">' + s.noUni + "</td></tr>"; };
-  h += '<div class="group-title">Kada</div><div class="panel tscroll"><table class="ltable"><tr><th>Name</th><th class="num">Meetings</th><th class="num">Present</th><th class="num">Late</th><th class="num">Absent, no excuse</th><th class="num">Excused</th><th class="num">No uniform</th></tr>' +
-    (K.length ? K.map(krow).join("") : '<tr><td colspan="7" class="mut">—</td></tr>') + "</table></div>";
+  const krow = p => { const s = stats(p); return "<tr><td>" + gTag(p.gender) + " " + esc(p.name) + (s.unexcused >= 2 ? " ⚠️" : "") + '</td><td class="num">' + s.total + '</td><td class="num">' + s.present + '</td><td class="num">' + s.late + '</td><td class="num"><b class="' + (s.unexcused >= 2 ? "bad" : "") + '">' + s.unexcused + '</b></td><td class="num">' + s.excused + '</td><td class="num">' + s.noUni + '</td><td class="num">' + (s.noFoul >= 2 ? '<b class="bad">' + s.noFoul + "</b>" : s.noFoul) + "</td></tr>"; };
+  h += '<div class="group-title">Kada</div><div class="panel tscroll"><table class="ltable"><tr><th>Name</th><th class="num">Meetings</th><th class="num">Present</th><th class="num">Late</th><th class="num">Absent, no excuse</th><th class="num">Excused</th><th class="num">No uniform</th><th class="num">No foulard</th></tr>' +
+    (K.length ? K.map(krow).join("") : '<tr><td colspan="8" class="mut">—</td></tr>') + "</table></div>";
   const arow = p => { const s = stats(p); return "<tr><td>" + gTag(p.gender) + " " + esc(p.name) + (s.band === "rr" ? " ⚠️" : "") + (p.tali3a_id ? ' <small class="mut">' + esc(tName(p.tali3a_id)) + "</small>" : "") + '</td><td class="num">' + (s.total ? '<span class="band ' + s.band + '">' + s.pct + "%</span>" : "—") +
-    '</td><td class="num">' + s.total + '</td><td class="num">' + s.present + '</td><td class="num">' + s.late + '</td><td class="num">' + s.absent + '</td><td class="num">' + s.excused + '</td><td class="num">' + s.noUni + "</td></tr>"; };
-  const head = '<tr><th>Name</th><th class="num">Absent %</th><th class="num">Meetings</th><th class="num">Present</th><th class="num">Late</th><th class="num">Absent</th><th class="num">Excused</th><th class="num">No uniform</th></tr>';
+    '</td><td class="num">' + s.total + '</td><td class="num">' + s.present + '</td><td class="num">' + s.late + '</td><td class="num">' + s.absent + '</td><td class="num">' + s.excused + '</td><td class="num">' + s.noUni + '</td><td class="num">' + (s.noFoul >= 2 ? '<b class="bad">' + s.noFoul + "</b>" : s.noFoul) + "</td></tr>"; };
+  const head = '<tr><th>Name</th><th class="num">Absent %</th><th class="num">Meetings</th><th class="num">Present</th><th class="num">Late</th><th class="num">Absent</th><th class="num">Excused</th><th class="num">No uniform</th><th class="num">No foulard</th></tr>';
   h += '<div class="group-title">Awlad</div><div class="tabs" style="margin-bottom:8px"><button class="tab' + (GROUP === "tali3a" ? " on" : "") + '" data-g="tali3a">By tali3a</button><button class="tab' + (GROUP === "colour" ? " on" : "") + '" data-g="colour">By colour</button></div>';
   if (!A.length) h += '<div class="empty">No awlad in the list yet.</div>';
   else if (GROUP === "colour") {
@@ -302,7 +304,8 @@ function setView() {
     "<li>" + esc(T("30 minutes after a meeting starts, if attendance isn't finished: every leader of the stage.")) + "</li>" +
     "<li>" + esc(T("A leader absent without an excuse 2 times this year (and every time after): قائد المرحلة and نائب قائد المرحلة.")) + "</li>" +
     "<li>" + esc(T("A walad absent 75% or more (after 4 meetings): the leaders of his tali3a.")) + "</li>" +
-    "<li>" + esc(T("Anyone without the uniform (with the foulard) 2 meetings in a row: the 4 kada of the stage.")) + "</li></ul>" +
+    "<li>" + esc(T("Anyone without the foulard 2 times this year (and every time after): the 4 kada and the leaders of their tali3a.")) + "</li>" +
+    "<li>" + esc(T("A reminder before each meeting: every leader chooses how many minutes before in their profile.")) + "</li></ul>" +
     '<p class="meta">' + esc(T("The stage roles (قائد المرحلة, نائب, مساعدين) are set by the warehouse team.")) + (BAS.isAdmin() ? ' <a class="lnk" href="team.html#people">' + esc(T("Set them in Accounts")) + "</a>" : "") + "</p>" +
     (roles.length ? '<div class="meta">' + roles.map(p => esc(p.full_name) + ": " + esc({ head: "قائد المرحلة", deputy: "نائب قائد المرحلة", assistant: "مساعد قائد المرحلة" }[p.stage_role])).join(" · ") + "</div>" : "") + "</div>";
   $("sSave").onclick = async () => {

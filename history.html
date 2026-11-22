@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>History | BAS Warehouse</title>
+<link rel="icon" href="logo.png">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#17196A">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<meta name="color-scheme" content="only light">
+<link rel="stylesheet" href="bas.css">
+<script>(function(){var t="light";try{t=localStorage.getItem("basTheme")==="dark"?"dark":"light"}catch(e){}document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content="only "+t})()</script>
+</head>
+<body>
+<main class="page">
+  <div class="head"><div><p class="eyebrow">History</p><h1>All <em>requests</em></h1>
+    <p class="sub">Every request from every stage and service. Filter it, or search for an item, a place, a name or a number.</p></div></div>
+  <div class="hfilters">
+    <input type="search" id="hq" class="hq" placeholder="Search: shoum, #14, villa, Mina…" autocomplete="off">
+    <select id="hWho" aria-label="Stage or service"></select>
+    <select id="hSt" aria-label="Status"></select>
+    <select id="hKind" aria-label="Kind"><option value="">All kinds</option><option value="Meeting">Meetings</option><option value="Camp">Camps</option><option value="Trip">Trips</option></select>
+    <input type="month" id="hMonth" aria-label="Month">
+  </div>
+  <div id="view"><div class="loading">Loading…</div></div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="common.js"></script>
+<script src="i18n.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const esc = s => BAS.esc(s);
+let RES = [], BY = {}, OPEN = null, LIMIT = 60;
+const STS = [["", "All statuses"], ["done", "Returned / completed"], ["out", "Out now"], ["pre", "Waiting / ready"], ["Cancelled", "Cancelled"], ["Rejected", "Rejected"]];
+
+(async function () {
+  await BAS.init("history");
+  if (!BAS.requireAdmin()) return;
+  $("hWho").innerHTML = '<option value="">All stages and services</option>' + BAS.sections.map(s => '<option value="s' + s.id + '">' + esc(s.name_ar) + " · " + esc(s.name_en) + "</option>").join("") +
+    BAS.services.map(v => '<option value="v' + v.id + '">' + esc(v.name_ar) + "</option>").join("");
+  $("hSt").innerHTML = STS.map(x => '<option value="' + x[0] + '">' + x[1] + "</option>").join("");
+  ["hq", "hWho", "hSt", "hKind", "hMonth"].forEach(id => { $(id).oninput = () => { LIMIT = 60; draw(); }; });
+  try {
+    const st = await BAS.loadStock(); BY = st.byId;
+    RES = await BAS.loadReservations(BY);
+    draw();
+  } catch (e) { $("view").innerHTML = '<div class="msg err">' + esc(BAS.errText(e)) + "</div>"; }
+})();
+
+function match(r) {
+  const who = $("hWho").value, st = $("hSt").value, kind = $("hKind").value, mon = $("hMonth").value, q = BAS.norm($("hq").value).replace(/^#/, "");
+  if (who && who !== (r.service_id ? "v" + r.service_id : "s" + r.section_id)) return false;
+  if (st === "done" && ["Returned", "Completed"].indexOf(r.status) < 0) return false;
+  if (st === "out" && BAS.OUT.indexOf(r.status) < 0) return false;
+  if (st === "pre" && BAS.PRE.indexOf(r.status) < 0) return false;
+  if (st && ["done", "out", "pre"].indexOf(st) < 0 && r.status !== st) return false;
+  if (kind && (r.kind || "Meeting") !== kind) return false;
+  if (mon && (r.meeting_date || "").slice(0, 7) !== mon) return false;
+  if (q) {
+    const hay = BAS.norm([r.id, r.place, r.notes, r.requester, r.received_by_name, r.closed_reason, BAS.borrowerName(r.section_id, r.service_id)].concat(r.items.map(i => BAS.lineName(i) + " " + ((BY[i.item_id] || {}).name_ar || ""))).join(" "));
+    if (/^\d+$/.test(q) ? String(r.id) !== q && !hay.includes(q) : !hay.includes(q)) return false;
+  }
+  return true;
+}
+function draw() {
+  const L = RES.filter(match);
+  const lost = L.reduce((t, r) => t + r.items.reduce((a, i) => a + i.missing_qty + i.damaged_qty, 0), 0);
+  let h = '<p class="meta" style="margin-bottom:8px">' + L.length + " " + esc(BAS.tr ? BAS.tr("requests") : "requests") + (lost ? " · " + lost + " " + esc(BAS.tr ? BAS.tr("pieces missing or damaged") : "pieces missing or damaged") : "") + "</p>";
+  if (!L.length) { $("view").innerHTML = h + '<div class="empty">Nothing matches.</div>'; return; }
+  h += '<div class="panel tscroll"><table class="ltable"><tr><th>Date</th><th>Who</th><th>Items</th><th>Status</th></tr>' + L.slice(0, LIMIT).map(r => {
+    const lostR = r.items.reduce((a, i) => a + i.missing_qty + i.damaged_qty, 0);
+    let row = '<tr class="hrow" data-r="' + r.id + '"><td class="nowrap"><b>' + esc(BAS.fmtDate(r.meeting_date, true)) + "</b><br><small class=\"mut\">#" + r.id + (r.kind && r.kind !== "Meeting" ? " · " + (r.kind === "Camp" ? "⛺" : "🚌") : "") + "</small></td><td>" + BAS.borrowerHTML(r) +
+      '<br><small class="mut">' + esc(r.requester || "") + (r.place ? " · " + esc(r.place) : "") + "</small></td><td>" + r.items.slice(0, 4).map(i => esc(BAS.lineName(i)) + " ×" + i.quantity).join(", ") + (r.items.length > 4 ? " +" + (r.items.length - 4) : "") +
+      (lostR ? ' <span class="pill late">' + lostR + " ✕</span>" : "") + "</td><td>" + BAS.statusBadge(r.status) + "</td></tr>";
+    if (OPEN === r.id) row += '<tr class="hdet"><td colspan="4"><table class="ltable"><tr><th>Item</th><th class="num">Asked</th><th class="num">Taken</th><th class="num">Back</th><th class="num">Missing</th><th class="num">Damaged</th></tr>' +
+      r.items.map(i => '<tr><td><a class="lnk" href="item.html?id=' + i.item_id + '">' + esc(BAS.lineName(i)) + '</a></td><td class="num">' + i.quantity + '</td><td class="num">' + (i.issued_qty == null ? "—" : i.issued_qty) + '</td><td class="num">' + i.returned_qty + '</td><td class="num">' + i.missing_qty + '</td><td class="num">' + i.damaged_qty + "</td></tr>").join("") + "</table>" +
+      '<div class="meta">' + (r.issued_at ? "Taken " + esc(BAS.fmtDate(r.issued_at)) : "") + (r.returned_at ? " · back " + esc(BAS.fmtDateTime(r.returned_at)) : "") + (r.closed_reason ? " · " + esc(r.closed_reason) : "") + (r.notes ? " · " + esc(r.notes) : "") + "</div>" +
+      '<div class="actions" style="margin:6px 0 0">' + (r.kind && r.kind !== "Meeting" ? '<a class="btn line sm" href="camp.html?id=' + r.id + '">Open camp page</a>' : "") + '<a class="btn line sm" href="' + BAS.borrowerURL(r.section_id, r.service_id) + "&q=" + r.id + '#history">Open in the stage page</a></div></td></tr>';
+    return row; }).join("") + "</table></div>";
+  if (L.length > LIMIT) h += '<div class="actions"><button class="btn line" id="more">Show more (' + (L.length - LIMIT) + ")</button></div>";
+  $("view").innerHTML = h;
+  $("view").querySelectorAll("[data-r]").forEach(tr => tr.onclick = e => { if (e.target.closest("a")) return; const id = Number(tr.dataset.r); OPEN = OPEN === id ? null : id; draw(); });
+  if ($("more")) $("more").onclick = () => { LIMIT += 60; draw(); };
+}
+</script>
+</body>
+</html>

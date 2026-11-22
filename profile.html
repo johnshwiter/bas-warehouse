@@ -22,6 +22,9 @@
         <div class="panel"><h3>Language</h3><p class="meta">Every screen is shown in the language you pick.</p><div class="langs" style="margin:10px 0 0" id="langs">
             <button type="button" data-lang="ar">العربية</button><button type="button" data-lang="en">English</button><button type="button" data-lang="fr">Français</button></div></div>
         <div class="panel"><h3>Phone notifications</h3><p class="meta" style="margin-bottom:10px">Get a pop-up on this phone when your request is ready, a message arrives, or something is due back. Turn it on once on each phone you use.</p><div id="pushBox"></div></div>
+        <div class="panel" id="remBox" hidden><h3>⏰ Meeting reminder</h3><p class="meta" style="margin-bottom:10px">A notification before each meeting of your stage (the time the leader wrote when booking).</p>
+            <div class="grid2"><div class="field"><label>Remind me</label><select id="remMin"><option value="0">Off</option><option value="5">5 minutes before</option><option value="10">10 minutes before</option><option value="15">15 minutes before</option><option value="30">30 minutes before</option><option value="60">1 hour before</option></select></div><div></div></div>
+            <button class="btn ok" id="remSave">Save</button></div>
         <div id="view"><div class="empty">Loading…</div></div>
     </main>
 
@@ -39,6 +42,11 @@
         document.querySelectorAll("[data-lang]").forEach(b => { b.classList.toggle("on", b.dataset.lang === BAS.lang); b.onclick = () => { BAS.setLang(b.dataset.lang); location.reload(); }; });
         if (!BAS.requireApproved()) return;
         BAS.pushUI(document.getElementById("pushBox"));
+        if (BAS.profile.section_id) {
+            const r = await supabaseClient.from("profiles").select("meet_remind_min").eq("id", BAS.user.id).single();
+            $("remBox").hidden = false; $("remMin").value = String(r.error || r.data.meet_remind_min == null ? 10 : r.data.meet_remind_min);
+            $("remSave").onclick = async () => { const { error } = await supabaseClient.rpc("set_meet_reminder", { p_min: Number($("remMin").value) }); BAS.toast(error ? BAS.errText(error) : (BAS.tr ? BAS.tr("Saved") : "Saved"), error ? "err" : ""); };
+        }
         await load();
     })();
 

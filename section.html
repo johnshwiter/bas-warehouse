@@ -70,7 +70,7 @@ let CM = null, CSEL = null;                                        // calendar m
   $("crumbName").textContent = name;
   $("sub").textContent = "Requests, equipment out, history, losses and news for " + (SVC ? "this service" : "this stage") + ".";
   if (BAS.isAdmin()) $("bookBtn").textContent = "+ Book for them";
-  document.title = name + " | BAS Warehouse";
+  document.title = name + " | BAS Warehouse"; if (BAS.isAdmin() && (SVC || SEC !== BAS.profile.section_id)) BAS.addRecent("🏕 " + name, location.pathname.split("/").pop() + location.search);
   await load();
 })();
 
@@ -111,6 +111,10 @@ function render() {
   if (TAB === "calendar" && !BAS.isAdmin()) TAB = "dash";
   if (TAB === "att") { location.href = "attendance.html" + (BAS.isAdmin() ? "?s=" + SEC : ""); return; }
   if (!SVC) tabs.push(["wait", "Waitlist", WAIT.filter(w => availOf(w.item_id, w.variant_id) > 0).length]);
+  // your own stage: the tabs are in the side menu; another stage (warehouse team): tabs stay on the page
+  const own = !SVC && SEC === BAS.profile.section_id;
+  $("tabs").classList.toggle("hidden-tabs", own);
+  if (own) { const bd = {}; tabs.forEach(t => { bd["s-" + t[0]] = t[2]; }); BAS.menuBadges(bd); }
   $("tabs").innerHTML = tabs.map(t => '<button class="tab' + (TAB === t[0] ? " on" : "") + '" data-t="' + t[0] + '">' + t[1] + (t[2] ? "<b>" + t[2] + "</b>" : "") + "</button>").join("");
   $("tabs").querySelectorAll(".tab").forEach(b => b.onclick = () => go(b.dataset.t));
   ({ dash, requests, history: historyView, equipment, money, news, chat: chatView, calendar: calendarView, wait: waitView }[TAB] || dash)();
@@ -122,7 +126,7 @@ function go(t) { TAB = t; history.replaceState(null, "", location.search + "#" +
 function dash() {
   const n = s => RES.filter(r => s.indexOf(r.status) >= 0).length;
   const piecesOut = RES.filter(r => BAS.OUT.indexOf(r.status) >= 0).reduce((t, r) => t + r.items.reduce((a, i) => a + (i.kind === "Consumable" ? 0 : i.out), 0), 0);
-  const k = (label, v, tab, cls) => '<div class="kpi ' + (cls || "") + '" data-go="' + tab + '"><p>' + label + "</p><h3>" + v + "</h3></div>";
+  const k = (label, v, tab, cls, hide0) => hide0 && (!v || v === BAS.money(0)) ? "" : '<div class="kpi ' + (cls || "") + '" data-go="' + tab + '"><p>' + label + "</p><h3>" + v + "</h3></div>";
   const soon = RES.filter(r => BAS.PRE.indexOf(r.status) >= 0).sort((a, b) => a.meeting_date > b.meeting_date ? 1 : -1);
   const outs = RES.filter(r => BAS.OUT.indexOf(r.status) >= 0).sort((a, b) => (a.return_by || "") > (b.return_by || "") ? 1 : -1);
   const today = BAS.todayISO();
@@ -130,12 +134,13 @@ function dash() {
   const back = WAIT.filter(w => availOf(w.item_id, w.variant_id) > 0);
   let h = '<div class="kpis">' +
     k("Waiting / preparing", n(["Pending", "Preparing"]), "requests", "warn") + k("Ready to collect", n(["Ready"]), "requests") +
-    k("Pieces out now", piecesOut, "equipment") + k("Overdue", RES.filter(r => BAS.isOverdue(r)).length, "equipment", RES.some(r => BAS.isOverdue(r)) ? "bad" : "") +
-    k("Missing pieces", LOSSES.filter(l => l.kind === "missing").reduce((t, l) => t + l.qty, 0), "money", "bad") +
-    k("Damaged pieces", LOSSES.filter(l => l.kind === "damaged").reduce((t, l) => t + l.qty, 0), "money", "warn") +
-    k("Still owed", BAS.money(owedLeft()), "money", owedLeft() > 0 ? "bad" : "ok") + k("Requests so far", RES.length, "history", "gold") + "</div>";
+    k("Pieces out now", piecesOut, "equipment") + k("Overdue", RES.filter(r => BAS.isOverdue(r)).length, "equipment", "bad", 1) +
+    k("Missing pieces", LOSSES.filter(l => l.kind === "missing").reduce((t, l) => t + l.qty, 0), "money", "bad", 1) +
+    k("Damaged pieces", LOSSES.filter(l => l.kind === "damaged").reduce((t, l) => t + l.qty, 0), "money", "warn", 1) +
+    k("Still owed", BAS.money(owedLeft()), "money", "bad", 1) + k("Requests so far", RES.length, "history", "gold") + "</div>";
   if (back.length) h += back.map(w => '<div class="msg ok">🔔 <b>' + esc(BAS.itemLabel(BY, w.item_id, w.variant_id)) + "</b> is available again (" + availOf(w.item_id, w.variant_id) + ' now). <a class="lnk" href="book.html">Book it</a></div>').join("");
-  if (ANN[0]) h += '<div class="ann"><small>📣 ' + esc(BAS.fmtDate(ANN[0].created_at)) + "</small><h4 dir=\"auto\">" + esc(ANN[0].title) + "</h4><p dir=\"auto\">" + esc(ANN[0].body) + "</p></div>";
+  const month = new Date(Date.now() - 30 * 864e5).toISOString();
+  ANN.filter((a, i) => i < 3 && a.created_at >= month).forEach(a => { h += '<div class="ann"><small>📣 ' + esc(BAS.fmtDate(a.created_at)) + "</small><h4 dir=\"auto\">" + esc(a.title) + "</h4><p dir=\"auto\">" + esc(a.body) + "</p></div>"; });
   h += '<div class="cols"><div><div class="group-title">Coming up</div>' +
     (soon.length ? soon.slice(0, 4).map(r => BAS.reqCard(r, { stockBy: BY, actions: reqActions(r), msgs: MSGS })).join("") : '<div class="empty">No requests waiting. <a class="lnk" href="book.html">Book items</a></div>') +
     (outs.length ? '<div class="group-title">Out with ' + (SVC ? "them" : "the stage") + "</div>" + outs.map(r => '<div class="panel"><b>#' + r.id + "</b> · " + esc(BAS.fmtDate(r.meeting_date, true)) +

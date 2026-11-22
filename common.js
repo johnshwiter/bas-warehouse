@@ -97,36 +97,111 @@ const BAS = {
   },
 
   // ---------- top bar ----------
+  // =================== top bar + side menu ===================
+  menuGroups() {
+    const mine = this.profile && this.profile.section_id, G = [];
+    if (this.isAdmin()) {
+      G.push({ t: "", items: [["overview", "team.html#overview", "Overview"], ["requests", "team.html#requests", "Requests"], ["book", "book.html", "Book items"], ["calendar", "calendar.html", "Calendar"],
+        ["stock", "team.html#stock", "Stock"], ["ohda", "ohda.html", "Camps & 3ohda"], ["attendance", "attendance.html", "Attendance"], ["history", "history.html", "History"]] });
+      G.push({ t: "Money", items: [["mizania", "mizania.html", "Mizania"], ["money", "team.html#money", "Compensation"]] });
+      G.push({ t: "Warehouse", items: [["maint", "team.html#maint", "Maintenance"], ["wait", "team.html#wait", "Waitlist"]] });
+      G.push({ t: "Messages", items: [["chat", "team.html#chat", "Messages"], ["news", "team.html#news", "Announcements"]] });
+      G.push({ t: "Team", items: [["people", "team.html#people", "Accounts"], ["trash", "team.html#trash", "Deleted"], ["log", "team.html#log", "Activity"], ["settings", "team.html#settings", "Settings"]] });
+      if (mine) G.push({ t: "My stage", items: [["s-dash", "section.html?id=" + mine + "#dash", "My stage"], ["s-requests", "section.html?id=" + mine + "#requests", "Our requests"], ["s-chat", "section.html?id=" + mine + "#chat", "Stage chat"]] });
+    } else if (this.isApproved()) {
+      G.push({ t: "My stage", items: [["s-dash", "section.html#dash", "Dashboard"], ["s-requests", "section.html#requests", "Requests"], ["s-history", "section.html#history", "History & search"],
+        ["s-equipment", "section.html#equipment", "Equipment out / back"], ["s-money", "section.html#money", "Missing & compensation"], ["s-chat", "section.html#chat", "Messages"], ["s-wait", "section.html#wait", "Waitlist"]] });
+      G.push({ t: "", items: [["book", "book.html", "Book items"], ["ohda", "ohda.html", "Camps & 3ohda"], ["attendance", "attendance.html", "Attendance"]] });
+      G.push({ t: "More", items: [["s-news", "section.html#news", "Announcements"], ["profile", "profile.html", "Profile"]] });
+    }
+    return G;
+  },
+  _badges: {},
+  menuBadges(o) {
+    Object.assign(this._badges, o || {});
+    document.querySelectorAll(".drawer [data-mk]").forEach(a => { const n = this._badges[a.dataset.mk] || 0; const b = a.querySelector(".mb"); if (b) { b.textContent = n; b.hidden = !n; } });
+    const dot = document.getElementById("menuDot"); if (dot) dot.hidden = !Object.keys(this._badges).some(k => this._badges[k] > 0);
+  },
+  addRecent(t, h) {
+    try { let L = JSON.parse(localStorage.getItem("basRecent") || "[]").filter(x => x.h !== h); L.unshift({ t, h }); localStorage.setItem("basRecent", JSON.stringify(L.slice(0, 6))); } catch (e) {}
+  },
+  ICON_MORE: {
+    history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>', money: '<path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+    maint: '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>', wait: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/>',
+    chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.4A8 8 0 1 1 21 12z"/>', news: '<path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/>',
+    people: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/>', trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
+    log: '<path d="M4 6h16M4 12h16M4 18h10"/>', settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.8 1.2V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 7 19.4l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.8H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 2.8-1.2V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.8 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.8H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+    equipment: '<path d="M7 7h10v10H7z"/><path d="M3 12h4M17 12h4"/>'
+  },
+  menuIcon(k) {
+    const b = k.replace(/^s-/, ""), I = this.ICONS[b === "dash" ? "stage" : b === "requests" ? "requests" : b] || this.ICONS[b];
+    if (I) return I;
+    const d = this.ICON_MORE[b]; return d ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + "</svg>" : "";
+  },
   header(active) {
     document.documentElement.dataset.theme = this.theme(); this.colorMeta(this.theme());
+    this._active = active;
     let h = document.getElementById("top");
     if (!h) { h = document.createElement("header"); h.id = "top"; document.body.prepend(h); }
-    const L = [];
-    const mine = this.profile && this.profile.section_id;
-    if (this.isAdmin()) {
-      L.push(["overview", "team.html", "Overview"], ["requests", "team.html#requests", "Requests"], ["book", "book.html", "Book items"],
-        ["calendar", "calendar.html", "Calendar"], ["stock", "team.html#stock", "Stock"], ["ohda", "ohda.html", "3ohda"], ["mizania", "mizania.html", "Mizania"], ["attendance", "attendance.html", "Attendance"]);
-      if (mine) L.push(["stage", "section.html?id=" + mine, "My stage"]);
-    } else if (this.isApproved()) {
-      L.push(["stage", "section.html", "My stage"], ["book", "book.html", "Book items"], ["ohda", "ohda.html", "3ohda"], ["attendance", "attendance.html", "Attendance"]);
-    }
+    const T = x => this.esc(this.tr ? this.tr(x) : this.t(x));
     const name = this.profile ? this.profile.full_name : (this.user ? this.user.email : "");
     const tag = this.isAdmin() ? this.t("Warehouse team") : (this.profile && this.profile.section_id ? this.sectionName(this.profile.section_id) : "");
+    const ok = this.isApproved();
     h.className = "topbar";
-    h.innerHTML = '<div class="topbar-in">' +
+    h.innerHTML = '<div class="topbar-in">' + (this.user ? '<button class="menubtn" id="menuBtn" aria-label="' + T("Menu") + '"><span></span><span></span><span></span><i class="mdot" id="menuDot" hidden></i></button>' : "") +
       '<a class="brand" href="' + this.homeURL() + '"><img src="logo.png" alt="BA Scout"><div><b>BI ARCHI ANGELOUS</b><span>BAS Warehouse</span></div></a>' +
-      '<nav class="nav">' + L.map(x => { const lb = this.esc(this.tr ? this.tr(x[2]) : this.t(x[2])); return '<a href="' + x[1] + '"' + (x[0] === active ? ' class="on"' : "") + ' data-nav="' + x[0] + '" data-tip="' + lb + '" aria-label="' + lb + '" data-noi18n>' + (this.ICONS[x[0]] || "") + '<span class="lbl">' + lb + "</span></a>"; }).join("") + "</nav>" +
-      (this.isApproved() ? '<div class="gsearch"><input id="gq" type="search" placeholder="Search everything…" aria-label="Search everything" autocomplete="off"><div id="gres" class="gres" hidden></div></div>' : "") +
-      (this.user ? '<div class="me">' + '<button class="themebtn" id="themeBtn" aria-label="Dark / light" title="Dark / light">' + (this.theme() === "dark" ? "☀️" : "🌙") + "</button>" + (this.isApproved() ? '<button class="bell" id="bellBtn" aria-label="Notifications">🔔<span class="bdg" id="bellN" hidden></span></button>' : "") + '<a class="who" href="profile.html" title="Profile"><strong>' + this.esc(name) + "</strong><small>" + this.esc(tag) + '</small></a><button class="navbtn" id="logoutBtn">' + this.esc(this.t("Logout")) + "</button></div>" : "") +
-      "</div>";
+      (ok ? '<div class="gsearch"><input id="gq" type="search" placeholder="Search everything…" aria-label="Search everything" autocomplete="off"><div id="gres" class="gres" hidden></div></div>' : "") +
+      (ok ? '<button class="bell" id="bellBtn" aria-label="Notifications">🔔<span class="bdg" id="bellN" hidden></span></button>' : "") + "</div>";
+    // side menu
+    let dr = document.getElementById("drawer");
+    if (dr) dr.remove(); const old = document.getElementById("drawerBg"); if (old) old.remove();
+    if (this.user) {
+      const here = location.pathname.split("/").pop() || "index.html", hash = location.hash || "";
+      const isOn = href => { const [p, hs] = href.split("#"); const pp = p.split("?")[0]; return pp === here && (!hs || ("#" + hs) === hash || (!hash && /#(overview|dash)$/.test(href))); };
+      let recent = []; try { recent = JSON.parse(localStorage.getItem("basRecent") || "[]"); } catch (e) {}
+      const item = x => '<a href="' + x[1] + '" data-mk="' + x[0] + '" data-k="' + this.esc(this.norm((this.tr ? this.tr(x[2]) : x[2]) + " " + x[2])) + '"' + (isOn(x[1]) ? ' class="on"' : "") + ">" + this.menuIcon(x[0]) + "<span>" + T(x[2]) + '</span><b class="mb" hidden></b></a>';
+      const bg = document.createElement("div"); bg.id = "drawerBg"; bg.className = "drawer-bg"; document.body.appendChild(bg);
+      dr = document.createElement("aside"); dr.id = "drawer"; dr.className = "drawer"; dr.setAttribute("aria-label", "Menu");
+      dr.innerHTML = '<div class="dr-top"><a class="dr-me" href="profile.html"><strong>' + this.esc(name) + "</strong><small>" + this.esc(tag) + '</small></a><button class="dr-x" id="drX" aria-label="Close">✕</button></div>' +
+        (ok ? '<div class="dr-find"><input id="drQ" type="search" placeholder="' + T("Find in the menu…") + '" autocomplete="off"></div>' +
+          '<div class="dr-new"><a class="btn gold" href="book.html">+ ' + T("New booking") + '</a><a class="btn line" href="camp.html?new=Camp">⛺ ' + T("New camp / trip") + "</a></div>" : "") +
+        '<nav class="dr-list">' + this.menuGroups().map(g => '<div class="dr-g">' + (g.t ? "<h5>" + T(g.t) + "</h5>" : "") + g.items.map(item).join("") + "</div>").join("") +
+        (recent.length ? '<div class="dr-g dr-recent"><h5>' + T("Recent") + "</h5>" + recent.map(r => '<a href="' + this.esc(r.h) + '" data-k="' + this.esc(this.norm(r.t)) + '"><span dir="auto">' + this.esc(r.t) + "</span></a>").join("") + "</div>" : "") + "</nav>" +
+        '<div class="dr-foot"><button id="themeBtn" class="dr-btn">' + (this.theme() === "dark" ? "☀️ " + T("Light mode") : "🌙 " + T("Dark mode")) + '</button><button id="logoutBtn" class="dr-btn">↪ ' + T("Logout") + "</button></div>";
+      document.body.appendChild(dr);
+      const open = v => { document.body.classList.toggle("menu-open", v); if (v) { const q = document.getElementById("drQ"); if (q && window.innerWidth > 860) q.focus(); } };
+      document.getElementById("menuBtn").onclick = () => open(!document.body.classList.contains("menu-open"));
+      bg.onclick = () => open(false); document.getElementById("drX").onclick = () => open(false);
+      document.addEventListener("keydown", e => { if (e.key === "Escape") open(false); });
+      dr.querySelectorAll("a").forEach(a => a.addEventListener("click", () => open(false)));
+      const q = document.getElementById("drQ");
+      if (q) q.oninput = () => { const v = this.norm(q.value); dr.querySelectorAll(".dr-g").forEach(g => { let any = false; g.querySelectorAll("a[data-k]").forEach(a => { const hit = !v || a.dataset.k.includes(v); a.hidden = !hit; any = any || hit; }); g.hidden = !any; }); };
+      window.addEventListener("hashchange", () => { const hh = location.hash; dr.querySelectorAll("a[data-mk]").forEach(a => { const [p, hs] = a.getAttribute("href").split("#"); a.classList.toggle("on", p.split("?")[0] === here && hs && "#" + hs === hh); }); });
+      this.menuBadges();
+    }
     const lo = document.getElementById("logoutBtn");
     if (lo) lo.onclick = async () => { await supabaseClient.auth.signOut(); location.href = "auth.html"; };
     const bb = document.getElementById("bellBtn");
     if (bb) bb.onclick = e => { e.stopPropagation(); this.toggleBell(); };
     const tb = document.getElementById("themeBtn");
-    if (tb) tb.onclick = () => { this.setTheme(this.theme() === "dark" ? "light" : "dark"); tb.textContent = this.theme() === "dark" ? "☀️" : "🌙"; };
+    if (tb) tb.onclick = () => { this.setTheme(this.theme() === "dark" ? "light" : "dark"); tb.textContent = this.theme() === "dark" ? "☀️ " + (this.tr ? this.tr("Light mode") : "Light mode") : "🌙 " + (this.tr ? this.tr("Dark mode") : "Dark mode"); };
     const gq = document.getElementById("gq");
     if (gq) this.bindSearch(gq);
+    this.samsungTip();
+  },
+  // Samsung Internet paints sites dark by itself and a site can't switch that off; show how to turn it off once
+  samsungTip() {
+    try {
+      if (!/SamsungBrowser/i.test(navigator.userAgent) || this.theme() === "dark" || localStorage.getItem("basSamsungTip") === "1") return;
+      if (!(window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches)) return;
+      if (document.getElementById("ssTip")) return;
+      const T = x => this.esc(this.tr ? this.tr(x) : x);
+      const d = document.createElement("div"); d.id = "ssTip"; d.className = "sstip";
+      d.innerHTML = "<b>" + T("Colours look dark or wrong?") + "</b> " + T("Samsung Internet is painting the site dark. In Samsung Internet: ☰ menu → Settings → Labs → turn on “Use website dark theme”. Or turn off Dark mode in the ☰ menu.") +
+        ' <button class="linkbtn" id="ssOk">' + T("Got it") + "</button>";
+      const top = document.getElementById("top"); top.after(d);
+      document.getElementById("ssOk").onclick = () => { localStorage.setItem("basSamsungTip", "1"); d.remove(); };
+    } catch (e) {}
   },
 
   // =================== icons, theme, welcome ===================
@@ -384,7 +459,7 @@ const BAS = {
   // read-only card for a request (used on stage pages)
   reqCard(r, opts) {
     opts = opts || {};
-    const issued = ["Issued", "Partially Returned", "Returned", "Completed"].indexOf(r.status) >= 0;
+    const issued = ["Issued", "Partially Returned", "Returned", "Completed"].indexOf(r.status) >= 0; const anyM = r.items.some(i => i.missing_qty), anyD = r.items.some(i => i.damaged_qty);
     const pre = this.PRE.indexOf(r.status) >= 0;
     const h = '<div class="req ' + this.statusSlug(r.status) + '" id="req' + r.id + '">' +
       '<div class="req-top"><h3>' + (opts.showBorrower ? this.borrowerHTML(r) + " · " : "") + "#" + r.id + " · " + this.esc(this.fmtDate(r.meeting_date, true)) +
@@ -396,10 +471,10 @@ const BAS = {
       (r.status === "Ready" ? " · counts as taken on <b>" + this.esc(this.fmtDate(r.meeting_date, true)) + "</b>" : "") +
       (r.return_by && this.OUT.indexOf(r.status) >= 0 ? " · return by <b>" + this.esc(this.fmtDate(r.return_by)) + "</b>" : "") +
       (r.returned_at ? " · back " + this.esc(this.fmtDateTime(r.returned_at)) : "") + "</div>" +
-      '<div class="tscroll"><table class="ltable"><tr><th>Item</th><th class="num">Asked</th>' + (issued ? '<th class="num">Taken</th><th class="num">Back</th><th class="num">Missing</th><th class="num">Damaged</th><th class="num">Still out</th>' : "") + "</tr>" +
+      '<div class="tscroll"><table class="ltable"><tr><th>Item</th><th class="num">Asked</th>' + (issued ? '<th class="num">Taken</th><th class="num">Back</th>' + (anyM ? '<th class="num">Missing</th>' : "") + (anyD ? '<th class="num">Damaged</th>' : "") + '<th class="num">Still out</th>' : "") + "</tr>" +
       r.items.map(i => '<tr><td><a class="lnk" href="item.html?id=' + i.item_id + '">' + this.esc(this.lineName(i)) + "</a>" + (i.kind === "Consumable" ? ' <small class="mut">(used up)</small>' : "") + '</td><td class="num">' + i.quantity + "</td>" +
-        (issued ? '<td class="num">' + (i.issued_qty == null ? "—" : i.issued_qty) + '</td><td class="num">' + i.returned_qty + '</td><td class="num' + (i.missing_qty ? ' bad"><b>' + i.missing_qty + "</b>" : '">0') + '</td><td class="num' + (i.damaged_qty ? ' bad"><b>' + i.damaged_qty + "</b>" : '">0') +
-          '</td><td class="num">' + (i.kind === "Consumable" && r.status !== "Issued" ? "used" : i.out) + "</td>" : "") + "</tr>").join("") + "</table></div>" +
+        (issued ? '<td class="num">' + (i.issued_qty == null ? "—" : i.issued_qty) + '</td><td class="num">' + i.returned_qty + "</td>" + (anyM ? '<td class="num' + (i.missing_qty ? ' bad"><b>' + i.missing_qty + "</b>" : '">0') + "</td>" : "") + (anyD ? '<td class="num' + (i.damaged_qty ? ' bad"><b>' + i.damaged_qty + "</b>" : '">0') + "</td>" : "") +
+          '<td class="num">' + (i.kind === "Consumable" && r.status !== "Issued" ? "used" : i.out) + "</td>" : "") + "</tr>").join("") + "</table></div>" +
       (r.notes ? '<div class="msg warn" data-noi18n dir="auto">' + this.esc(r.notes) + "</div>" : "") +
       (r.closed_reason ? '<div class="meta">Reason: ' + this.esc(r.closed_reason) + "</div>" : "") +
       (r.change ? '<div class="change-box">✏️ Change waiting for the warehouse team: ' + this.changeSummary(r, r.change, opts.stockBy || {}) + (r.change.reason ? " · <i>" + this.esc(r.change.reason) + "</i>" : "") + (opts.extraChange || "") + "</div>" : "") +
