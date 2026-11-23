@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Help | BAS Warehouse</title>
+<link rel="icon" href="logo.png">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#17196A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="BAS Warehouse">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<meta name="color-scheme" content="only light">
+<link rel="stylesheet" href="bas.css">
+<script>(function(){var t="light";try{t=localStorage.getItem("basTheme")==="dark"?"dark":"light"}catch(e){}document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content="only "+t})()</script>
+</head>
+<body>
+<main class="page narrow">
+  <div class="head"><div><p class="eyebrow">Ask anything about the website</p><h1>Help <em>assistant</em></h1></div></div>
+  <div class="panel ai-box">
+    <div id="aiLog" class="ai-log"></div>
+    <div class="ai-ex" id="aiEx"></div>
+    <form id="aiForm" class="ai-form" autocomplete="off">
+      <textarea id="aiQ" rows="2" maxlength="600" placeholder="Ask… e.g. how do I book items? · Mina's dad's number · book 10 shoma for Friday" dir="auto"></textarea>
+      <button class="btn gold" id="aiGo" type="submit">Ask</button>
+    </form>
+    <p class="meta" id="aiLeft"></p>
+    <p class="meta ai-note">The assistant only sees your question, never names or numbers from the website. Answers come from a free AI and can be wrong: check before you press the last button.</p>
+  </div>
+  <div class="panel"><h3>📖 Guides</h3><p class="meta">Step by step, without the assistant.</p><div id="guides"></div></div>
+</main>
+<div class="overlay" id="sheet" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="common.js"></script>
+<script src="i18n.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id), esc = s => BAS.esc(s), T = x => BAS.tr ? BAS.tr(x) : x;
+let HIST = [], BUSY = false;
+const D = {};   // data loaded on first use: roster, tali3as, subs, stock, attendance
+
+// ---------- written guides (work even when the assistant is busy) ----------
+const GUIDES = [
+  { t: ["Book items", "حجز حاجات"], s: [
+    ["Open Book items from the menu ☰.", "افتح «حجز حاجات» من القائمة ☰."],
+    ["Tap + on each item. ★ shows what your stage uses most.", "دوس + على كل حاجة. ★ هي اللي مرحلتك بتستخدمها أكتر."],
+    ["Press the cart bar at the bottom → Review.", "دوس على شريط العربية تحت ← مراجعة."],
+    ["Write the date, time and place, tick \"We are responsible\", then Send request.", "اكتب التاريخ والوقت والمكان، علّم على «إحنا مسؤولين»، وبعدين «إرسال الطلب»."],
+    ["For a trip or camp, choose Trip or Camp in \"What is it for?\".", "لو رحلة أو معسكر اختار رحلة أو معسكر في «ده لإيه؟»."]] },
+  { t: ["Change or cancel a request", "تعديل أو إلغاء طلب"], s: [
+    ["Open your stage → Requests.", "افتح مرحلتك ← الطلبات."],
+    ["Tap the request. Edit sends a change for the warehouse team to approve.", "دوس على الطلب. «تعديل» بيبعت التغيير لفريق المخزن يوافق عليه."],
+    ["Cancel request removes it if it wasn't issued yet.", "«إلغاء الطلب» بيشيله لو لسه ما اتسلمش."]] },
+  { t: ["Take attendance", "تسجيل الحضور"], s: [
+    ["Open Attendance → Take attendance and pick the meeting at the top.", "افتح الحضور ← تسجيل الحضور واختار الاجتماع من فوق."],
+    ["For each person tap ✓, Late, ½, Absent or Excused, and tick 👕 and 🧣.", "لكل واحد دوس ✓ أو متأخر أو ½ أو غايب أو بعذر، وعلّم 👕 و🧣."],
+    ["Press ✅ Finish. Anyone not marked counts as absent.", "دوس ✅ إنهاء. اللي ما اتعلّمش عليه بيتحسب غايب."],
+    ["A finished meeting is locked. To fix it press ✏️ Edit, change, then 💾 Save changes.", "الاجتماع اللي خلص بيتقفل. عشان تعدّل دوس ✏️ تعديل، غيّر، وبعدين 💾 حفظ التغييرات."]] },
+  { t: ["A scout's details and parents' numbers", "بيانات ولد وأرقام أهله"], s: [
+    ["Attendance → People & tali3as.", "الحضور ← الأفراد والطلائع."],
+    ["Tap the name → Details: photo, birthday, school year, phones, parents, notes.", "دوس على الاسم ← التفاصيل: الصورة، عيد الميلاد، السنة الدراسية، الأرقام، الأهل، الملاحظات."]] },
+  { t: ["3arif and mosa3ed", "العريف والمساعد"], s: [
+    ["Attendance → People & tali3as → tap the tali3a.", "الحضور ← الأفراد والطلائع ← دوس على الطليعة."],
+    ["Automatic picks at random; Chosen by hand lets you pick them.", "«تلقائي» بيختار عشوائي، و«بالاختيار» إنت اللي بتختار."],
+    ["The period (weeks, months or meetings) is in Attendance → Settings.", "المدة (أسابيع أو شهور أو اجتماعات) في الحضور ← الإعدادات."]] },
+  { t: ["Subscription", "الاشتراك"], s: [
+    ["Attendance → Subscription.", "الحضور ← الاشتراك."],
+    ["Press Paid next to the name, or Part… for part of it.", "دوس «دفع» جنب الاسم، أو «جزء…» لو دفع جزء."]] },
+  { t: ["Phone notifications", "إشعارات الموبايل"], s: [
+    ["Open Profile from the menu.", "افتح الملف الشخصي من القائمة."],
+    ["Turn on Phone notifications once on each phone.", "شغّل إشعارات الموبايل مرة على كل موبايل."]] }
+];
+const L = () => BAS.lang === "ar" ? 1 : 0;
+function drawGuides() {
+  $("guides").innerHTML = GUIDES.map(g => '<details class="guide"><summary>' + esc(g.t[L()]) + '</summary><ol data-noi18n dir="auto">' + g.s.map(x => "<li>" + esc(x[L()]) + "</li>").join("") + "</ol></details>").join("");
+}
+
+// ---------- helpers ----------
+const norm = s => BAS.norm(s).replace(/\s+/g, " ");
+const waNum = p => { const d = String(p || "").replace(/\D/g, ""); return d.startsWith("01") ? "2" + d : d.startsWith("1") && d.length === 10 ? "20" + d : d; };
+const phone = p => p ? '<a class="lnk" href="tel:' + esc(p) + '" dir="ltr">' + esc(p) + '</a> <a class="pill ok" href="https://wa.me/' + waNum(p) + '" target="_blank" rel="noopener">WhatsApp</a>' : "—";
+const num = (v, d) => v == null || v === "" || isNaN(Number(v)) ? d : Number(v);
+const PAGES = /^(book|section|camp|ohda|attendance|calendar|profile|history|team|mizania|help)\.html/;
+function matchName(list, q, field) {
+  const qs = [q.name, q.name_ar].filter(Boolean).map(norm).filter(Boolean);
+  if (!qs.length) return [];
+  const f = field || (x => x.name);
+  // exact names first, then names that contain it; two or more → the page asks "Which one?"
+  const exact = list.filter(x => qs.indexOf(norm(f(x))) >= 0);
+  const part = list.filter(x => exact.indexOf(x) < 0 && (() => { const n = norm(f(x)); return qs.some(s => n.includes(s) || s.split(" ").every(w => w && n.includes(w))); })());
+  return exact.concat(part);
+}
+async function roster() {
+  if (!D.roster) {
+    D.roster = await BAS.q(supabaseClient.from("roster").select("*").eq("is_active", true).order("name"));
+    D.tal = await BAS.q(supabaseClient.from("tali3as").select("*").eq("is_active", true).order("name"));
+  }
+  return D.roster;
+}
+// items: exact name (Arabic or English) first, then Arabic, then English; among equals, the ones in stock first
+function itemMatch(q) {
+  const ar = norm(q.ar), en = norm(q.en), S = D.stock, has = i => (i.available || 0) > 0 ? 0 : 1;
+  const r = i => { const a = norm(i.name_ar || ""), e = norm(i.name_en || "");
+    if ((ar && a === ar) || (en && e === en) || (ar && e === ar) || (en && a === en)) return 0;
+    if (ar && a && (a.includes(ar) || ar.includes(a))) return 1;
+    if (en && e && (e.includes(en) || en.split(" ").every(w => e.includes(w)))) return 2;
+    return 9; };
+  return S.map(i => [r(i), has(i), i]).filter(x => x[0] < 9).sort((x, y) => x[0] - y[0] || x[1] - y[1]).map(x => x[2]);
+}
+const secOf = id => BAS.allSections.find(s => s.id === id) || {};
+const talName = id => ((D.tal || []).find(t => t.id === id) || {}).name || "";
+const subYear = () => (BAS.settings && BAS.settings.att_year_start) || (new Date().getFullYear() + "-01-01");
+const subAmt = () => Number((BAS.settings && BAS.settings.sub_amount) || 0);
+async function subs() {
+  if (!D.subs) { const r = await supabaseClient.from("sub_payments").select("roster_id, amount").eq("year_start", subYear()); D.subs = r.error ? [] : r.data; }
+  return D.subs;
+}
+async function att(sec) {
+  D.att = D.att || {};
+  if (!D.att[sec]) { const r = await supabaseClient.rpc("att_year_records", { p_section: sec }); D.att[sec] = r.error ? [] : r.data || []; }
+  return D.att[sec];
+}
+async function stats(p) {
+  const S = secOf(p.section_id), R = (await att(p.section_id)).filter(r => r.roster_id === p.id && r.meet_status === "done");
+  const W = { present: num(S.att_w_present, 1), late: num(S.att_w_late, 0), half: num(S.att_w_half, 0.5), excused: num(S.att_w_excused, 0.25), absent: num(S.att_w_absent, 0) };
+  const c = x => R.filter(r => r.status === x).length, worth = R.reduce((t, r) => t + (W[r.status] || 0), 0);
+  const came = c("present") + c("late") + c("half") + (S.att_excused_came ? c("excused") : 0);
+  return { total: R.length, apct: R.length ? Math.round(came * 100 / R.length) : 0, pct: R.length ? Math.round(worth * 100 / R.length) : 0, absent: c("absent"), excused: c("excused"), al: S.att_alert_pct == null ? 25 : S.att_alert_pct };
+}
+// which people a list covers: the stage they named (team), else their own stage, else everything they can see
+function scope(list, stage) {
+  if (stage) { const s = BAS.allSections.filter(x => [x.name_ar, x.name_en].some(n => n && (norm(n).includes(norm(stage)) || norm(stage).includes(norm(n))))); if (s.length) return list.filter(p => s.some(x => x.id === p.section_id)); }
+  if (!BAS.isAdmin() && BAS.profile.section_id) return list.filter(p => p.section_id === BAS.profile.section_id);
+  return list;
+}
+const who = p => "<b>" + esc(p.name) + "</b>" + (p.role === "kada" ? ' <small class="mut">' + esc(T("Kada")) + "</small>" : "") + ' <small class="mut">' + esc(secOf(p.section_id).name_ar || "") + (p.tali3a_id ? " · " + esc(talName(p.tali3a_id)) : "") + "</small>";
+// several people match: let them pick, then carry on
+function choose(list, then) {
+  const id = "c" + Math.random().toString(36).slice(2, 8);
+  setTimeout(() => document.querySelectorAll("[data-" + id + "]").forEach(b => b.onclick = () => { b.closest(".ai-choose").remove(); then(list.find(p => p.id === Number(b.getAttribute("data-" + id)))); }), 0);
+  return '<div class="ai-choose"><p class="meta">' + esc(T("Which one?")) + "</p>" + list.slice(0, 8).map(p => '<button class="btn line sm" data-' + id + '="' + p.id + '">' + esc(p.name) + ' <small class="mut">' + esc(secOf(p.section_id).name_ar || "") + "</small></button>").join("") + "</div>";
+}
+
+// ---------- lookups (run here, with your own login) ----------
+const FIELDS = [["phone", "Phone"], ["father_name", "Father"], ["father_phone", "Father's phone"], ["mother_name", "Mother"], ["mother_phone", "Mother's phone"], ["birthday", "Birthday"], ["school_year", "School year"], ["tali3a", "Tali3a"], ["joined", "Joined"], ["foulard", "Owns a foulard"], ["notes", "Notes"], ["attendance", "Attendance"], ["subscription", "Subscription"]];
+async function personCard(p, want) {
+  const all = !want || !want.length || want.indexOf("all") >= 0, W = all ? FIELDS.map(f => f[0]) : want;
+  const rows = [];
+  for (const f of FIELDS) {
+    if (W.indexOf(f[0]) < 0) continue;
+    let v;
+    if (/phone/.test(f[0])) v = phone(p[f[0]]);
+    else if (f[0] === "birthday") v = p.birthday ? esc(BAS.fmtDate(p.birthday)) : "—";
+    else if (f[0] === "tali3a") v = esc(talName(p.tali3a_id) || T("No tali3a"));
+    else if (f[0] === "joined") v = p.joined_on ? esc(BAS.fmtDate(p.joined_on)) : "—";
+    else if (f[0] === "foulard") v = esc(T(p.owns_foulard === false ? "No" : "Yes"));
+    else if (f[0] === "attendance") { const s = await stats(p); v = s.total ? s.apct + "% " + esc(T("attended")) + " · " + s.pct + "% " + esc(T("final")) + " · " + s.total + " " + esc(T("meetings")) : esc(T("No finished meetings yet")); }
+    else if (f[0] === "subscription") { const a = subAmt(), pd = (await subs()).filter(x => x.roster_id === p.id).reduce((t, x) => t + Number(x.amount), 0); v = !a ? "—" : pd >= a ? "✅ " + BAS.money(pd) : BAS.money(pd) + " / " + BAS.money(a); }
+    else v = p[f[0]] ? esc(p[f[0]]) : "—";
+    rows.push("<tr><th>" + esc(T(f[1])) + "</th><td>" + v + "</td></tr>");
+  }
+  const link = "attendance.html?" + (BAS.isAdmin() ? "s=" + p.section_id + "&" : "") + "p=" + p.id + "#people";
+  return '<div class="ai-card" data-noi18n><div>' + who(p) + '</div><table class="ai-t">' + rows.join("") + '</table><a class="btn line sm" href="' + link + '">' + esc(T("Open Details")) + "</a></div>";
+}
+async function runLookup(k, box) {
+  const t = k.type;
+  if (t === "person") {
+    const L0 = await roster(), m = matchName(L0, k);
+    if (!m.length) return box.innerHTML += '<p class="meta">' + esc(T("I couldn't find that name in the lists you can see.")) + "</p>";
+    if (m.length > 1) return box.innerHTML += choose(m, async p => { box.innerHTML += await personCard(p, k.want); });
+    return box.innerHTML += await personCard(m[0], k.want);
+  }
+  if (t === "list") {
+    const L0 = scope(await roster(), k.stage), w = k.what;
+    let out = [], title = "";
+    if (w === "unpaid") {
+      const a = subAmt(); if (!a) return box.innerHTML += '<p class="meta">' + esc(T("The subscription amount isn't set yet.")) + "</p>";
+      const S = await subs(); title = "Not paid yet";
+      out = L0.map(p => ({ p, pd: S.filter(x => x.roster_id === p.id).reduce((s, x) => s + Number(x.amount), 0) })).filter(x => x.pd < a).map(x => who(x.p) + ' <small class="mut">' + (x.pd ? BAS.money(x.pd) + " / " : "") + BAS.money(a) + "</small>");
+    } else if (w === "birthdays") {
+      const td = BAS.todayISO(), md = d => d.slice(5), per = k.period || "week";
+      const inP = b => { if (!b) return false; if (per === "today") return md(b) === md(td); if (per === "month") return b.slice(5, 7) === td.slice(5, 7);
+        for (let i = 0; i < 7; i++) { const d = new Date(td); d.setDate(d.getDate() + i); if (md(d.toISOString().slice(0, 10)) === md(b)) return true; } return false; };
+      title = per === "today" ? "Birthdays today" : per === "month" ? "Birthdays this month" : "Birthdays in the next 7 days";
+      out = L0.filter(p => inP(p.birthday)).sort((a, b) => md(a.birthday).localeCompare(md(b.birthday))).map(p => "🎂 " + who(p) + ' <small class="mut">' + esc(BAS.fmtDate(p.birthday)) + "</small>");
+    } else if (w === "low_attendance") {
+      title = "Final % at the alert level or less (4 meetings or more)";
+      for (const p of L0.filter(x => x.role !== "kada")) { const s = await stats(p); if (s.total >= 4 && s.pct <= s.al) out.push("🔴 " + who(p) + ' <small class="mut">' + s.pct + "% · " + s.total + " " + esc(T("meetings")) + "</small>"); }
+    } else if (w === "no_tali3a") {
+      title = "No tali3a"; out = L0.filter(p => p.role !== "kada" && !p.tali3a_id).map(who);
+    } else if (w === "arif") {
+      title = "3arif & mosa3ed"; const sec = new Set(L0.map(p => p.section_id));
+      out = (D.tal || []).filter(x => sec.has(x.section_id)).map(x => "<b>" + esc(x.name) + "</b> · ⭐ " + esc(((D.roster.find(p => p.id === x.arif_id)) || {}).name || "—") + " · ☆ " + esc(((D.roster.find(p => p.id === x.mosa3ed_id)) || {}).name || "—"));
+    } else if (w === "no_foulard") {
+      title = "Doesn't have a foulard yet"; out = L0.filter(p => p.owns_foulard === false).map(who);
+    } else return box.innerHTML += '<p class="meta">' + esc(T("I can't make that list yet.")) + "</p>";
+    return box.innerHTML += '<div class="ai-card" data-noi18n><b>' + esc(T(title)) + " (" + out.length + ')</b><ul class="ai-ul">' + (out.length ? out.map(x => "<li>" + x + "</li>").join("") : "<li>—</li>") + "</ul></div>";
+  }
+  if (t === "stock") {
+    if (!D.stock) D.stock = (await BAS.loadStock()).list.filter(i => i.is_active);
+    const rows = (k.items || []).map(q => { const u = itemMatch(q).slice(0, 3);
+      return u.length ? u.map(i => "<li><b>" + esc(BAS.itemName ? BAS.itemName(i) : i.name_en) + "</b>: " + (i.available == null ? "—" : i.available) + " " + esc(T("available")) + ((i.variants || []).length ? ' <small class="mut">' + i.variants.map(v => esc(v.name) + " " + v.available).join(" · ") + "</small>" : "") + "</li>").join("")
+        : "<li>" + esc((q.ar || q.en) + ": " + T("not found")) + "</li>"; });
+    return box.innerHTML += '<div class="ai-card" data-noi18n><ul class="ai-ul">' + rows.join("") + '</ul><a class="btn line sm" href="book.html">' + esc(T("Book items")) + "</a></div>";
+  }
+  if (t === "my_requests") {
+    let q = supabaseClient.from("reservations").select("id, status, meeting_date, kind").order("meeting_date", { ascending: false }).limit(6);
+    if (!BAS.isAdmin() && BAS.profile.section_id) q = q.eq("section_id", BAS.profile.section_id);
+    const R = await BAS.q(q);
+    return box.innerHTML += '<div class="ai-card"><ul class="ai-ul">' + (R.length ? R.map(r => '<li><a class="lnk" href="' + (r.kind === "Camp" || r.kind === "Trip" ? "camp.html?id=" : "section.html#requests") + (r.kind === "Camp" || r.kind === "Trip" ? r.id : "") + '">#' + r.id + "</a> · " + esc(BAS.fmtDate(r.meeting_date, true)) + " · " + esc(T(r.status)) + "</li>").join("") : "<li>—</li>") + "</ul></div>";
+  }
+}
+
+// ---------- fill a page; you press the last button there ----------
+async function runFill(f, box) {
+  const go = (href, label, note, extra) => { box.innerHTML += '<div class="ai-card">' + (note ? '<p class="meta" data-noi18n>' + note + "</p>" : "") + '<a class="btn gold" href="' + href + '" data-noi18n>' + esc(T(label)) + (extra ? " " + esc(extra) : "") + " →</a></div>"; };
+  const pickP = async (then) => { const m = matchName(await roster(), f); if (!m.length) { box.innerHTML += '<p class="meta">' + esc(T("I couldn't find that name in the lists you can see.")) + "</p>"; return; } if (m.length > 1) box.innerHTML += choose(m, then); else then(m[0]); };
+  const sq = id => BAS.isAdmin() ? "s=" + id + "&" : "";
+  if (f.type === "book") {
+    if (!D.stock) D.stock = (await BAS.loadStock()).list.filter(i => i.is_active);
+    const cart = {}, miss = [], short = [];
+    (f.items || []).forEach(q => {
+      const i = itemMatch(q)[0]; if (!i) { miss.push(q.ar || q.en); return; }
+      let key = i.id + ":", av = i.available;
+      if ((i.variants || []).length) { const v = (q.color && i.variants.find(x => norm(x.name).includes(norm(q.color)))) || i.variants.slice().sort((a, b) => b.available - a.available)[0]; key = i.id + ":" + v.id; av = v.available; }
+      const n = Math.max(1, Math.round(Number(q.qty) || 1)), put = Math.min(n, av || 0);
+      if (put < n) short.push((BAS.itemName ? BAS.itemName(i) : i.name_en) + " (" + T("available") + ": " + (av || 0) + ")");
+      if (put > 0) cart[key] = (cart[key] || 0) + put;
+    });
+    let whoV = "";
+    if (BAS.isAdmin() && f.for) { const s = BAS.allSections.find(x => [x.name_ar, x.name_en].some(n => n && norm(n).includes(norm(f.for)))), v = (BAS.services || []).find(x => [x.name_ar, x.name_en].some(n => n && norm(n).includes(norm(f.for)))); whoV = s ? "s" + s.id : v ? "v" + v.id : ""; }
+    const note = (miss.length ? "❓ " + esc(T("Not found")) + ": " + esc(miss.join("، ")) + "<br>" : "") + (short.length ? "⚠️ " + esc(T("Not enough")) + ": " + esc(short.join("، ")) : "");
+    if (!Object.keys(cart).length) { box.innerHTML += '<div class="ai-card"><p class="meta" data-noi18n>' + note + '</p><a class="btn line sm" href="book.html">' + esc(T("Book items")) + "</a></div>"; return; }
+    const kind = f.kind === "Camp" || f.kind === "Trip" ? f.kind : "Meeting";
+    try {
+      if (kind !== "Meeting") { sessionStorage.setItem("basCampCart", JSON.stringify(cart)); return go("camp.html?new=" + kind + "&cart=1", "Open the " + kind.toLowerCase() + " request filled in", note); }
+      sessionStorage.setItem("basAiFill", JSON.stringify({ cart, date: f.date || "", time: f.time || "", until: f.until || "", place: f.place || "", notes: f.notes || "", who: whoV }));
+    } catch (e) {}
+    return go("book.html?ai=1", "Open the request filled in", note);
+  }
+  if (f.type === "sub_paid") return pickP(p => go("attendance.html?" + sq(p.section_id) + "pay=" + p.id + (Number(f.amount) > 0 ? "&amt=" + Number(f.amount) : "") + "#subs", "Open the subscription of", "", p.name));
+  if (f.type === "person") return pickP(p => go("attendance.html?" + sq(p.section_id) + "p=" + p.id + "#people", "Open the details of", "", p.name));
+  if (f.type === "tali3a") {
+    await roster(); const m = matchName(scope(D.tal, null), f);
+    if (!m.length) return box.innerHTML += '<p class="meta">' + esc(T("I couldn't find that tali3a.")) + "</p>";
+    const t = m[0]; return go("attendance.html?" + sq(t.section_id) + "t=" + t.id + "#people", "Open", "", t.name);
+  }
+  if (f.type === "attendance") {
+    const sec = BAS.profile.section_id || (BAS.allSections[0] || {}).id;
+    let q = supabaseClient.from("att_meetings").select("id, section_id, meet_date").eq("section_id", sec).order("meet_date", { ascending: false }).limit(1);
+    if (f.date) q = q.eq("meet_date", f.date); else q = q.lte("meet_date", BAS.todayISO());
+    const M = await BAS.q(q);
+    if (!M.length) return go("attendance.html#take", "Open Attendance", esc(T("No meeting on that date.")));
+    return go("attendance.html?" + sq(M[0].section_id) + "m=" + M[0].id + "#take", "Open the attendance of", "", BAS.fmtDate(M[0].meet_date, true));
+  }
+}
+
+// ---------- ask ----------
+function bubble(cls, html) { const d = document.createElement("div"); d.className = "ai-msg " + cls; d.innerHTML = html; $("aiLog").appendChild(d); d.scrollIntoView({ block: "end", behavior: "smooth" }); return d; }
+async function ask(q) {
+  if (BUSY || !q.trim()) return;
+  BUSY = true; $("aiGo").disabled = true; $("aiQ").value = "";
+  bubble("ai-me", '<span data-noi18n dir="auto">' + esc(q) + "</span>");
+  const box = bubble("ai-bot", '<span class="mut">…</span>');
+  try {
+    const { data } = await supabaseClient.auth.getSession();
+    const tok = data && data.session && data.session.access_token;
+    const d = new Date(), today = BAS.todayISO() + " (" + d.toLocaleDateString("en-GB", { weekday: "long", timeZone: "Africa/Cairo" }) + ")";
+    const r = await fetch("/api/ask", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + tok }, body: JSON.stringify({ q, lang: BAS.lang, today, history: HIST }) });
+    let j = {}; try { j = await r.json(); } catch (e) {}
+    if (typeof j.left === "number") $("aiLeft").textContent = T("Questions left today") + ": " + j.left;
+    if (!r.ok) {
+      box.innerHTML = '<p class="meta">' + esc(T(j.error === "limit" ? "You used all your questions for today. The guides below still work." : j.error === "busy" ? "The assistant is busy or out for today. Try again in a minute, or use the guides below." : r.status === 404 ? "The assistant isn't set up yet. Use the guides below." : (j.error || "Something went wrong."))) + "</p>";
+      return;
+    }
+    const a = j.answer || {};
+    HIST.push({ q, a: JSON.stringify(a) }); HIST = HIST.slice(-4);
+    box.innerHTML = (a.reply ? '<p data-noi18n dir="auto">' + esc(a.reply) + "</p>" : "") +
+      (Array.isArray(a.steps) && a.steps.length ? '<ol class="ai-steps" data-noi18n dir="auto">' + a.steps.map(s => "<li>" + esc(s) + "</li>").join("") + "</ol>" : "") +
+      (a.link && PAGES.test(a.link) && !a.fill ? '<a class="btn line sm" href="' + esc(a.link) + '">' + esc(T("Open the page")) + " →</a>" : "");
+    if (a.lookup && a.lookup.type) await runLookup(a.lookup, box);
+    if (a.fill && a.fill.type) await runFill(a.fill, box);
+  } catch (e) {
+    box.innerHTML = '<p class="meta">' + esc(T("Something went wrong.")) + " " + esc(BAS.errText(e)) + "</p>";
+  } finally { BUSY = false; $("aiGo").disabled = false; }
+}
+
+(async function () {
+  await BAS.init("help");
+  drawGuides();
+  if (!BAS.requireApproved()) return;
+  const ex = BAS.lang === "ar" ? ["إزاي أحجز حاجات؟", "مين ما دفعش الاشتراك؟", "أعياد ميلاد الأسبوع ده", "رقم بابا مينا"] : ["How do I book items?", "Who hasn't paid the subscription?", "Birthdays this week", "How many tents are available?"];
+  $("aiEx").innerHTML = ex.map(x => '<button type="button" class="chipbtn" data-noi18n>' + esc(x) + "</button>").join("");
+  $("aiEx").querySelectorAll(".chip").forEach(b => b.onclick = () => ask(b.textContent));
+  $("aiForm").onsubmit = e => { e.preventDefault(); ask($("aiQ").value); };
+  $("aiQ").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask($("aiQ").value); } });
+  const u = await supabaseClient.from("ai_usage").select("n").eq("day", BAS.todayISO()).maybeSingle();
+  const lim = (BAS.settings && BAS.settings.ai_daily_limit) == null ? 10 : BAS.settings.ai_daily_limit;
+  if (!u.error) $("aiLeft").textContent = T("Questions left today") + ": " + Math.max(0, lim - ((u.data && u.data.n) || 0));
+})();
+</script>
+</body>
+</html>

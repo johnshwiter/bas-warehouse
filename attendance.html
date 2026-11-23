@@ -49,7 +49,14 @@ const YEARS = ["KG1", "KG2"].concat([1, 2, 3, 4, 5, 6].map(n => n + " ابتدا
   window.addEventListener("hashchange", () => { const t = location.hash.slice(1); if (t && t !== TAB && ["take", "sum", "people", "subs", "set"].indexOf(t) >= 0) { TAB = t; render(); } });
   window.addEventListener("beforeunload", e => { if (DIRTY) { e.preventDefault(); e.returnValue = ""; } });
   await load(Number(QS.get("m")) || null);
+  // links from the help assistant and reminders: open a tali3a, a person, or a payment to confirm
+  const tq = Number(QS.get("t")), pq = Number(QS.get("p")), pay = Number(QS.get("pay"));
+  if (tq) { const t = TAL.find(x => x.id === tq); if (t) tali3aSheet(t); }
+  else if (pq) { const p = ROSTER.find(x => x.id === pq); if (p) personSheet(p); }
+  else if (pay && ROSTER.some(x => x.id === pay)) { PAYASK = { id: pay, amt: Number(QS.get("amt")) || 0 }; TAB = "subs"; render(); }
+  if (tq || pq || pay) history.replaceState(null, "", "attendance.html" + (BAS.isAdmin() ? "?s=" + SECID : "") + "#" + TAB);
 })();
+let PAYASK = null;
 
 const yearStart = () => (BAS.settings && BAS.settings.att_year_start) || "2000-01-01";
 // the subscription year is the scout year (or this calendar year until a scout year is set)
@@ -147,24 +154,30 @@ function takeView() {
   if (fut) { $("view").innerHTML = h + '<div class="empty">This meeting hasn\'t happened yet.</div>'; bindTake(); return; }
   if (!ROSTER.length) { $("view").innerHTML = h + '<div class="empty">Nobody in the stage\'s list yet. <a class="lnk" href="#people" data-go="people">Add names</a></div>'; bindTake(); return; }
   h += '<input type="search" class="psearch" id="aq" placeholder="Search a name…" value="' + esc(Q) + '" autocomplete="off">' +
-    '<div class="actions" style="margin:0 0 8px">' + sortSel() + '<button class="btn line sm" id="allP">✓ Everyone present</button><button class="btn line sm" id="allU">👕🧣 Everyone in uniform + foulard</button></div>';
+    '<div class="actions" style="margin:0 0 8px">' + sortSel() + (locked() ? "" : '<button class="btn line sm" id="allP">✓ Everyone present</button><button class="btn line sm" id="allU">👕🧣 Everyone in uniform + foulard</button>') + "</div>";
   ordered().forEach(g => {
     h += '<div class="group-title">' + esc(T(g.title)) + " (" + g.list.length + ')</div><div class="att-list">' + g.list.map(rowHTML).join("") + "</div>";
   });
-  h += '<div class="att-sticky"><div class="meta" id="aCount"></div><div class="actions" style="margin:6px 0 0"><button class="btn gold" id="aFin">✅ Finish</button><button class="btn line" id="aDraft">💾 Save draft</button></div></div>';
+  h += '<div class="att-sticky"><div class="meta" id="aCount"></div><div class="actions" style="margin:6px 0 0">' +
+    (locked() ? '<span class="meta lockmsg">🔒 ' + esc(T("Finished. Press Edit to change it.")) + '</span><button class="btn line" id="aEdit">✏️ ' + esc(T("Edit")) + "</button>"
+      : CUR.status === "done" ? '<button class="btn gold" id="aSaveCh">💾 ' + esc(T("Save changes")) + '</button><button class="btn line" id="aCancel">' + esc(T("Cancel")) + "</button>"
+      : '<button class="btn gold" id="aFin">✅ Finish</button><button class="btn line" id="aDraft">💾 Save draft</button>') + "</div></div>";
   $("view").innerHTML = h;
   bindTake(); counts(); filter();
 }
 const isHere = s => s.status === "present" || s.status === "late" || s.status === "half";
+// a finished meeting opens locked; Edit unlocks it until Save changes or Cancel
+let EDITING = null;
+const locked = () => !!CUR && CUR.status === "done" && EDITING !== CUR.id;
 function rowHTML(p) {
   const s = STATE[p.id], half = s.status === "half", late = s.status === "late", here = isHere(s), off = here ? "" : " disabled";
-  const noF = p.owns_foulard === false;
-  return '<div class="att-row ' + (half ? "half" : late ? "late" : s.status || "unmarked") + '" data-row="' + p.id + '" data-nm="' + esc(BAS.norm(p.name)) + '"><div class="att-name">' + gTag(p.gender) + " " + esc(p.name) + star(p) + cake(p) +
+  const noF = p.owns_foulard === false, lk = locked() ? " disabled" : "";
+  return '<div class="att-row ' + (lk ? "locked " : "") + (half ? "half" : late ? "late" : s.status || "unmarked") + '" data-row="' + p.id + '" data-nm="' + esc(BAS.norm(p.name)) + '"><div class="att-name">' + gTag(p.gender) + " " + esc(p.name) + star(p) + cake(p) +
     (half ? ' <span class="pill warn">½ ' + esc(T("HALF ABSENT")) + "</span>" : late ? ' <span class="pill warn">' + esc(T("LATE")) + "</span>" : "") + "</div>" +
-    '<div class="att-ctl"><span class="seg">' + [["present", "✓"], ["late", "Late"], ["half", "½"], ["absent", "Absent"], ["excused", "Excused"]].map(x => '<button type="button" data-st="' + x[0] + '"' + (x[0] === "half" ? ' title="' + esc(T("Half absent")) + '"' : "") + ' class="' + (s.status === x[0] ? "on" : "") + '">' + esc(T(x[1])) + "</button>").join("") + "</span>" +
-    '<label class="uni' + (here ? "" : " off") + '"><input type="checkbox" data-uni="' + p.id + '"' + (here && s.uniform ? " checked" : "") + off + "> 👕 " + esc(T("Uniform")) + "</label>" +
+    '<div class="att-ctl"><span class="seg">' + [["present", "✓"], ["late", "Late"], ["half", "½"], ["absent", "Absent"], ["excused", "Excused"]].map(x => '<button type="button" data-st="' + x[0] + '"' + (x[0] === "half" ? ' title="' + esc(T("Half absent")) + '"' : "") + ' class="' + (s.status === x[0] ? "on" : "") + '"' + lk + ">" + esc(T(x[1])) + "</button>").join("") + "</span>" +
+    '<label class="uni' + (here ? "" : " off") + '"><input type="checkbox" data-uni="' + p.id + '"' + (here && s.uniform ? " checked" : "") + (off || lk) + "> 👕 " + esc(T("Uniform")) + "</label>" +
       (noF ? '<span class="uni off nof" title="' + esc(T("Doesn't have a foulard yet")) + '">🧣 ' + esc(T("no foulard yet")) + "</span>"
-        : '<label class="uni' + (here ? "" : " off") + '"><input type="checkbox" data-foul="' + p.id + '"' + (here && s.foulard ? " checked" : "") + off + "> 🧣 " + esc(T("Foulard")) + "</label>") + "</div></div>";
+        : '<label class="uni' + (here ? "" : " off") + '"><input type="checkbox" data-foul="' + p.id + '"' + (here && s.foulard ? " checked" : "") + (off || lk) + "> 🧣 " + esc(T("Foulard")) + "</label>") + "</div></div>";
 }
 function redrawRow(id) {
   const el = document.querySelector('[data-row="' + id + '"]'); if (!el) return;
@@ -190,6 +203,7 @@ function bindRows() {
 function bindTake() {
   document.querySelectorAll("[data-m]").forEach(b => b.onclick = () => {
     if (DIRTY && !confirm("You have attendance that isn't saved. Leave it?")) return;
+    EDITING = null; DIRTY = false;
     pickMeeting(Number(b.dataset.m)); history.replaceState(null, "", "?" + (BAS.isAdmin() ? "s=" + SECID + "&" : "") + "m=" + CUR.id + "#take"); takeView();
   });
   document.querySelectorAll("[data-go]").forEach(a => a.onclick = e => { e.preventDefault(); TAB = a.dataset.go; render(); });
@@ -205,20 +219,28 @@ function bindTake() {
   if ($("allP")) $("allP").onclick = () => { ROSTER.forEach(p => { STATE[p.id].status = "present"; }); DIRTY = true; takeView(); };
   if ($("allU")) $("allU").onclick = () => { ROSTER.forEach(p => { STATE[p.id].uniform = true; STATE[p.id].foulard = true; }); DIRTY = true; takeView(); };
   if ($("aFin")) $("aFin").onclick = () => save(true);
+  if ($("aEdit")) $("aEdit").onclick = () => {
+    if (!confirm(T("Change the attendance of") + " " + BAS.fmtDate(CUR.meet_date, true) + "? " + T("Nothing changes until you press Save changes."))) return;
+    EDITING = CUR.id; takeView();
+  };
+  if ($("aCancel")) $("aCancel").onclick = () => { if (DIRTY && !confirm(T("Drop your changes?"))) return; EDITING = null; DIRTY = false; load(CUR.id); };
+  if ($("aSaveCh")) $("aSaveCh").onclick = () => save(true, true);
   if ($("aDraft")) $("aDraft").onclick = () => save(false);
   bindSort(takeView);
   bindRows();
 }
-async function save(finish) {
+async function save(finish, change) {
   const un = ROSTER.filter(p => !STATE[p.id].status).length;
-  if (finish && !confirm((un ? T("Not marked") + ": " + un + ". " + T("They will count as absent.") + "\n\n" : "") + "Finish attendance for " + BAS.fmtDate(CUR.meet_date, true) + "? Alerts are sent now (absences, uniform).")) return;
+  if (change && !DIRTY) { EDITING = null; return takeView(); }
+  if (change && !confirm((un ? T("Not marked") + ": " + un + ". " + T("They will count as absent.") + "\n\n" : "") + T("Save the changes to") + " " + BAS.fmtDate(CUR.meet_date, true) + "?")) return;
+  if (finish && !change && !confirm((un ? T("Not marked") + ": " + un + ". " + T("They will count as absent.") + "\n\n" : "") + "Finish attendance for " + BAS.fmtDate(CUR.meet_date, true) + "? Alerts are sent now (absences, uniform).")) return;
   // a draft keeps only the people you marked; Finish saves the rest as absent
   const rows = ROSTER.filter(p => finish || STATE[p.id].status).map(p => ({ roster_id: p.id, status: STATE[p.id].status || "absent", uniform: STATE[p.id].uniform, foulard: STATE[p.id].foulard }));
-  const bs = [$("aFin"), $("aDraft")]; bs.forEach(b => { b.disabled = true; });
+  const bs = [$("aFin"), $("aDraft"), $("aSaveCh"), $("aCancel")].filter(Boolean); bs.forEach(b => { b.disabled = true; });
   const { error } = await supabaseClient.rpc("save_attendance", { p_meeting: CUR.id, p_rows: rows, p_finish: finish });
   bs.forEach(b => { b.disabled = false; });
   if (error) return BAS.toast(BAS.errText(error), "err");
-  DIRTY = false; BAS.toast(finish ? "Attendance saved ✓" : "Draft saved"); load(CUR.id);
+  DIRTY = false; EDITING = null; BAS.toast(change ? T("Changes saved ✓") : finish ? "Attendance saved ✓" : "Draft saved"); load(CUR.id);
 }
 function meetingSheet(m) {
   const o = $("sheet");
@@ -358,16 +380,16 @@ async function tali3aSheet(t) {
   const turns = tr.data || [], wasA = new Set(turns.filter(x => x.role === "arif").map(x => x.roster_id)), wasM = new Set(turns.filter(x => x.role === "mosa3ed").map(x => x.roster_id));
   const ar = ROSTER.find(p => p.id === t.arif_id), mo = ROSTER.find(p => p.id === t.mosa3ed_id), auto = t.arif_auto !== false;
   const opt = (sel, ex) => '<option value="">—</option>' + mem.filter(p => p.id !== ex).map(p => '<option value="' + p.id + '"' + (p.id === sel ? " selected" : "") + ">" + esc(p.name) + (wasA.has(p.id) && wasM.has(p.id) ? " ✓✓" : "") + "</option>").join("");
-  const every = (SEC.arif_every || 4) + " " + T(SEC.arif_unit === "meetings" ? "meetings" : "weeks");
+  const every = (SEC.arif_every || 4) + " " + T(SEC.arif_unit === "meetings" ? "meetings" : SEC.arif_unit === "months" ? "months" : "weeks");
   o.innerHTML = '<div class="sheet" style="max-width:560px"><div class="req-top"><h2 style="margin:0">' + esc(t.name) + '</h2><button class="btn line sm" id="tEd">✏️ ' + esc(T("Name & leaders")) + "</button></div>" +
     '<p class="meta">' + mem.length + " " + esc(T("scouts")) + " · " + (ls.length ? esc(ls.join("، ")) : esc(T("no leaders yet"))) + "</p>" +
     '<div class="panel"><h3>⭐ ' + esc(T("3arif & mosa3ed")) + "</h3>" +
     '<div class="arif-now"><div><small>' + esc(T("3arif")) + '</small><b>' + (ar ? esc(ar.name) : "—") + '</b></div><div><small>' + esc(T("Mosa3ed 3arif")) + '</small><b>' + (mo ? esc(mo.name) : "—") + "</b></div></div>" +
-    (t.arif_since ? '<p class="meta">' + esc(T("Since")) + " " + esc(BAS.fmtDate(t.arif_since, true)) + (auto ? " · " + esc(T("changes every")) + " " + esc(every) : "") + " · " + esc(T("this round")) + ": " + wasA.size + "/" + mem.length + " " + esc(T("were 3arif")) + ", " + wasM.size + "/" + mem.length + " " + esc(T("were mosa3ed")) + "</p>" : "") +
+    (t.arif_since ? '<p class="meta">' + esc(T("Since")) + " " + esc(BAS.fmtDate(t.arif_since, true)) + " · " + esc(T(auto ? "changes every" : "reminder every")) + " " + esc(every) + " · " + esc(T("this round")) + ": " + wasA.size + "/" + mem.length + " " + esc(T("were 3arif")) + ", " + wasM.size + "/" + mem.length + " " + esc(T("were mosa3ed")) + "</p>" : "") +
     '<div class="seg arif-mode"><button type="button" data-mode="1" class="' + (auto ? "on" : "") + '">🎲 ' + esc(T("Automatic")) + '</button><button type="button" data-mode="0" class="' + (auto ? "" : "on") + '">✋ ' + esc(T("Chosen by hand")) + "</button></div>" +
     (auto ? '<p class="meta">' + esc(T("Picked at random. Everyone is 3arif once and mosa3ed once before anyone repeats.")) + '</p><button class="btn line sm" id="aNow">🎲 ' + esc(T("Pick now")) + "</button>"
       : '<div class="grid2"><div class="field"><label>' + esc(T("3arif")) + '</label><select id="aA">' + opt(t.arif_id) + '</select></div><div class="field"><label>' + esc(T("Mosa3ed 3arif")) + '</label><select id="aM">' + opt(t.mosa3ed_id) + "</select></div></div>" +
-        '<p class="meta">' + esc(T("✓✓ = already was both this round.")) + '</p><button class="btn gold sm" id="aSet">' + esc(T("Save")) + "</button>") +
+        '<p class="meta">' + esc(T("✓✓ = already was both this round.")) + " " + esc(T("When the time is up, the leaders of this tali3a get a reminder every week until you pick someone new.")) + '</p><button class="btn gold sm" id="aSet">' + esc(T("Save")) + "</button>") +
     "</div>" +
     '<div class="panel"><h3>' + esc(T("Scouts in this tali3a")) + " (" + mem.length + ")</h3>" +
     (mem.length ? mem.map(p => '<div class="person prow" data-tp="' + p.id + '"><div><b>' + gTag(p.gender) + " " + esc(p.name) + "</b>" + star(p) + cake(p) + '</div><button class="btn line sm" data-trm="' + p.id + '" title="' + esc(T("Take out of the tali3a")) + '">✕</button></div>').join("") : '<div class="empty">—</div>') +
@@ -529,13 +551,19 @@ function subsView() {
       '<div class="meta">' + (left ? (pd ? BAS.money(pd) + " " + esc(T("paid")) + " · " + BAS.money(left) + " " + esc(T("left")) : esc(T("Not paid"))) : "✅ " + esc(T("Paid")) + " " + BAS.money(pd)) +
       mine.map(x => ' · <span class="nowrap">' + esc(BAS.fmtDate(x.paid_on)) + " " + BAS.money(x.amount) + ' <button class="linkbtn sm" data-sdel="' + x.id + '" aria-label="Remove">✕</button></span>').join("") + "</div></div>" +
       (left ? '<div class="actions" style="margin:0"><button class="btn ok sm" data-spay="' + p.id + '" data-amt="' + left + '">' + esc(T("Paid")) + " " + BAS.money(left) + '</button><button class="btn line sm" data-spart="' + p.id + '">' + esc(T("Part…")) + "</button></div>" : "") + "</div>"; };
-  $("view").innerHTML = '<div class="kpis"><div class="kpi"><p>' + esc(T("Subscription this year")) + "</p><h3>" + BAS.money(amt) + '</h3></div><div class="kpi ok"><p>' + esc(T("Paid")) + "</p><h3>" + done + " / " + all.length + '</h3></div><div class="kpi gold"><p>' + esc(T("Collected")) + "</p><h3>" + BAS.money(total) + ' <small class="mut">/ ' + BAS.money(amt * all.length) + "</small></h3></div></div>" +
+  const ask = PAYASK && ROSTER.find(p => p.id === PAYASK.id);
+  const askLeft = ask ? Math.max(0, amt - paidOf(ask.id)) : 0, askAmt = ask ? (PAYASK.amt > 0 ? PAYASK.amt : askLeft) : 0;
+  $("view").innerHTML = (ask ? '<div class="msg info ai-pay">🤖 ' + (askLeft ? esc(T("Mark as paid")) + ": <b>" + esc(ask.name) + "</b> · " + BAS.money(askAmt) + '<div class="actions" style="margin:8px 0 0"><button class="btn ok sm" id="apGo">' + esc(T("Save")) + '</button><button class="btn line sm" id="apNo">' + esc(T("Cancel")) + "</button></div>"
+      : "<b>" + esc(ask.name) + "</b> " + esc(T("already paid")) + ' ✅ <button class="linkbtn" id="apNo">✕</button>') + "</div>" : "") +
+    '<div class="kpis"><div class="kpi"><p>' + esc(T("Subscription this year")) + "</p><h3>" + BAS.money(amt) + '</h3></div><div class="kpi ok"><p>' + esc(T("Paid")) + "</p><h3>" + done + " / " + all.length + '</h3></div><div class="kpi gold"><p>' + esc(T("Collected")) + "</p><h3>" + BAS.money(total) + ' <small class="mut">/ ' + BAS.money(amt * all.length) + "</small></h3></div></div>" +
     '<input type="search" class="psearch" id="sq" placeholder="Search a name…" autocomplete="off">' +
     '<div class="group-title">' + esc(T("Not paid yet")) + " (" + (all.length - done) + ")</div>" + (all.filter(p => paidOf(p.id) < amt).map(row).join("") || '<div class="empty">👌</div>') +
     '<div class="group-title">' + esc(T("Paid")) + " (" + done + ")</div>" + (all.filter(p => paidOf(p.id) >= amt).map(row).join("") || '<div class="empty">—</div>');
   $("sq").oninput = () => { const q = BAS.norm($("sq").value); document.querySelectorAll("#view .person").forEach(el => { el.hidden = !!q && !BAS.norm(el.querySelector("b").textContent).includes(q); }); };
   const pay = async (id, a, note) => { const { error } = await supabaseClient.rpc("record_sub", { p_roster: id, p_amount: a, p_note: note || null }); if (error) return BAS.toast(BAS.errText(error), "err"); BAS.toast("Saved"); load(CUR && CUR.id); };
   document.querySelectorAll("[data-spay]").forEach(b => b.onclick = () => pay(Number(b.dataset.spay), Number(b.dataset.amt)));
+  if ($("apGo")) $("apGo").onclick = () => { const a = PAYASK; PAYASK = null; pay(a.id, askAmt); };
+  if ($("apNo")) $("apNo").onclick = () => { PAYASK = null; subsView(); };
   document.querySelectorAll("[data-spart]").forEach(b => b.onclick = () => { const v = prompt("How much did they pay (EGP)?"); if (v === null) return; if (!(Number(v) > 0)) return BAS.toast("Write a number", "err"); pay(Number(b.dataset.spart), Number(v)); });
   document.querySelectorAll("[data-sdel]").forEach(b => b.onclick = async () => { if (!confirm("Remove this payment?")) return; const { error } = await supabaseClient.rpc("delete_sub", { p_id: Number(b.dataset.sdel) }); if (error) return BAS.toast(BAS.errText(error), "err"); BAS.toast("Removed"); load(CUR && CUR.id); });
 }
@@ -549,8 +577,8 @@ function setView() {
     '<div class="grid2"><div class="field"><label>' + esc(T("Does Excused count as \"came\" in the Attended %?")) + '</label><select id="sExc"><option value="0"' + (SEC.att_excused_came ? "" : " selected") + ">" + esc(T("No")) + '</option><option value="1"' + (SEC.att_excused_came ? " selected" : "") + ">" + esc(T("Yes")) + "</option></select></div>" +
     '<div class="field"><label>' + esc(T("Alert when a scout's Final % is (%) or less")) + '</label><input type="number" min="1" max="99" id="sAl" value="' + (SEC.att_alert_pct == null ? 25 : SEC.att_alert_pct) + '"></div></div>' +
     '<button class="btn ok" id="sSave">Save</button></div>' +
-    '<div class="panel" style="max-width:600px"><h3>⭐ ' + esc(T("3arif & mosa3ed")) + '</h3><p class="meta">' + esc(T("In automatic tali3as, a new 3arif and mosa3ed are picked every:")) + "</p>" +
-    '<div class="grid2"><div class="field"><input type="number" min="1" max="52" id="sAe" value="' + (SEC.arif_every || 4) + '"></div><div class="field"><select id="sAu"><option value="weeks"' + (SEC.arif_unit === "meetings" ? "" : " selected") + ">" + esc(T("weeks")) + '</option><option value="meetings"' + (SEC.arif_unit === "meetings" ? " selected" : "") + ">" + esc(T("finished meetings")) + "</option></select></div></div>" +
+    '<div class="panel" style="max-width:600px"><h3>⭐ ' + esc(T("3arif & mosa3ed")) + '</h3><p class="meta">' + esc(T("Every how long the 3arif and mosa3ed change. Automatic tali3as get new ones picked; tali3as chosen by hand get a reminder to their leaders.")) + "</p>" +
+    '<div class="grid2"><div class="field"><input type="number" min="1" max="52" id="sAe" value="' + (SEC.arif_every || 4) + '"></div><div class="field"><select id="sAu">' + [["weeks", "weeks"], ["months", "months"], ["meetings", "finished meetings"]].map(x => '<option value="' + x[0] + '"' + ((SEC.arif_unit || "weeks") === x[0] ? " selected" : "") + ">" + esc(T(x[1])) + "</option>").join("") + "</select></div></div>" +
     '<p class="meta">' + esc(T("Each tali3a chooses automatic or by hand: open it from People & tali3as.")) + '</p><button class="btn ok" id="sArif">Save</button></div>' +
     '<div class="panel" style="max-width:600px"><h3>Alerts</h3><ul class="meta" style="padding-inline-start:18px;line-height:1.8">' +
     "<li>" + esc(T("30 minutes after a meeting starts, if attendance isn't finished: every leader of the stage.")) + "</li>" +

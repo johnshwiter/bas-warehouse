@@ -775,6 +775,11 @@ async function logView() {
 async function resetAll() {
   const code = $("rsIn").value.trim();
   if (!code) return BAS.toast("Type the reset code.", "err");
+  const b0 = $("rsGo"); b0.disabled = true;
+  const ck = await supabaseClient.rpc("check_reset_code", { p_code: code });
+  b0.disabled = false;
+  if (ck.error) return BAS.toast(BAS.errText(ck.error), "err");
+  if (!ck.data) { $("rsIn").value = ""; $("rsIn").focus(); return BAS.toast("Wrong code.", "err"); }
   const out = RES.filter(r => BAS.OUT.indexOf(r.status) >= 0).length;
   if (!confirm((out ? out + " requests are still out; their items will count as back in the warehouse. " : "") + "Delete all the history now? A backup file downloads first.")) return;
   const b = $("rsGo"); b.disabled = true;
@@ -812,6 +817,8 @@ function settingsView() {
     '<button class="btn gold" id="svAdd">Add service</button></div>' +
     '<div class="group-title">Attendance</div><div class="panel" style="max-width:640px"><p class="meta"><span>The scout year started on</span> <b>' + esc(BAS.fmtDate(s.att_year_start || BAS.todayISO(), true)) + '</b> · <span>Percentages and absence counts start from this day.</span></p>' +
     '<div class="grid2"><div class="field"><label>First day of the new scout year</label><input type="date" id="nyDate" value="' + BAS.todayISO() + '"></div><div></div></div><button class="btn line" id="nyGo">Start a new scout year</button></div>' +
+    '<div class="group-title">Help assistant</div><div class="panel" style="max-width:640px"><p class="meta">Questions each person can ask the assistant a day (0 turns it off). The written guides always work.</p>' +
+    '<div class="grid2"><div class="field"><label>Questions per person a day</label><input type="number" min="0" max="100" id="aiLim" value="' + (s.ai_daily_limit == null ? 10 : s.ai_daily_limit) + '"></div><div></div></div><button class="btn ok" id="aiLimGo">Save</button></div>' +
     '<div class="group-title">Reset</div><div class="panel" style="max-width:640px;border-color:var(--bad)"><h3>🧹 Reset the history</h3>' +
     '<p class="meta">Deletes every request, missing/damaged record, payment, 3ohda, message, notification, activity log, waitlist, finished maintenance, calendar event and money entry. ' +
     'Keeps the items and their counts (lost and written-off pieces are taken out of the totals), accounts, stages, services, people lists, tali3as, attendance and settings. Items still at the repair shop stay listed.</p>' +
@@ -820,6 +827,7 @@ function settingsView() {
   $("nyGo").onclick = () => { const d = $("nyDate").value; if (!d) return BAS.toast("Choose the date", "err");
     if (confirm("Start the new scout year on " + BAS.fmtDate(d, true) + "? Attendance before this day stops counting (it stays saved). Everyone's school year goes up by one, and the yearly subscription starts again.")) rpc("new_scout_year", { p_start: d }, "New scout year started").then(() => location.reload()); };
   $("rsGo").onclick = resetAll;
+  $("aiLimGo").onclick = async () => { const n = Number($("aiLim").value); const { error } = await supabaseClient.rpc("set_ai_limit", { p_n: n }); if (error) return BAS.toast(BAS.errText(error), "err"); BAS.settings.ai_daily_limit = n; BAS.toast("Saved"); };
   $("sSave").onclick = async () => {
     const days = Number($("sDays").value), ret = Number($("sRet").value), low = Number($("sLow").value), times = $("sTimes").value.split(",").map(x => x.trim()).filter(Boolean);
     if (!Number.isInteger(days) || days < 0 || days > 30) return fail("Days before must be between 0 and 30.");

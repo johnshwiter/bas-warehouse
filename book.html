@@ -49,7 +49,7 @@
 "use strict";
 const $ = id => document.getElementById(id);
 const esc = s => BAS.esc(s);
-let MOST = { stage: [], all: [] }, STOCK = [], CART = {}, CAT = "All", EDIT = null, OWN = {}, WAIT = [], DRAFTS = [], DRAFT = null, EVENT = null;
+let MOST = { stage: [], all: [] }, STOCK = [], CART = {}, CAT = "All", EDIT = null, OWN = {}, WAIT = [], DRAFTS = [], DRAFT = null, EVENT = null, AIFILL = null;
 
 (async function () {
   await BAS.init("book");
@@ -76,7 +76,17 @@ let MOST = { stage: [], all: [] }, STOCK = [], CART = {}, CAT = "All", EDIT = nu
     document.querySelectorAll("[data-tocamp]").forEach(b => b.onclick = () => toCamp(b.dataset.tocamp));
     try { const mu = await supabaseClient.rpc("most_used_items", { p_section: BAS.profile.section_id || null }); if (!mu.error && mu.data) MOST = mu.data; } catch (e) {}
     if (!EDIT && (MOST.stage.length || MOST.all.length)) CAT = "★";
+    // filled in by the help assistant: the cart and the form; the leader checks and presses Send
+    if (!EDIT && new URLSearchParams(location.search).get("ai")) {
+      try { AIFILL = JSON.parse(sessionStorage.getItem("basAiFill") || "null"); sessionStorage.removeItem("basAiFill"); } catch (e) { AIFILL = null; }
+      if (AIFILL) {
+        Object.keys(AIFILL.cart || {}).forEach(k => { const n = Math.min(Number(AIFILL.cart[k]) || 0, availFor(k)); if (n > 0) CART[k] = n; });
+        history.replaceState(null, "", "book.html");
+        $("editNote").innerHTML = '<div class="msg info">🤖 ' + esc(BAS.tr ? BAS.tr("Filled in by the assistant. Check everything, then press Send request.") : "Filled in by the assistant. Check everything, then press Send request.") + "</div>";
+      }
+    }
     chips(); draw(); waitAlerts();
+    if (AIFILL && Object.keys(CART).length) openCheckout();
   } catch (e) { $("grid").innerHTML = '<div class="msg err">' + esc(BAS.errText(e)) + "</div>"; }
 })();
 
@@ -323,6 +333,11 @@ function openCheckout() {
     const d = DRAFT.data, set = (id, v) => { if ($(id) && v != null && v !== "") $(id).value = v; };
     set("coWho", d.who); set("coNew", d.newName); set("coDate", d.date); set("coTime", d.time); set("coUntil", d.until); set("coPlace", d.place); set("coNotes", d.notes); set("coKind", d.kind); set("coEnd", d.end);
     if ($("coWho")) $("coWho").onchange(); if ($("coKind")) $("coKind").onchange(); lateCheck();
+  }
+  if (AIFILL && !r) {
+    const d = AIFILL, set = (id, v) => { if ($(id) && v != null && v !== "") $(id).value = v; };
+    set("coWho", d.who); set("coDate", d.date && d.date >= BAS.todayISO() ? d.date : ""); set("coTime", d.time); set("coUntil", d.until); set("coPlace", d.place); set("coNotes", d.notes);
+    if ($("coWho")) $("coWho").onchange(); lateCheck();
   }
   if (EVENT && !r) {
     const set = (id, v) => { if ($(id) && v) $(id).value = v; };

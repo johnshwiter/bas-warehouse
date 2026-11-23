@@ -758,3 +758,28 @@ body:has(.overlay:not([hidden])) .cart-bar { display: none; }
 select.sortsel { width: auto; min-width: 0; padding: 7px 10px; font-size: 12px; font-weight: 700; border-radius: 9px; border: 1px solid var(--line); background: var(--card); color: var(--ink); }
 .att-ctl .seg button.on[data-st="late"] { background: #C77A1A; color: #fff; }
 .att-row.late { border-color: #C77A1A; }
+/* v16: finished meetings are locked until Edit */
+.att-row.locked { opacity: .85; }
+.att-row.locked .seg button:disabled { cursor: default; }
+.att-row.locked .seg button:not(.on):disabled { opacity: .45; }
+.att-sticky .lockmsg { align-self: center; margin-inline-end: auto; }
+/* v16: help assistant */
+.ai-log { display: flex; flex-direction: column; gap: 10px; max-height: 60vh; overflow-y: auto; margin-bottom: 10px; }
+.ai-log:empty { display: none; }
+.ai-msg { padding: 10px 12px; border-radius: 14px; max-width: 92%; line-height: 1.55; }
+.ai-msg.ai-me { align-self: flex-end; background: var(--navy, #17196A); color: #fff; border-end-end-radius: 4px; }
+.ai-msg.ai-bot { align-self: flex-start; background: var(--soft, #F1F2F8); border: 1px solid var(--line); border-end-start-radius: 4px; }
+.ai-msg p { margin: 0 0 6px; } .ai-msg p:last-child { margin-bottom: 0; }
+.ai-steps, .ai-ul { margin: 4px 0 8px; padding-inline-start: 20px; } .ai-steps li, .ai-ul li { margin: 3px 0; }
+.ai-card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin-top: 8px; }
+.ai-card .btn { margin-top: 8px; }
+.ai-t { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 14px; }
+.ai-t th { text-align: start; font-weight: 600; color: var(--mut); padding: 4px 8px 4px 0; white-space: nowrap; vertical-align: top; width: 1%; }
+.ai-t td { padding: 4px 0; }
+.ai-choose { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; } .ai-choose .meta { width: 100%; margin: 0; }
+.ai-ex { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.ai-form { display: flex; gap: 8px; align-items: flex-end; } .ai-form textarea { flex: 1; resize: vertical; min-height: 44px; }
+.ai-note { font-size: 12px; margin-top: 6px; }
+details.guide { border-top: 1px solid var(--line); padding: 8px 0; } details.guide:first-child { border-top: 0; }
+details.guide summary { cursor: pointer; font-weight: 700; } details.guide ol { margin: 8px 0 2px; padding-inline-start: 20px; line-height: 1.7; }
+[data-theme="dark"] .ai-msg.ai-bot { background: var(--card); }
