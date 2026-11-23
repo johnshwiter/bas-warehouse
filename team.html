@@ -16,7 +16,7 @@
 <link rel="stylesheet" href="bas.css">
 <script>(function(){var t="light";try{t=localStorage.getItem("basTheme")==="dark"?"dark":"light"}catch(e){}document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content="only "+t})()</script>
 </head>
-<body>
+<body data-team>
 <main class="page">
   <div class="head">
     <div><p class="eyebrow">Warehouse team</p><h1 id="title">Overview of <em>all stages</em></h1>
@@ -36,13 +36,19 @@
 "use strict";
 const $ = id => document.getElementById(id);
 const esc = s => BAS.esc(s);
-let TRASH = [];
+let TRASH = [], EMPTYOK = null;
 let STOCK = [], BY = {}, RES = [], LOSSES = [], PAYMENTS = [], PEOPLE = [], TRANSFERS = [], MAINT = [], WAIT = [], ANN = [], CHANGES = [], MSGS = [], THREAD = null, CHAT_T = null;
 let TAB = "overview", SUB = "prepare", FORM = null, OPEN = null, ADDING = false, SQ = "", SCAT = "All", MSUB = "open";
 const TITLES = { trash: "Deleted", overview: "Overview of <em>all stages</em>", requests: "Requests", money: "Missing & <em>compensation</em>", stock: "Stock", maint: "Under <em>maintenance</em>",
   wait: "Waitlist", chat: "Messages", news: "Announcements", people: "Accounts", log: "Activity log", settings: "Settings" };
 
-function readHash() { const h = (location.hash || "#overview").slice(1); TAB = TITLES[h] ? h : "overview"; }
+function readHash() {
+  const h = (location.hash || "#overview").slice(1);
+  if (!TITLES[h]) { history.replaceState(null, "", location.pathname + "#overview"); TAB = "overview"; }
+  else { if (h === "requests" && TAB !== "requests") SUB = null; TAB = h; }
+  // the yellow booking button and the team line belong on Overview and Requests only
+  const hd = document.querySelector(".head"); if (hd) hd.classList.toggle("head-min", TAB !== "overview" && TAB !== "requests");
+}
 window.addEventListener("hashchange", () => { readHash(); FORM = null; OPEN = null; ADDING = false; render(); });
 
 (async function () {
@@ -64,7 +70,7 @@ async function loadAll() {
     MAINT = await BAS.q(supabaseClient.from("maintenance").select("*").order("created_at", { ascending: false }));
     WAIT = await BAS.q(supabaseClient.from("waitlist").select("*").in("status", ["Waiting", "Available"]).order("created_at"));
     ANN = await BAS.q(supabaseClient.from("announcements").select("*").order("created_at", { ascending: false }).limit(100));
-    BAS.services = await BAS.q(supabaseClient.from("services").select("*").order("id"));
+    BAS.setServices(await BAS.q(supabaseClient.from("services").select("*").order("id")));
     CHANGES = RES.filter(r => r.change);
     TRASH = await BAS.q(supabaseClient.from("trash").select("*").order("deleted_at", { ascending: false }));
     PEOPLE = PEOPLE.filter(p => p.approval_status !== "removed");
@@ -146,6 +152,7 @@ function requestsView() {
   if (SUB === "returned") SUB = "done";
   const subs = [["changes", "Changes to approve", CHANGES.length], ["prepare", "To prepare"], ["ready", "Ready"], ["out", "To return"], ["done", "Returned"]];
   const cnt = s => s[0] === "changes" ? s[2] : s[0] === "done" ? 0 : RES.filter(r => GROUPS[s[0]].indexOf(r.status) >= 0).length;
+  if (!SUB) { const f = subs.find(s => s[0] !== "done" && cnt(s) > 0); SUB = f ? f[0] : "prepare"; }
   let h = '<div class="tabs sub">' + subs.map(s => '<button class="tab' + (SUB === s[0] ? " on" : "") + '" data-sub="' + s[0] + '">' + s[1] + (cnt(s) ? "<b>" + cnt(s) + "</b>" : "") + "</button>").join("") + "</div>";
   if (SUB === "changes") {
     h += CHANGES.length ? CHANGES.map(card).join("") : '<div class="empty">No change requests waiting.</div>';
@@ -189,7 +196,7 @@ function card(r) {
     '<div class="meta">' + esc(r.requester || "") + " · sent " + esc(BAS.fmtDateTime(r.created_at)) +
     (r.issued_at ? " · taken " + esc(BAS.fmtDate(r.issued_at)) : "") +
     (r.return_by && out ? " · return by " + esc(BAS.fmtDate(r.return_by)) : "") + (r.returned_at ? " · back " + esc(BAS.fmtDateTime(r.returned_at)) : "") + "</div>" +
-    BAS.tripLine(r) + (r.status === "Ready" ? '<div class="meta">Counts as taken on <b>' + esc(BAS.fmtDate(r.meeting_date, true)) + "</b>. The stage was told it's ready.</div>" : "") +
+    BAS.tripLine(r) + (r.status === "Ready" ? '<div class="meta">Counts as taken on <b>' + esc(BAS.fmtDate(r.meeting_date, true)) + "</b>. " + (r.service_id ? "They were told it's ready." : "The stage was told it's ready.") + "</div>" : "") +
     (r.notes ? '<div class="msg warn" data-noi18n dir="auto">' + esc(r.notes) + "</div>" : "") + (r.closed_reason ? '<div class="meta">Reason: ' + esc(r.closed_reason) + "</div>" : "");
   if (r.change) h += '<div class="change-box">✏️ <b>' + esc(person(r.change.requested_by) || "A leader") + "</b> asks to change: " + BAS.changeSummary(r, r.change, BY) + (r.change.reason ? " · <i>" + esc(r.change.reason) + "</i>" : "") +
     '<div class="actions"><button class="btn ok sm" data-act="chok" data-cid="' + r.change.id + '">Approve change</button><button class="btn danger sm" data-act="chno" data-cid="' + r.change.id + '">Reject change</button></div></div>';
@@ -198,14 +205,14 @@ function card(r) {
   if (pre) {
     h += '<div class="tscroll"><table class="ltable"><tr><th>Item</th><th class="num">Asked</th><th>Prepared</th><th>Note if short</th><th></th></tr>' +
       r.items.map(i => '<tr><td><a class="lnk" href="item.html?id=' + i.item_id + '">' + esc(BAS.lineName(i)) + "</a>" + (i.kind === "Consumable" ? ' <small class="mut">(used up)</small>' : "") + '</td><td class="num">' + i.quantity + "</td>" +
-        '<td><input type="number" min="0" max="' + i.quantity + '" value="' + i.prepared_qty + '" data-pq="' + i.id + '"></td>' +
+        '<td><input type="number" min="0" max="' + i.quantity + '" value="' + (i.prepared_qty || (i.prep_note ? 0 : i.quantity)) + '" data-pq="' + i.id + '"></td>' +
         '<td><input class="wide" value="' + esc(i.prep_note || "") + '" data-pn="' + i.id + '" placeholder="e.g. only 8 clean"></td>' +
         '<td><button class="btn line sm" data-act="prep" data-line="' + i.id + '">Save</button></td></tr>').join("") + "</table></div>" +
       '<div class="actions">' + (r.status === "Ready" ? '<button class="btn ok" data-act="taken" data-id="' + r.id + '">Taken ✓</button>' : '<button class="btn line" data-act="prepall" data-id="' + r.id + '">Prepare all ✓</button>') +
       '<a class="btn line sm" href="book.html?edit=' + r.id + '">✏️ Edit</a><button class="btn danger sm" data-act="cancel" data-id="' + r.id + '">Cancel</button><button class="btn danger sm" data-act="reject" data-id="' + r.id + '">Reject</button><button class="btn danger sm" data-act="trash" data-id="' + r.id + '">🗑 Delete</button></div>';
   } else {
     const anyM = r.items.some(i => i.missing_qty), anyD = r.items.some(i => i.damaged_qty);
-    h += '<div class="tscroll"><table class="ltable"><tr><th>Item</th><th class="num">Asked</th><th class="num">Issued</th><th class="num">Back</th>' + (anyM ? '<th class="num">Missing</th>' : "") + (anyD ? '<th class="num">Damaged</th>' : "") + '<th class="num">Still out</th></tr>' +
+    h += '<div class="tscroll"><table class="ltable"><tr><th>Item</th><th class="num">Asked</th><th class="num">Taken</th><th class="num">Back</th>' + (anyM ? '<th class="num">Missing</th>' : "") + (anyD ? '<th class="num">Damaged</th>' : "") + '<th class="num">Still out</th></tr>' +
       r.items.map(i => '<tr><td><a class="lnk" href="item.html?id=' + i.item_id + '">' + esc(BAS.lineName(i)) + '</a></td><td class="num">' + i.quantity + '</td><td class="num">' + (i.issued_qty == null ? "—" : i.issued_qty) + '</td><td class="num">' + i.returned_qty +
         "</td>" + (anyM ? '<td class="num">' + i.missing_qty + "</td>" : "") + (anyD ? '<td class="num">' + i.damaged_qty + "</td>" : "") + '<td class="num">' + (i.kind === "Consumable" && r.status !== "Issued" ? "used" : i.out) + "</td></tr>").join("") + "</table></div>";
     h += '<div class="actions">' + (out ? '<button class="btn ok" data-act="allback" data-id="' + r.id + '">All back OK</button><button class="btn line" data-act="return" data-id="' + r.id + '">Receive return…</button>' : "") +
@@ -300,7 +307,10 @@ function bindRequestButtons() {
       const line = b.dataset.line, g = f => num('[data-fx="' + line + "|" + f + '"]');
       rpc("admin_fix_line", { p_line: Number(line), p_qty: g("quantity"), p_issued: g("issued_qty"), p_returned: g("returned_qty"), p_missing: g("missing_qty"), p_damaged: g("damaged_qty") }, "Saved").then(() => { FORM = { id, kind: "fix" }; render(); });
     }
-    if (a === "trash") { if (confirm("Delete request #" + id + "? Its lines and charges go with it. You can restore it from Deleted.")) rpc("trash_item", { p_kind: "reservation", p_id: String(id) }, "Deleted"); }
+    if (a === "trash") {
+      if (!confirm("Delete request #" + id + "? Its lines and charges go with it. You can restore it from Deleted.")) return;
+      goneThen(b.closest(".req"), supabaseClient.rpc("trash_item", { p_kind: "reservation", p_id: String(id) }), "Deleted ✓ #" + id, () => BAS.dropRecent(new RegExp("[?&](id|edit)=" + id + "$")));
+    }
     if (a === "close") { FORM = null; render(); }
     if (a === "chok" || a === "chno") {
       const note = a === "chno" ? prompt("Reject this change? Write a short reason (the leader sees it):") : "";
@@ -365,7 +375,7 @@ function moneyView() {
     '<div id="fErr" class="msg err" hidden></div><button class="btn ok" id="pSave">Save payment</button><p class="meta">A general payment is applied to that stage\'s oldest unpaid items first.</p></div>';
   h += '<div class="group-title">Payments</div>' + (PAYMENTS.length ? '<div class="panel tscroll"><table class="ltable"><tr><th>Date</th><th>From</th><th class="num">Amount</th><th>For</th><th>Note</th><th>By</th><th></th></tr>' +
     PAYMENTS.map(p => { const l = p.loss_id ? LOSSES.find(x => x.id === p.loss_id) : null;
-      return "<tr><td>" + esc(BAS.fmtDate(p.paid_on)) + "</td><td><bdi>" + esc(BAS.borrowerName(p.section_id, p.service_id)) + '</bdi></td><td class="num"><b>' + BAS.money(p.amount) + "</b></td><td>" + (l ? esc(BAS.itemLabel(BY, l.item_id, l.variant_id)) : "general") + "</td><td>" + esc(p.note || "") +
+      return "<tr><td>" + esc(BAS.fmtDate(p.paid_on)) + "</td><td><bdi>" + esc(BAS.borrowerName(p.section_id, p.service_id, p.who_name)) + '</bdi></td><td class="num"><b>' + BAS.money(p.amount) + "</b></td><td>" + (l ? esc(BAS.itemLabel(BY, l.item_id, l.variant_id)) : "general") + "</td><td>" + esc(p.note || "") +
       "</td><td>" + esc(person(p.recorded_by)) + '</td><td class="nowrap"><button class="btn line sm" data-pedit="' + p.id + '">Edit</button> <button class="btn danger sm" data-pdel="' + p.id + '">Delete</button></td></tr>'; }).join("") + "</table></div>" : '<div class="empty">No payments yet.</div>');
   $("view").innerHTML = h;
   $("view").querySelectorAll("[data-href]").forEach(tr => tr.onclick = () => { location.href = tr.dataset.href; });
@@ -381,7 +391,7 @@ function moneyView() {
   });
   $("view").querySelectorAll("[data-lpaid]").forEach(b => b.onclick = () => {
     const l = LOSSES.find(x => x.id === Number(b.dataset.lpaid));
-    if (confirm("Mark " + BAS.itemLabel(BY, l.item_id, l.variant_id) + " (" + BAS.borrowerName(l.section_id, l.service_id) + ") as paid? This records " + BAS.money(l.remaining) + ".")) rpc("settle_loss", { p_loss_id: l.id, p_note: null }, "Marked as paid");
+    if (confirm("Mark " + BAS.itemLabel(BY, l.item_id, l.variant_id) + " (" + BAS.borrowerName(l.section_id, l.service_id, l.who_name) + ") as paid? This records " + BAS.money(l.remaining) + ".")) rpc("settle_loss", { p_loss_id: l.id, p_note: null }, "Marked as paid");
   });
   $("view").querySelectorAll("[data-pdel]").forEach(b => b.onclick = () => { if (confirm("Delete this payment? You can restore it from Deleted.")) rpc("trash_item", { p_kind: "payment", p_id: b.dataset.pdel }, "Payment deleted"); });
   $("view").querySelectorAll("[data-pedit]").forEach(b => b.onclick = () => {
@@ -396,7 +406,7 @@ function moneyView() {
 // ---------- record / edit / delete missing and damaged ----------
 function lossSheet(l) {
   const o = $("sheet"), items = STOCK.filter(i => !i.archived).sort((a, b) => a.name_en > b.name_en ? 1 : -1);
-  o.innerHTML = '<div class="sheet"><h2>' + (l ? "Edit missing / damaged" : "Record missing / damaged") + '</h2><p class="sub">' + (l ? esc(BAS.itemLabel(BY, l.item_id, l.variant_id)) + " · " + esc(BAS.borrowerName(l.section_id, l.service_id)) : "For something lost or broken outside a request. It's charged to the stage or service.") + '</p><div class="panel">' +
+  o.innerHTML = '<div class="sheet"><h2>' + (l ? "Edit missing / damaged" : "Record missing / damaged") + '</h2><p class="sub">' + (l ? esc(BAS.itemLabel(BY, l.item_id, l.variant_id)) + " · " + esc(BAS.borrowerName(l.section_id, l.service_id, l.who_name)) : "For something lost or broken outside a request. It's charged to the stage or service.") + '</p><div class="panel">' +
     (l ? "" : '<div class="grid2"><div class="field"><label>Stage / service</label><select id="lWho">' + BAS.sections.map(s => '<option value="s' + s.id + '">' + esc(s.name_ar) + "</option>").join("") + BAS.services.map(v => '<option value="v' + v.id + '">' + esc(v.name_ar) + " (service)</option>").join("") + "</select></div>" +
       '<div class="field"><label>Item</label><select id="lItem">' + items.map(i => '<option value="' + i.id + '">' + esc(i.name_en) + (i.name_ar ? " · " + esc(i.name_ar) : "") + "</option>").join("") + '</select><select id="lVar" class="inline-in" style="margin-top:8px" hidden></select></div></div>') +
     '<div class="grid3"><div class="field"><label>Kind</label><select id="lKind"><option value="missing"' + (l && l.kind === "missing" ? " selected" : "") + '>Missing</option><option value="damaged"' + (l && l.kind === "damaged" ? " selected" : "") + ">Damaged</option></select></div>" +
@@ -437,7 +447,8 @@ function level(i) {
 }
 function stockView() {
   const active = STOCK.filter(i => i.is_active);
-  const chips = ["All", "Needs recount", "Low / out", "In maintenance", "Hidden"].concat(cats());
+  // category chips only for categories that have items (the form still offers all of them)
+  const chips = ["All", "Needs recount", "Low / out", "In maintenance", "Hidden"].concat(cats().filter(k => STOCK.some(i => (i.category || "Other") === k)));
   $("view").innerHTML = (() => { const kp = (l, v, c) => v ? '<div class="kpi ' + c + '"><p>' + l + "</p><h3>" + v + "</h3></div>" : "";
     return '<div class="kpis"><div class="kpi"><p>Items</p><h3>' + active.length + "</h3></div>" + kp("Need recount", active.filter(i => !i.counted).length, "warn") + kp("Low or out", active.filter(i => i.counted && level(i)).length, "bad") +
       kp("Pieces in maintenance", active.reduce((t, i) => t + Number(i.maintenance || 0), 0), "fix") + kp("Missing + damaged", active.reduce((t, i) => t + Number(i.missing) + Number(i.damaged), 0), "") + "</div>"; })() +
@@ -491,11 +502,11 @@ function itemForm(i) {
       '<div class="grid2"><div class="field"><label>Counted total' + (n || i.counted ? "" : " (last year: " + esc(i.last_year || "?") + ")") + '</label><input id="fQty" type="number" min="0" inputmode="numeric" value="' + (i.counted ? i.quantity : "") + '" placeholder="Count it, then type it"></div>' +
       '<div class="field"><label>Repaired / found (+)</label><input id="fFound" type="number" min="0" inputmode="numeric" value="' + (i.repaired_found || 0) + '"></div></div>') +
     '<div class="grid2"><div class="field"><label>Where in the warehouse</label><input id="fLoc" value="' + esc(i.location || "") + '" placeholder="Shelf B, cupboard 1…"></div><div class="field"><label>Notes</label><input id="fNotes" value="' + esc(i.notes || "") + '"></div></div>' +
-    (n ? "" : '<div class="group-title" style="margin-top:6px">Colours / variants</div><div class="tscroll"><table class="ltable"><tr><th>Colour</th><th>Count</th><th>Repaired/found</th><th class="num">Available</th><th>Active</th><th></th></tr>' +
+    (n ? "" : '<div class="group-title" style="margin-top:6px">Kinds</div><div class="tscroll"><table class="ltable"><tr><th>Kind</th><th>Count</th><th>Repaired/found</th><th class="num">Available</th><th>Active</th><th></th></tr>' +
       vars.map(v => '<tr><td><input class="wide" value="' + esc(v.name) + '" data-vn="' + v.id + '"></td><td><input type="number" min="0" value="' + v.quantity + '" data-vq="' + v.id + '"></td>' +
         '<td><input type="number" min="0" value="' + v.repaired_found + '" data-vf="' + v.id + '"></td><td class="num">' + v.available + '</td><td><input type="checkbox" ' + (v.is_active ? "checked" : "") + ' data-va="' + v.id + '" style="width:auto"></td>' +
         '<td><button class="btn line sm" data-vsave="' + v.id + '">Save</button></td></tr>').join("") +
-      '<tr><td><input class="wide" id="vNewName" placeholder="New colour, e.g. Red"></td><td><input type="number" min="0" id="vNewQty" value="0"></td><td></td><td></td><td></td><td><button class="btn gold sm" id="vAdd">Add</button></td></tr></table></div>') +
+      '<tr><td><input class="wide" id="vNewName" placeholder="New kind, e.g. Red or Long"></td><td><input type="number" min="0" id="vNewQty" value="0"></td><td></td><td></td><td></td><td><button class="btn gold sm" id="vAdd">Add</button></td></tr></table></div>') +
     (n ? "" : '<div class="field" style="margin-top:10px"><label>Photo</label><div class="actions" style="margin-top:0"><label class="btn line sm" style="margin:0">' + (i.image_url ? "Change photo" : "📷 Take / choose photo") +
       '<input type="file" accept="image/*" capture="environment" id="fPhoto" hidden></label>' + (i.image_url ? '<button class="btn danger sm" id="fNoPhoto">Remove photo</button>' : "") + '</div><div class="meta" id="fPMsg"></div></div>') +
     '<div id="fErr" class="msg err" hidden></div><div class="actions"><button class="btn ok" id="fSave">' + (n ? "Add item" : "Save") + '</button><button class="btn line" id="fClose">Close</button>' +
@@ -547,7 +558,11 @@ async function saveItem(id) {
     if (qt !== "" && !/^\d+$/.test(qt)) return fail("Counted total must be a whole number.");
     if (!Number.isInteger(found) || found < 0) return fail("Repaired / found must be a whole number.");
     row.repaired_found = found;
-    if (qt !== "") { row.quantity = Number(qt); row.counted = true; }
+    if (qt !== "") { row.quantity = Number(qt); row.counted = true; EMPTYOK = null; }
+    else if (id && BY[id] && BY[id].counted) {
+      if (EMPTYOK !== id) { EMPTYOK = id; return fail("The count is empty, so this item will go back to \"not counted yet\". Press Save again to confirm."); }
+      row.quantity = 0; row.counted = false; EMPTYOK = null;
+    }
   }
   if (id) return updateItem(id, row, "Saved");
   if (row.counted === undefined) { row.quantity = 0; row.counted = false; }
@@ -723,11 +738,27 @@ async function updatePerson(id, row) {
 // ---------- deleted things ----------
 function trashView() {
   const icon = { reservation: "📋", loss: "⚠️", payment: "💵", event: "📅", announcement: "📣", message: "💬", maintenance: "🔧", money: "💰", item: "📦", account: "👤", section: "🏕", service: "⛪" };
-  $("view").innerHTML = '<p class="meta" style="margin-bottom:10px">Only the warehouse team sees this. Restore puts it back exactly as it was. Delete forever can\'t be undone.</p>' +
+  $("view").innerHTML = '<div class="actions" style="margin:0 0 10px;align-items:center"><p class="meta" style="margin:0;flex:1">Only the warehouse team sees this. Restore puts it back exactly as it was. Delete forever can\'t be undone.</p>' +
+    (TRASH.length ? '<button class="btn danger sm" id="pgAll">Empty Deleted (' + TRASH.length + ")</button>" : "") + "</div>" +
     (TRASH.length ? TRASH.map(t => '<div class="person"><div><h4 dir="auto">' + (icon[t.kind] || "🗑") + " " + esc(t.label || t.kind) + '</h4><div class="meta">Deleted ' + esc(BAS.fmtDateTime(t.deleted_at)) + " · " + esc(person(t.deleted_by)) + "</div></div>" +
       '<div class="actions" style="margin:0"><button class="btn ok sm" data-rs="' + t.id + '">Restore</button><button class="btn danger sm" data-pg="' + t.id + '">Delete forever</button></div></div>').join("") : '<div class="empty">Nothing deleted.</div>');
-  $("view").querySelectorAll("[data-rs]").forEach(b => b.onclick = () => rpc("restore_item", { p_trash: Number(b.dataset.rs) }, "Restored"));
-  $("view").querySelectorAll("[data-pg]").forEach(b => b.onclick = () => { if (confirm("Delete forever? This can't be undone.")) rpc("purge_item", { p_trash: Number(b.dataset.pg) }, m => m || "Deleted forever"); });
+  $("view").querySelectorAll("[data-rs]").forEach(b => b.onclick = () => goneThen(b.closest(".person"), supabaseClient.rpc("restore_item", { p_trash: Number(b.dataset.rs) }), "Restored ✓"));
+  $("view").querySelectorAll("[data-pg]").forEach(b => b.onclick = () => { if (confirm("Delete forever? This can't be undone.")) goneThen(b.closest(".person"), supabaseClient.rpc("purge_item", { p_trash: Number(b.dataset.pg) }), "Deleted forever ✓"); });
+  if ($("pgAll")) $("pgAll").onclick = () => {
+    if (!confirm("Delete everything in Deleted (" + TRASH.length + ") forever? This can't be undone.")) return;
+    rpc("purge_all", {}, n => "Deleted forever: " + n);
+  };
+}
+
+// after Delete / Restore: the row stays where it is and says what happened, then the list refreshes
+async function goneThen(el, call, msg, after) {
+  if (el) el.querySelectorAll("button").forEach(b => b.disabled = true);
+  const { data, error } = await call;
+  if (error) { if (el) el.querySelectorAll("button").forEach(b => b.disabled = false); return BAS.toast(BAS.errText(error), "err"); }
+  if (typeof data === "string" && data && data !== "Deleted forever.") BAS.toast(data);
+  if (after) after();
+  if (el) { el.classList.add("gone-row"); el.innerHTML = '<div class="gone-msg">' + esc(BAS.tr ? BAS.tr(msg) : msg) + "</div>"; }
+  setTimeout(loadAll, 1800);
 }
 
 // ---------- activity log ----------
@@ -737,12 +768,13 @@ async function logView() {
   if (error) { $("view").innerHTML = '<div class="msg err">' + esc(BAS.errText(error)) + "</div>"; return; }
   const what = x => x.entity === "reservation" ? " · request #" + esc(x.entity_id) : (x.entity === "items" || x.entity === "item") && BY[x.entity_id] ? ' · <a class="lnk" href="item.html?id=' + esc(x.entity_id) + '">' + esc(BY[x.entity_id].name_en) + "</a>" : "";
   $("view").innerHTML = '<p class="meta" style="margin-bottom:10px">The last 300 actions, with the time. Nobody can edit or delete this list.</p><div class="panel">' +
-    (data.length ? data.map(x => '<div class="log-row"><small>' + esc(BAS.fmtDateTime(x.at)) + "</small><div><b>" + esc(x.action) + "</b> · " + esc(person(x.actor) || "system") + what(x) + "</div></div>").join("") : '<div class="empty">Nothing yet.</div>') + "</div>";
+    (data.length ? data.map(x => '<div class="log-row"><small>' + esc(BAS.fmtDateTime(x.at)) + "</small><div><b dir=\"auto\">" + esc(x.action) + "</b>" + (x.details && x.details.label && x.action.indexOf(x.details.label) < 0 ? " · <bdi>" + esc(x.details.label) + "</bdi>" : "") + " · " + esc(person(x.actor) || "system") + what(x) + "</div></div>").join("") : '<div class="empty">Nothing yet.</div>') + "</div>";
 }
 
 // ---------- reset (backup first) ----------
 async function resetAll() {
-  if ($("rsIn").value.trim() !== "RESET") return BAS.toast("Type RESET to confirm.", "err");
+  const code = $("rsIn").value.trim();
+  if (!code) return BAS.toast("Type the reset code.", "err");
   const out = RES.filter(r => BAS.OUT.indexOf(r.status) >= 0).length;
   if (!confirm((out ? out + " requests are still out; their items will count as back in the warehouse. " : "") + "Delete all the history now? A backup file downloads first.")) return;
   const b = $("rsGo"); b.disabled = true;
@@ -753,7 +785,7 @@ async function resetAll() {
   document.body.appendChild(a); a.click(); a.remove();
   await new Promise(r => setTimeout(r, 1200));
   if (!confirm("Did the backup file download? OK = reset now.")) { b.disabled = false; return; }
-  const { error } = await supabaseClient.rpc("reset_history", { p_confirm: "RESET" });
+  const { error } = await supabaseClient.rpc("reset_history", { p_confirm: code });
   b.disabled = false;
   if (error) return BAS.toast(BAS.errText(error), "err");
   BAS.toast("Reset done. Items and counts kept.");
@@ -783,7 +815,7 @@ function settingsView() {
     '<div class="group-title">Reset</div><div class="panel" style="max-width:640px;border-color:var(--bad)"><h3>🧹 Reset the history</h3>' +
     '<p class="meta">Deletes every request, missing/damaged record, payment, 3ohda, message, notification, activity log, waitlist, finished maintenance, calendar event and money entry. ' +
     'Keeps the items and their counts (lost and written-off pieces are taken out of the totals), accounts, stages, services, people lists, tali3as, attendance and settings. Items still at the repair shop stay listed.</p>' +
-    '<p class="meta">A full backup file is downloaded first. Keep it.</p><div class="field"><label>Type RESET to confirm</label><input id="rsIn" autocomplete="off" placeholder="RESET"></div>' +
+    '<p class="meta">A full backup file is downloaded first. Keep it.</p><div class="field"><label>Reset code</label><input id="rsIn" type="password" autocomplete="off" placeholder="Reset code"></div>' +
     '<div id="rsMsg" class="msg warn" hidden></div><button class="btn danger" id="rsGo">Download backup and reset</button></div>';
   $("nyGo").onclick = () => { const d = $("nyDate").value; if (!d) return BAS.toast("Choose the date", "err");
     if (confirm("Start the new scout year on " + BAS.fmtDate(d, true) + "? Attendance before this day stops counting (it stays saved).")) rpc("new_scout_year", { p_start: d }, "New scout year started").then(() => location.reload()); };
@@ -807,8 +839,8 @@ function settingsView() {
   };
   $("secAdd").onclick = () => secEdit(null);
   $("view").querySelectorAll("[data-sec]").forEach(b => b.onclick = () => secEdit(BAS.sections.find(x => x.id === Number(b.dataset.sec))));
-  $("view").querySelectorAll("[data-secdel]").forEach(b => b.onclick = () => { if (confirm("Delete this stage? It is hidden everywhere; you can restore it from Deleted.")) rpc("trash_item", { p_kind: "section", p_id: b.dataset.secdel }, "Deleted").then(() => location.reload()); });
-  $("view").querySelectorAll("[data-svdel]").forEach(b => b.onclick = () => { if (confirm("Delete this service? You can restore it from Deleted.")) rpc("trash_item", { p_kind: "service", p_id: b.dataset.svdel }, "Deleted"); });
+  $("view").querySelectorAll("[data-secdel]").forEach(b => b.onclick = () => { if (confirm("Delete this stage? It moves to Deleted; Delete forever there removes it completely, with its people lists and attendance.")) rpc("trash_item", { p_kind: "section", p_id: b.dataset.secdel }, "Deleted").then(() => location.reload()); });
+  $("view").querySelectorAll("[data-svdel]").forEach(b => b.onclick = () => { if (confirm("Delete this service? It moves to Deleted; Delete forever there removes it completely.")) rpc("trash_item", { p_kind: "service", p_id: b.dataset.svdel }, "Moved to Deleted"); });
   $("view").querySelectorAll("[data-svren]").forEach(b => b.onclick = async () => {
     const v = BAS.services.find(x => x.id === Number(b.dataset.svren)); const n = prompt("New name:", v.name_ar); if (!n || !n.trim()) return;
     const en = prompt("Other spelling (optional):", v.name_en || "");

@@ -13,10 +13,10 @@
 <link rel="stylesheet" href="bas.css">
 <script>(function(){var t="light";try{t=localStorage.getItem("basTheme")==="dark"?"dark":"light"}catch(e){}document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content="only "+t})()</script>
 </head>
-<body>
+<body data-team>
 <main class="page">
-  <div class="head"><div><p class="eyebrow">Mizania</p><h1>Warehouse <em>money</em></h1>
-    <p class="sub">Everything that came in and went out: purchases, repairs, compensation, money from the church or the group.</p></div>
+  <div class="head"><div><p class="eyebrow" id="eyb">Mizania</p><h1 id="ttl">Warehouse <em>money</em></h1>
+    <p class="sub" id="sub">Everything that came in and went out: purchases, repairs, compensation, money from the church or the group.</p></div>
     <button class="btn gold" id="addBtn">+ Add money in / out</button></div>
   <div id="view"><div class="loading">Loading…</div></div>
 </main>
@@ -29,11 +29,20 @@
 "use strict";
 const $ = id => document.getElementById(id);
 const esc = s => BAS.esc(s);
-const CATS = { income: ["Church / group money", "Donation", "Other income"], expense: ["Equipment purchase", "Repairs", "Transport", "Cleaning", "Other expense"] };
+// ?fund=group: the scout group's own money (yearly subscriptions and more); otherwise the warehouse Mizania
+const FUND = new URLSearchParams(location.search).get("fund") === "group" ? "group" : "warehouse";
+const CATS = FUND === "group"
+  ? { income: ["Subscription", "Donation", "Fundraising", "Other income"], expense: ["Trips and camps", "Supplies", "Events", "Other expense"] }
+  : { income: ["Church / group money", "Donation", "Other income"], expense: ["Equipment purchase", "Repairs", "Transport", "Cleaning", "Other expense"] };
 let BY = {}, MONEY = [], PAY = [], MAINT = [], LOSSES = [], ROWS = [], FM = "all", FK = "all", FC = "all";
 
 (async function () {
-  await BAS.init("mizania");
+  if (FUND === "group") {
+    $("eyb").textContent = "Money"; $("ttl").textContent = "Group money";
+    $("sub").textContent = "The group's own money: yearly subscriptions, donations, fundraising. Separate from the warehouse Mizania. Only the warehouse team sees it.";
+    document.title = "Group money | BAS Warehouse";
+  }
+  await BAS.init(FUND === "group" ? "group" : "mizania");
   if (!BAS.requireApproved()) return;
   if (!BAS.isAdmin()) { location.replace("section.html#money"); return; }
   $("addBtn").onclick = () => entrySheet(null);
@@ -43,14 +52,17 @@ let BY = {}, MONEY = [], PAY = [], MAINT = [], LOSSES = [], ROWS = [], FM = "all
 async function load() {
   try {
     const st = await BAS.loadStock(); BY = st.byId;
-    MONEY = await BAS.q(supabaseClient.from("money_entries").select("*").order("entry_date", { ascending: false }));
-    PAY = await BAS.q(supabaseClient.from("payments").select("*"));
-    MAINT = (await BAS.q(supabaseClient.from("maintenance").select("*"))).filter(m => m.cost != null);
-    LOSSES = await BAS.q(supabaseClient.from("loss_status").select("*"));
+    let mq = await supabaseClient.from("money_entries").select("*").eq("fund", FUND).order("entry_date", { ascending: false });
+    if (mq.error && FUND === "warehouse") mq = await supabaseClient.from("money_entries").select("*").order("entry_date", { ascending: false });
+    if (mq.error) throw mq.error;
+    MONEY = mq.data || [];
+    PAY = FUND === "group" ? [] : await BAS.q(supabaseClient.from("payments").select("*"));
+    MAINT = FUND === "group" ? [] : (await BAS.q(supabaseClient.from("maintenance").select("*"))).filter(m => m.cost != null);
+    LOSSES = FUND === "group" ? [] : await BAS.q(supabaseClient.from("loss_status").select("*"));
     const s = await supabaseClient.from("settings").select("*").eq("id", 1).single();
     if (!s.error) BAS.settings = s.data;
-    ROWS = MONEY.map(m => ({ src: "manual", id: m.id, date: m.entry_date, kind: m.kind, cat: m.category, amount: Number(m.amount), note: m.note, item: m.item_id, sec: m.section_id, receipt: m.receipt_path, raw: m }))
-      .concat(PAY.map(p => ({ src: "payment", id: p.id, date: p.paid_on, kind: "income", cat: "Compensation", amount: Number(p.amount), note: BAS.borrowerName(p.section_id, p.service_id) + (p.note ? " · " + p.note : "") })))
+    ROWS = MONEY.map(m => ({ src: m.sub_payment_id ? "sub" : "manual", id: m.id, date: m.entry_date, kind: m.kind, cat: m.category, amount: Number(m.amount), note: m.note, item: m.item_id, sec: m.section_id, receipt: m.receipt_path, raw: m }))
+      .concat(PAY.map(p => ({ src: "payment", id: p.id, date: p.paid_on, kind: "income", cat: "Compensation", amount: Number(p.amount), note: BAS.borrowerName(p.section_id, p.service_id, p.who_name) + (p.note ? " · " + p.note : "") })))
       .concat(MAINT.filter(m => Number(m.cost) > 0).map(m => ({ src: "maint", id: m.id, date: m.closed_on || m.started_on, kind: "expense", cat: "Repairs", amount: Number(m.cost), note: (m.reason || ""), item: m.item_id })))
       .sort((a, b) => a.date < b.date ? 1 : -1);
     draw();
@@ -58,7 +70,7 @@ async function load() {
 }
 
 function draw() {
-  const opening = Number(BAS.settings.opening_balance || 0);
+  const opening = Number((FUND === "group" ? BAS.settings.group_opening : BAS.settings.opening_balance) || 0);
   const sum = (L, k) => L.filter(r => r.kind === k).reduce((t, r) => t + r.amount, 0);
   const inAll = sum(ROWS, "income"), outAll = sum(ROWS, "expense"), owed = LOSSES.reduce((t, l) => t + Number(l.remaining || 0), 0);
   const months = [...new Set(ROWS.map(r => (r.date || "").slice(0, 7)))].filter(Boolean);
@@ -68,7 +80,8 @@ function draw() {
   L.forEach(r => { const k = r.kind + "|" + r.cat; byCat[k] = (byCat[k] || 0) + r.amount; });
   const tr = s => BAS.tr ? BAS.tr(s) : s;
   let h = '<div class="kpis"><div class="kpi gold"><p>Balance now</p><h3>' + BAS.money(opening + inAll - outAll) + '</h3></div><div class="kpi ok"><p>Money in</p><h3>' + BAS.money(inAll) +
-    '</h3></div><div class="kpi bad"><p>Money out</p><h3>' + BAS.money(outAll) + '</h3></div><div class="kpi warn" data-go="team.html#money"><p>Compensation still owed</p><h3>' + BAS.money(owed) + "</h3></div>" +
+    '</h3></div><div class="kpi bad"><p>Money out</p><h3>' + BAS.money(outAll) + '</h3></div>' + (FUND === "group" ? '<div class="kpi"><p>Yearly subscription</p><h3>' + BAS.money(BAS.settings.sub_amount || 0) + ' <button class="linkbtn sm" id="subEdit">edit</button></h3></div>'
+      : '<div class="kpi warn" data-go="team.html#money"><p>Compensation still owed</p><h3>' + BAS.money(owed) + "</h3></div>") +
     '<div class="kpi"><p>Opening balance</p><h3>' + BAS.money(opening) + ' <button class="linkbtn sm" id="obEdit">edit</button></h3></div></div>';
   h += '<div class="toolbar"><select id="fM"><option value="all">All months</option>' + months.map(m => '<option value="' + m + '"' + (m === FM ? " selected" : "") + ">" + esc(new Date(m + "-01T00:00:00").toLocaleDateString(BAS.loc(), { month: "long", year: "numeric" })) + "</option>").join("") + "</select>" +
     '<select id="fK"><option value="all">In and out</option><option value="income"' + (FK === "income" ? " selected" : "") + '>Money in</option><option value="expense"' + (FK === "expense" ? " selected" : "") + ">Money out</option></select>" +
@@ -77,7 +90,7 @@ function draw() {
     L.map(r => '<tr><td class="nowrap">' + esc(BAS.fmtDate(r.date)) + "</td><td>" + (r.kind === "income" ? '<span class="pill ok">IN</span> ' : '<span class="pill bad">OUT</span> ') + esc(tr(r.cat)) + '</td><td dir="auto">' + esc(r.note || "") +
       (r.item ? ' · <a class="lnk" href="item.html?id=' + r.item + '">' + esc(BAS.itemLabel(BY, r.item, null)) + "</a>" : "") + (r.sec ? " · " + BAS.secHTML(r.sec) : "") + (r.receipt ? ' · <button class="linkbtn" data-rc="' + esc(r.receipt) + '">🧾 receipt</button>' : "") + "</td>" +
       '<td class="num nowrap"><b class="' + (r.kind === "income" ? "" : "bad") + '">' + (r.kind === "income" ? "+" : "−") + BAS.money(r.amount) + "</b></td><td class=\"nowrap\">" +
-      (r.src === "manual" ? '<button class="btn line sm" data-ed="' + r.id + '">Edit</button> <button class="btn danger sm" data-del="' + r.id + '">Delete</button>' : '<span class="mut" style="font-size:11px">' + esc(tr(r.src === "payment" ? "from Compensation" : "from Maintenance")) + "</span>") + "</td></tr>").join("") + "</table></div>"
+      (r.src === "manual" ? '<button class="btn line sm" data-ed="' + r.id + '">Edit</button> <button class="btn danger sm" data-del="' + r.id + '">Delete</button>' : '<span class="mut" style="font-size:11px">' + esc(tr(r.src === "payment" ? "from Compensation" : r.src === "sub" ? "from Attendance › Subscription" : "from Maintenance")) + "</span>") + "</td></tr>").join("") + "</table></div>"
     : '<div class="empty">Nothing here yet.</div>') + "</div>" +
     '<div><div class="group-title" style="margin-top:0">By category</div><div class="panel">' + (Object.keys(byCat).length ? Object.keys(byCat).sort().map(k => { const p = k.split("|"); return '<div class="person" style="margin:0 0 6px;padding:8px 10px"><span>' + (p[0] === "income" ? "➕ " : "➖ ") + esc(tr(p[1])) + "</span><b>" + BAS.money(byCat[k]) + "</b></div>"; }).join("") : '<span class="mut">—</span>') +
     '<div class="person" style="margin:8px 0 0;padding:8px 10px;border-color:var(--navy)"><b>Total in − out</b><b>' + BAS.money(sum(L, "income") - sum(L, "expense")) + "</b></div></div></div></div>";
@@ -86,11 +99,19 @@ function draw() {
   $("fK").onchange = e => { FK = e.target.value; draw(); };
   $("fC").onchange = e => { FC = e.target.value; draw(); };
   $("view").querySelectorAll("[data-go]").forEach(el => el.onclick = () => { location.href = el.dataset.go; });
-  $("obEdit").onclick = async () => {
-    const v = prompt("Opening balance in EGP (money the warehouse had when you started using this page):", String(opening));
+  if ($("subEdit")) $("subEdit").onclick = async () => {
+    const v = prompt("Yearly subscription per person in EGP (kada and awlad; 0 = none):", String(Number(BAS.settings.sub_amount || 0)));
     if (v === null) return;
     if (!(Number(v) >= 0)) return BAS.toast("Write a number", "err");
-    const { error } = await supabaseClient.from("settings").update({ opening_balance: Number(v) }).eq("id", 1);
+    const { error } = await supabaseClient.rpc("set_sub_amount", { p_amount: Number(v) });
+    if (error) return BAS.toast(BAS.errText(error), "err");
+    BAS.toast("Saved"); load();
+  };
+  $("obEdit").onclick = async () => {
+    const v = prompt(FUND === "group" ? "Opening balance in EGP (money the group had when you started using this page):" : "Opening balance in EGP (money the warehouse had when you started using this page):", String(opening));
+    if (v === null) return;
+    if (!(Number(v) >= 0)) return BAS.toast("Write a number", "err");
+    const { error } = await supabaseClient.from("settings").update(FUND === "group" ? { group_opening: Number(v) } : { opening_balance: Number(v) }).eq("id", 1);
     if (error) return BAS.toast(BAS.errText(error), "err");
     BAS.toast("Saved"); load();
   };
@@ -133,6 +154,7 @@ function entrySheet(m) {
       item_id: $("eI").value ? Number($("eI").value) : null, section_id: $("eS").value ? Number($("eS").value) : null };
     const f = $("eR").files[0];
     if (f) { try { row.receipt_path = await upload(f); } catch (e) { $("eGo").disabled = false; return fail(BAS.errText(e)); } }
+    if (FUND === "group") row.fund = "group";
     const r = m ? await supabaseClient.from("money_entries").update(row).eq("id", m.id) : await supabaseClient.from("money_entries").insert(Object.assign(row, { created_by: BAS.user.id }));
     $("eGo").disabled = false;
     if (r.error) return fail(BAS.errText(r.error));

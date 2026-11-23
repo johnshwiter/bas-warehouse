@@ -13,6 +13,38 @@
 
   // ---------- exact texts: "English": ["العربي", "Français"] ----------
   const D = {
+    // v13
+    "Group money": ["فلوس المجموعة", "Argent du groupe"], "Scout group ": ["فلوس ", "Argent du "], "The group's own money: yearly subscriptions, donations, fundraising. Separate from the warehouse Mizania. Only the warehouse team sees it.": ["فلوس المجموعة نفسها: الاشتراك السنوي والتبرعات وجمع الفلوس. منفصلة عن ميزانية المخزن. فريق المخزن بس اللي بيشوفها.", "L'argent du groupe : cotisations, dons, collectes. Séparé de la caisse de l'entrepôt. Visible par l'équipe seulement."],
+    "Yearly subscription": ["الاشتراك السنوي", "Cotisation annuelle"], "Subscription": ["الاشتراك", "Cotisation"], "Fundraising": ["جمع فلوس", "Collecte"], "Trips and camps": ["رحلات ومعسكرات", "Sorties et camps"], "Supplies": ["مستلزمات", "Fournitures"],
+    "from Attendance › Subscription": ["من الحضور › الاشتراك", "depuis Présences › Cotisation"], "Yearly subscription per person in EGP (kada and awlad; 0 = none):": ["الاشتراك السنوي للفرد بالجنيه (القادة والأولاد؛ 0 = مفيش):", "Cotisation annuelle par personne en EGP (0 = aucune) :"],
+    "Opening balance in EGP (money the group had when you started using this page):": ["الرصيد الأول بالجنيه (الفلوس اللي كانت مع المجموعة لما بدأتوا تستخدموا الصفحة دي):", "Solde de départ en EGP :"],
+    "Restored ✓": ["اترجّع ✓", "Restauré ✓"], "Deleted forever ✓": ["اتمسح نهائي ✓", "Supprimé définitivement ✓"], "Moved to Deleted": ["اتنقل للممسوح", "Déplacé dans Supprimés"],
+    "Delete this service? It moves to Deleted; Delete forever there removes it completely.": ["تمسح الخدمة دي؟ هتروح للممسوح؛ ومن هناك «امسح نهائي» بيشيلها خالص.", "Supprimer ce service ? Il va dans Supprimés ; « Supprimer définitivement » l'efface."],
+    "Delete this stage? It moves to Deleted; Delete forever there removes it completely, with its people lists and attendance.": ["تمسح المرحلة دي؟ هتروح للممسوح؛ ومن هناك «امسح نهائي» بيشيلها خالص هي وقوايم الأسامي والحضور بتاعها.", "Supprimer cette unité ? Elle va dans Supprimés ; « Supprimer définitivement » l'efface avec ses listes et présences."],
+    "Reset code": ["كود الريسيت", "Code de réinitialisation"], "Type the reset code.": ["اكتب كود الريسيت.", "Tapez le code."], "Wrong code.": ["الكود غلط.", "Code incorrect."],
+    "Kinds": ["الأنواع", "Types"], "New kind, e.g. Red or Long": ["نوع جديد، مثلاً أحمر أو طويل", "Nouveau type, ex. Rouge ou Long"],
+    "The count is empty, so this item will go back to \"not counted yet\". Press Save again to confirm.": ["العدد فاضي، فالأداة دي هترجع «لسه ما اتعدتش». دوس حفظ تاني عشان تأكد.", "Le nombre est vide : l'article redevient « pas encore compté ». Appuyez encore sur Enregistrer."],
+    "They were told it's ready.": ["اتقالهم إنه جاهز.", "Ils ont été prévenus."], "It is already in Deleted.": ["ده موجود في الممسوح أصلاً.", "Déjà dans Supprimés."],
+    "HALF ABSENT": ["نص غياب", "DEMI-ABSENCE"], "Half absent": ["نص غياب", "Demi-absence"], "½ Half": ["½ نص", "½ Demi"], "half absent after": ["نص غياب بعد", "demi-absence après"],
+    "Half absent counts as half a meeting.": ["نص الغياب بيتحسب نص اجتماع.", "Une demi-absence compte pour une demi-réunion."], "finished meeting since": ["اجتماع خلص من", "réunion terminée depuis"],
+    "Half absent after (minutes from the start)": ["نص غياب بعد (دقايق من البداية)", "Demi-absence après (minutes après le début)"], "Empty = off": ["فاضي = مقفول", "Vide = désactivé"],
+    "Half absent counts as half a meeting. Leaders can also mark someone ½ by hand.": ["نص الغياب بيتحسب نص اجتماع. والقادة يقدروا يعلّموا أي حد ½ بإيدهم.", "Une demi-absence compte pour moitié. Les chefs peuvent aussi cocher ½."],
+    "Two half absences make one.": ["كل نصين غياب بغياب.", "Deux demi-absences font une absence."],
+    "Birthdays: every leader of the stage at 9 AM on the day.": ["أعياد الميلاد: كل قادة المرحلة الساعة 9 الصبح في اليوم نفسه.", "Anniversaires : tous les chefs de l'unité à 9 h le jour même."],
+    "Yearly subscription: a month after the scout year starts, and every month after, the stage's leaders and the warehouse team get how many haven't paid.": ["الاشتراك السنوي: بعد شهر من بداية السنة الكشفية، وكل شهر بعدها، قادة المرحلة وفريق المخزن بيجيلهم عدد اللي لسه ما دفعوش.", "Cotisation : un mois après le début de l'année scoute, puis chaque mois, les chefs et l'équipe reçoivent le nombre de non-payés."],
+    "Details": ["التفاصيل", "Détails"], "boy / girl?": ["ولد ولا بنت؟", "garçon / fille ?"], "Birthday today": ["عيد ميلاده النهارده", "Anniversaire aujourd'hui"], "has an account": ["عنده حساب", "a un compte"],
+    "Change photo": ["غيّر الصورة", "Changer la photo"], "Add a photo": ["ضيف صورة", "Ajouter une photo"], "Remove photo": ["شيل الصورة", "Retirer la photo"], "Birthday": ["عيد الميلاد", "Anniversaire"],
+    "What they do now": ["بيعمل إيه دلوقتي", "Activité actuelle"], "School year": ["سنة كام", "Année scolaire"], "Phone": ["الموبايل", "Téléphone"],
+    "Father's name": ["اسم الأب", "Nom du père"], "Father's phone": ["موبايل الأب", "Téléphone du père"], "Mother's name": ["اسم الأم", "Nom de la mère"], "Mother's phone": ["موبايل الأم", "Téléphone de la mère"],
+    "All optional. Only the stage's leaders and the warehouse team see these.": ["كله اختياري. قادة المرحلة وفريق المخزن بس اللي بيشوفوه.", "Tout est facultatif. Visible par les chefs de l'unité et l'équipe seulement."],
+    "PAID": ["دفع", "PAYÉ"], "NOT PAID": ["ما دفعش", "NON PAYÉ"], "Remove from the list": ["شيله من القايمة", "Retirer de la liste"], "Remove the photo?": ["تشيل الصورة؟", "Retirer la photo ?"],
+    "Photo saved": ["الصورة اتحفظت", "Photo enregistrée"], "Removed": ["اتشال", "Retiré"], "paid": ["دفع", "payé"], "left": ["باقي", "reste"], "Not paid": ["ما دفعش", "Non payé"], "Part…": ["جزء…", "Partiel…"],
+    "Subscription this year": ["اشتراك السنة دي", "Cotisation cette année"], "Collected": ["اتجمع", "Encaissé"], "Not paid yet": ["لسه ما دفعوش", "Pas encore payé"],
+    "How much did they pay (EGP)?": ["دفع كام (بالجنيه)؟", "Combien a-t-il payé (EGP) ?"], "Remove this payment?": ["تشيل الدفعة دي؟", "Retirer ce paiement ?"],
+    "The warehouse team hasn't set the subscription amount for this year yet.": ["فريق المخزن لسه ما حددش مبلغ الاشتراك للسنة دي.", "L'équipe n'a pas encore fixé la cotisation de cette année."], "Set it in Group money": ["حدّده من فلوس المجموعة", "À fixer dans Argent du groupe"],
+    "Time (meetings)": ["الوقت (للاجتماعات)", "Heure (réunions)"], "A meeting for a stage (or all stages) also shows in Attendance.": ["اجتماع لمرحلة (أو كل المراحل) بيظهر كمان في الحضور.", "Une réunion d'unité apparaît aussi dans Présences."],
+    "Also in Attendance": ["موجود كمان في الحضور", "Aussi dans Présences"], "📋 Attendance": ["📋 الحضور", "📋 Présences"], "request": ["طلب", "demande"], "piece missing or damaged": ["قطعة ناقصة أو بايظة", "pièce manquante ou abîmée"],
+    "Choose boy / girl": ["اختار ولد ولا بنت", "Choisir garçon / fille"],
     // menus and common
     "Overview": ["نظرة عامة", "Vue d'ensemble"], "Requests": ["الطلبات", "Demandes"], "Book items": ["احجز أدوات", "Réserver"], "Calendar": ["التقويم", "Calendrier"],
     "Stock": ["المخزون", "Stock"], "Profile": ["حسابي", "Profil"], "My stage": ["مرحلتي", "Mon unité"], "Logout": ["خروج", "Déconnexion"],
@@ -338,7 +370,7 @@
     "Foulard": ["الفولار", "Foulard"], "No foulard": ["من غير فولار", "Sans foulard"], "👕🧣 Everyone in uniform + foulard": ["👕🧣 الكل بالزي والفولار", "👕🧣 Tous en uniforme + foulard"],
     "Anyone without the foulard 2 times this year (and every time after): the 4 kada and the leaders of their tali3a.": ["أي حد من غير فولار مرتين السنة دي (وكل مرة بعدها): القادة الأربعة وقادة طليعته.", "Sans foulard 2 fois cette année (et chaque fois après) : les 4 chefs et les chefs de sa patrouille."],
     "A reminder before each meeting: every leader chooses how many minutes before in their profile.": ["تذكير قبل كل اجتماع: كل قائد بيختار قبلها بكام دقيقة من حسابه.", "Un rappel avant chaque réunion : chaque chef choisit combien de minutes avant dans son profil."],
-    "⏰ Meeting reminder": ["⏰ تذكير الاجتماع", "⏰ Rappel de réunion"], "A notification before each meeting of your stage (the time the leader wrote when booking).": ["إشعار قبل كل اجتماع لمرحلتك (الميعاد اللي القائد كتبه وهو بيحجز).", "Une notification avant chaque réunion de votre unité."],
+    "⏰ Meeting reminder": ["⏰ تذكير الاجتماع", "⏰ Rappel de réunion"], "A notification before each meeting of your stage, at the meeting's start time.": ["إشعار قبل كل اجتماع لمرحلتك، حسب ميعاد بداية الاجتماع.", "Une notification avant chaque réunion de votre unité, selon son heure de début."],
     "Remind me": ["فكّرني", "Me rappeler"], "Off": ["مقفول", "Désactivé"], "5 minutes before": ["قبلها بـ ٥ دقايق", "5 minutes avant"], "10 minutes before": ["قبلها بـ ١٠ دقايق", "10 minutes avant"], "15 minutes before": ["قبلها بربع ساعة", "15 minutes avant"],
     "30 minutes before": ["قبلها بنص ساعة", "30 minutes avant"], "1 hour before": ["قبلها بساعة", "1 heure avant"],
     // v10: attendance, pins, camps from the camp page, reset
@@ -393,6 +425,8 @@
 
   // ---------- texts with numbers or names inside ----------
   const R = [
+    [/^Empty Deleted \((\d+)\)$/, "امسح الكل نهائي ($1)", "Tout supprimer ($1)"], [/^Delete everything in Deleted \((\d+)\) forever\? This can't be undone\.$/, "تمسح كل اللي في الممسوح ($1) نهائي؟ مفيش رجوع.", "Tout supprimer définitivement ($1) ? Irréversible."],
+    [/^Deleted forever: (\d+)$/, "اتمسح نهائي: $1", "Supprimés : $1"], [/^Deleted ✓ #(\d+)$/, "اتمسح ✓ #$1", "Supprimée ✓ #$1"], [/^Scout group$/, "فلوس", "Argent du"],
     [/^Available (\d+)$/, "متاح $1", "Disponible $1"],
     [/^Available now: (.+)$/, "المتاح دلوقتي: $1", "Disponible : $1"],
     [/^(.+) \((\d+) available\)$/, "$1 ($2 متاح)", "$1 ($2 dispo.)"],
@@ -449,7 +483,7 @@
     [/^Remove (.+)'s account\? They can't log in any more\. You can restore it from Deleted\.$/, "تشيل حساب $1؟ مش هيقدر يدخل تاني. تقدر ترجّعه من المحذوفات.", "Retirer le compte de $1 ? Restaurable."],
     [/^Delete (.+)\? It moves to Deleted, where you can restore it\.$/, "تمسح $1؟ هيروح للمحذوفات وتقدر ترجّعه.", "Supprimer $1 ? Restaurable."],
     [/^Fix the numbers · #(\d+)$/, "صلّح الأرقام · #$1", "Corriger · #$1"], [/^Deleted (.+)$/, "اتمسح $1", "Supprimé $1"], [/^Request #(\d+) · (.+)$/, "طلب #$1 · $2", "Demande #$1 · $2"],
-    [/^Phase 2: after sending, write who is going \(kada( and 3eyal)?\)\. You'll get a reminder every day until it's done\.$/, (m, a) => "المرحلة ٢: بعد ما تبعت، اكتب مين طالع (" + (a ? "القادة والعيال" : "القادة") + "). هيجيلك تذكير كل يوم لحد ما تخلص.", "Étape 2 : après l'envoi, inscrivez les participants. Rappel chaque jour."],
+    [/^Phase 2: after sending, write who is going \(kada( and awlad)?\)\. You'll get a reminder every day until it's done\.$/, (m, a) => "المرحلة ٢: بعد ما تبعت، اكتب مين طالع (" + (a ? "القادة والعيال" : "القادة") + "). هيجيلك تذكير كل يوم لحد ما تخلص.", "Étape 2 : après l'envoi, inscrivez les participants. Rappel chaque jour."],
     [/^(\d+) colours$/, "$1 ألوان", "$1 couleurs"], [/^\+(\d+) more$/, "+$1 كمان", "+$1 autres"],
     [/^Delete (.+)\? Its history stays; it just disappears from stock and booking\.$/, "تمسح $1؟ السجل بتاعه هيفضل؛ هيختفي بس من المخزون والحجز.", "Supprimer $1 ? Son historique reste."]
   ];

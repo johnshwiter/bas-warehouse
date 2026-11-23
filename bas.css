@@ -701,3 +701,39 @@ body.menu-open .drawer { box-shadow: 8px 0 30px rgba(9,10,40,.25); visibility: v
 .stabw { padding: 0; }
 .stab th:first-child, .stab td:first-child { position: sticky; inset-inline-start: 0; background: var(--card); z-index: 1; }
 .stab th:first-child { background: var(--soft); }
+
+/* v13: team-only pages stay blank for anyone who isn't on the team (they are sent away) */
+body[data-team] main { visibility: hidden; }
+body[data-team].team-ok main { visibility: visible; }
+
+/* v13: header extras only on Overview and Requests */
+.head.head-min > a.btn, .head.head-min .sub { display: none; }
+/* a row that was just deleted/restored keeps its place for a moment */
+.gone-row { opacity: .75; }
+.gone-msg { padding: 6px 2px; font-weight: 700; color: var(--ok); }
+/* dark mode: easier to read */
+[data-theme="dark"] .linkbtn { color: #AFC4FF; }
+[data-theme="dark"] .bub.mine .linkbtn { color: #C9CBEA; }
+[data-theme="dark"] .langs button.on { background: var(--gold); color: var(--navy-3); border-color: var(--gold); }
+[data-theme="dark"] .btn:not(.line):not(.gold):not(.ok):not(.danger):not(.warn) { background: #3B40C9; border-color: #3B40C9; color: #fff; }
+[data-theme="dark"] input:disabled, [data-theme="dark"] input[readonly], [data-theme="dark"] select:disabled, [data-theme="dark"] textarea:disabled { background: var(--soft2); color: var(--mut); border-color: var(--line); -webkit-text-fill-color: var(--mut); opacity: 1; }
+/* phone: KPI boxes 2 by 2 */
+@media (max-width: 560px) { .kpis { grid-template-columns: 1fr 1fr; } }
+/* booking: the cart bar never covers the last cards, and hides behind pop-up sheets */
+body:has(.cart-bar:not([hidden])) main.page { padding-bottom: 120px; }
+body:has(.overlay:not([hidden])) .cart-bar { display: none; }
+/* attendance: half absent, rows keep their shape */
+.att-row.half { border-color: #C77A1A; background: var(--warn-bg); }
+.att-ctl .seg button.on[data-st="half"] { background: #C77A1A; color: #fff; }
+.att-ctl label.uni.off, .att-ctl input[type="time"]:disabled { opacity: .35; pointer-events: none; }
+/* people: tap a name for the details */
+.person.prow { cursor: pointer; }
+.person.prow:hover { border-color: var(--gold); }
+.person.paid { opacity: .8; }
+.pd-top { display: flex; gap: 14px; align-items: center; margin-bottom: 12px; }
+.pd-photo { width: 84px; height: 84px; border-radius: 50%; overflow: hidden; background: var(--tint); display: grid; place-items: center; flex: none; border: 2px solid var(--gold); }
+.pd-photo img { width: 100%; height: 100%; object-fit: cover; }
+.pd-photo span { font-size: 32px; font-weight: 800; color: var(--hd); }
+.phrow { display: flex; gap: 6px; align-items: center; }
+.phrow input { flex: 1; min-width: 0; }
+.tabs.wrap { flex-wrap: wrap; }

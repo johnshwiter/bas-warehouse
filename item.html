@@ -69,7 +69,7 @@ function timeline() {
   RES.forEach(r => {
     const ls = r.lines.filter(l => !VAR || String(l.variant_id || "") === VAR);
     if (!ls.length) return;
-    const who = '<a class="lnk" href="' + BAS.borrowerURL(r.section_id, r.service_id) + '"><bdi>' + esc(BAS.borrowerName(r.section_id, r.service_id)) + "</bdi></a>";
+    const who = '<a class="lnk" href="' + BAS.borrowerURL(r.section_id, r.service_id) + '"><bdi>' + esc(BAS.borrowerName(r.section_id, r.service_id, r.who_name)) + "</bdi></a>";
     const q = f => ls.map(l => (l[f] || 0) + (l.variant_id ? " " + esc(vname(l.variant_id)) : "")).join(", ");
     ev.push({ at: r.created_at, cls: "book", html: "<b>Booked " + q("quantity") + "</b> by " + who + " for " + esc(BAS.fmtDate(r.meeting_date, true)) + " " + esc(r.meeting_time || "") + " · " + esc(r.place || "") + " · #" + r.id + " " + BAS.statusBadge(r.status) });
     if (r.issued_at) ev.push({ at: r.issued_at, cls: "out", html: "<b>Issued " + q("issued_qty") + "</b> to " + who + (r.received_by_name ? " (" + esc(r.received_by_name) + ")" : "") + " · #" + r.id + (r.return_by ? " · return by " + esc(BAS.fmtDate(r.return_by)) : "") });

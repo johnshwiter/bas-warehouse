@@ -68,7 +68,7 @@ const secOf = () => NEW ? NEW.sec : R.section_id;
 const qtyOf = l => l.issued_qty != null ? l.issued_qty : (l.prepared_qty || l.quantity);
 
 function render() {
-  document.title = "#" + R.id + " | BAS Warehouse"; BAS.addRecent((R.kind === "Trip" ? "🚌 " : "⛺ ") + "#" + R.id + " · " + BAS.borrowerName(R.section_id, R.service_id) + (R.place ? " · " + R.place : ""), "camp.html?id=" + R.id);
+  document.title = "#" + R.id + " | BAS Warehouse"; BAS.addRecent((R.kind === "Trip" ? "🚌 " : "⛺ ") + "#" + R.id + " · " + BAS.borrowerName(R.section_id, R.service_id, R.who_name) + (R.place ? " · " + R.place : ""), "camp.html?id=" + R.id);
   let h = '<div class="head"><div><p class="eyebrow">' + (R.kind === "Camp" ? "⛺ Camp" : "🚌 Trip") + " · #" + R.id + "</p><h1>" + BAS.borrowerHTML(R) + "</h1>" +
     '<p class="sub">' + esc(BAS.fmtDate(R.meeting_date, true)) + (R.end_date ? " → " + esc(BAS.fmtDate(R.end_date, true)) : "") + " · " + esc(R.place || "") + " · " + BAS.statusBadge(R.status) + "</p></div>" +
     '<button class="btn gold" id="pdfBtn">📄 Save as PDF</button></div>';
@@ -98,7 +98,7 @@ function phase1View() {
 // ---------- PDF (print → Save as PDF) ----------
 function printPDF() {
   const g = currentGrid(), cols = R.items.filter(l => qtyOf(l) > 0);
-  const who = BAS.borrowerName(R.section_id, R.service_id);
+  const who = BAS.borrowerName(R.section_id, R.service_id, R.who_name);
   const k = PEOPLE.filter(p => p.role === "kada"), a = PEOPLE.filter(p => p.role === "3ayel");
   const w = window.open("", "_blank");
   if (!w) return BAS.toast("Allow pop-ups to save the PDF", "err");

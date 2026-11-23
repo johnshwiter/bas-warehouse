@@ -96,10 +96,10 @@ function draw() {
     });
     if (body) h += '<div class="group-title"><bdi>' + esc(k[0] === "v" ? BAS.serviceName(Number(k.slice(1))) : BAS.sectionName(Number(k.slice(1)))) + "</bdi></div>" + body;
   });
-  const camps = CAMPS.filter(pass).filter(r => !q || BAS.norm("#" + r.id + " " + (r.place || "") + " " + BAS.borrowerName(r.section_id, r.service_id)).includes(q));
+  const camps = CAMPS.filter(pass).filter(r => !q || BAS.norm("#" + r.id + " " + (r.place || "") + " " + BAS.borrowerName(r.section_id, r.service_id, r.who_name)).includes(q));
   const ch = camps.length ? '<div class="group-title">Camps & trips</div><div class="stages">' + camps.map(r => {
     const np = CP.filter(x => x.reservation_id === r.id).length, nc = CC.filter(x => x.reservation_id === r.id).length;
-    return '<a class="stage' + (r.kind === "Camp" ? "" : " svc") + '" href="camp.html?id=' + r.id + '"><h4>' + (r.kind === "Camp" ? "⛺ " : "🚌 ") + "<bdi>" + esc(BAS.borrowerName(r.section_id, r.service_id)) + "</bdi> · #" + r.id + "</h4>" +
+    return '<a class="stage' + (r.kind === "Camp" ? "" : " svc") + '" href="camp.html?id=' + r.id + '"><h4>' + (r.kind === "Camp" ? "⛺ " : "🚌 ") + "<bdi>" + esc(BAS.borrowerName(r.section_id, r.service_id, r.who_name)) + "</bdi> · #" + r.id + "</h4>" +
       '<div class="en">' + esc(BAS.fmtDate(r.meeting_date, true)) + (r.end_date ? " → " + esc(BAS.fmtDate(r.end_date, true)) : "") + " · " + esc(r.place || "") + "</div>" +
       "<dl><dt>Phase 1: items</dt><dd>" + r.items.length + "</dd><dt>Phase 2: who is going</dt><dd" + (np ? "" : ' class="bad"') + ">" + (np || "—") + "</dd><dt>3ohda</dt><dd" + (nc ? "" : ' class="bad"') + ">" + (nc ? "✓" : "—") + "</dd></dl></a>";
   }).join("") + "</div>" : "";

@@ -46,14 +46,18 @@ const BAS = {
     if (!s) return "—";
     return lang === "en" ? s.name_en : s.name_ar;
   },
+  allServices: [],
   serviceName(id) {
-    const s = this.services.find(x => x.id === id);
+    const s = (this.allServices.length ? this.allServices : this.services).find(x => x.id === id);
     return s ? s.name_ar : "Church service";
   },
+  // keep every service for names, but list only the ones not in Deleted
+  setServices(list) { this.allServices = list || []; this.services = this.allServices.filter(x => !x.trashed); },
   // a stage or a church service, safe for HTML, kept in its own direction
   secHTML(id) { return '<bdi dir="auto">' + this.esc(this.sectionName(id)) + "</bdi>"; },
-  borrowerName(secId, svcId) { return svcId ? this.serviceName(svcId) : this.sectionName(secId); },
+  borrowerName(secId, svcId, fb) { if (!secId && !svcId && fb) return fb; return svcId ? this.serviceName(svcId) : this.sectionName(secId); },
   borrowerHTML(r) {
+    if (!r.section_id && !r.service_id) return '<bdi dir="auto">' + this.esc(r.who_name || "—") + "</bdi>";
     if (r.service_id) return '<bdi dir="auto">' + this.esc(this.serviceName(r.service_id)) + '</bdi> <span class="pill svc">SERVICE</span>';
     return this.secHTML(r.section_id);
   },
@@ -71,7 +75,8 @@ const BAS = {
   async init(active) {
     const { data: { session } } = await supabaseClient.auth.getSession();
     this.user = session ? session.user : null;
-    let sec = await supabaseClient.from("sections").select("id, name_en, name_ar, has_3eyal, is_active, att_late_min, att_late_absent").order("id");
+    let sec = await supabaseClient.from("sections").select("id, name_en, name_ar, has_3eyal, is_active, att_late_min, att_late_absent, att_half_min").order("id");
+    if (sec.error) sec = await supabaseClient.from("sections").select("id, name_en, name_ar, has_3eyal, is_active, att_late_min, att_late_absent").order("id");
     if (sec.error) sec = await supabaseClient.from("sections").select("id, name_en, name_ar").order("id");
     if (!sec.error) { this.allSections = sec.data || []; this.sections = this.allSections.filter(x => x.is_active !== false); }
     if (this.user) {
@@ -80,14 +85,16 @@ const BAS = {
       if (this.isApproved()) {
         const st = await supabaseClient.from("settings").select("*").eq("id", 1).single();
         if (!st.error && st.data) this.settings = st.data;
-        const sv = await supabaseClient.from("services").select("id, name_ar, name_en, is_active").order("id");
-        if (!sv.error) this.services = sv.data || [];
+        let sv = await supabaseClient.from("services").select("id, name_ar, name_en, is_active, trashed").order("id");
+        if (sv.error) sv = await supabaseClient.from("services").select("id, name_ar, name_en, is_active").order("id");
+        if (!sv.error) this.setServices(sv.data);
       }
     }
     this._active = active;
+    if (document.body.hasAttribute("data-team") && this.isAdmin()) document.body.classList.add("team-ok");
     this.header(active);
     if (this.isApproved()) {
-      this.askName(); this.greet();
+      this.askName(); this.greet(); this.checkRecent();
       supabaseClient.rpc("check_alerts").then(() => this.loadBell());
       supabaseClient.rpc("mark_delivered").then(() => {}); this._bd = setInterval(() => supabaseClient.rpc("mark_delivered").then(() => {}), 120000);
       if (this.profile.lang !== this.lang) supabaseClient.rpc("set_my_lang", { p_lang: this.lang }).then(() => {});
@@ -104,7 +111,7 @@ const BAS = {
     if (this.isAdmin()) {
       G.push({ t: "", items: [["overview", "team.html#overview", "Overview"], ["requests", "team.html#requests", "Requests"], ["book", "book.html", "Book items"], ["calendar", "calendar.html", "Calendar"],
         ["stock", "team.html#stock", "Stock"], ["ohda", "ohda.html", "Camps & 3ohda"], ["attendance", "attendance.html", "Attendance"], ["history", "history.html", "History"]] });
-      G.push({ t: "Money", items: [["mizania", "mizania.html", "Mizania"], ["money", "team.html#money", "Compensation"]] });
+      G.push({ t: "Money", items: [["mizania", "mizania.html", "Mizania"], ["group", "mizania.html?fund=group", "Group money"], ["money", "team.html#money", "Compensation"]] });
       G.push({ t: "Warehouse", items: [["maint", "team.html#maint", "Maintenance"], ["wait", "team.html#wait", "Waitlist"]] });
       G.push({ t: "Messages", items: [["chat", "team.html#chat", "Messages"], ["news", "team.html#news", "Announcements"]] });
       G.push({ t: "Team", items: [["people", "team.html#people", "Accounts"], ["trash", "team.html#trash", "Deleted"], ["log", "team.html#log", "Activity"], ["settings", "team.html#settings", "Settings"]] });
@@ -112,7 +119,7 @@ const BAS = {
     } else if (this.isApproved()) {
       G.push({ t: "My stage", items: [["s-dash", "section.html#dash", "Dashboard"], ["s-requests", "section.html#requests", "Requests"], ["s-history", "section.html#history", "History & search"],
         ["s-equipment", "section.html#equipment", "Equipment out / back"], ["s-money", "section.html#money", "Missing & compensation"], ["s-chat", "section.html#chat", "Messages"], ["s-wait", "section.html#wait", "Waitlist"]] });
-      G.push({ t: "", items: [["book", "book.html", "Book items"], ["ohda", "ohda.html", "Camps & 3ohda"], ["attendance", "attendance.html", "Attendance"]] });
+      G.push({ t: "", items: [["ohda", "ohda.html", "Camps & 3ohda"], ["attendance", "attendance.html", "Attendance"]] });
       G.push({ t: "More", items: [["s-news", "section.html#news", "Announcements"], ["profile", "profile.html", "Profile"]] });
     }
     return G;
@@ -123,6 +130,20 @@ const BAS = {
     document.querySelectorAll(".drawer [data-mk]").forEach(a => { const n = this._badges[a.dataset.mk] || 0; const b = a.querySelector(".mb"); if (b) { b.textContent = n; b.hidden = !n; } });
     const dot = document.getElementById("menuDot"); if (dot) dot.hidden = !Object.keys(this._badges).some(k => this._badges[k] > 0);
   },
+  dropRecent(h) {
+    try { const L = JSON.parse(localStorage.getItem("basRecent") || "[]").filter(x => x.h !== h && !(h instanceof RegExp && h.test(x.h))); localStorage.setItem("basRecent", JSON.stringify(L)); } catch (e) {}
+  },
+  // remove recent requests/camps that no longer exist
+  async checkRecent() {
+    let L = []; try { L = JSON.parse(localStorage.getItem("basRecent") || "[]"); } catch (e) { return; }
+    const ids = L.map(x => (x.h.match(/^camp\.html\?id=(\d+)/) || [])[1]).filter(Boolean).map(Number);
+    if (!ids.length || !this.isApproved()) return;
+    const r = await supabaseClient.from("reservations").select("id").in("id", ids);
+    if (r.error) return;
+    const have = new Set((r.data || []).map(x => x.id));
+    const keep = L.filter(x => { const m = x.h.match(/^camp\.html\?id=(\d+)/) || x.h.match(/^book\.html\?edit=(\d+)/); return !m || have.has(Number(m[1])); });
+    if (keep.length !== L.length) { localStorage.setItem("basRecent", JSON.stringify(keep)); this.header(this._active); }
+  },
   addRecent(t, h) {
     try { let L = JSON.parse(localStorage.getItem("basRecent") || "[]").filter(x => x.h !== h); L.unshift({ t, h }); localStorage.setItem("basRecent", JSON.stringify(L.slice(0, 6))); } catch (e) {}
   },
@@ -132,7 +153,8 @@ const BAS = {
     chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.4A8 8 0 1 1 21 12z"/>', news: '<path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/>',
     people: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/>', trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
     log: '<path d="M4 6h16M4 12h16M4 18h10"/>', settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.8 1.2V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 7 19.4l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.8H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 2.8-1.2V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.8 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.8H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
-    equipment: '<path d="M7 7h10v10H7z"/><path d="M3 12h4M17 12h4"/>'
+    equipment: '<path d="M7 7h10v10H7z"/><path d="M3 12h4M17 12h4"/>',
+    group: '<circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M2 20c0-3.3 2.7-6 6-6s6 2.7 6 6M14 14.3c.6-.2 1.3-.3 2-.3 3.3 0 6 2.7 6 6"/>'
   },
   menuIcon(k) {
     const b = k.replace(/^s-/, ""), I = this.ICONS[b === "dash" ? "stage" : b === "requests" ? "requests" : b] || this.ICONS[b];
@@ -158,7 +180,7 @@ const BAS = {
     if (dr) dr.remove(); const old = document.getElementById("drawerBg"); if (old) old.remove();
     if (this.user) {
       const here = location.pathname.split("/").pop() || "index.html", hash = location.hash || "";
-      const isOn = href => { const [p, hs] = href.split("#"); const pp = p.split("?")[0]; return pp === here && (!hs || ("#" + hs) === hash || (!hash && /#(overview|dash)$/.test(href))); };
+      const isOn = href => { const [p, hs] = href.split("#"); const pp = p.split("?")[0], qs = p.split("?")[1] || ""; return pp === here && (qs === location.search.slice(1) || (!qs && !/fund=/.test(location.search))) && (!hs || ("#" + hs) === hash || (!hash && /#(overview|dash)$/.test(href))); };
       let recent = []; try { recent = JSON.parse(localStorage.getItem("basRecent") || "[]"); } catch (e) {}
       const item = x => '<a href="' + x[1] + '" data-mk="' + x[0] + '" data-k="' + this.esc(this.norm((this.tr ? this.tr(x[2]) : x[2]) + " " + x[2])) + '"' + (isOn(x[1]) ? ' class="on"' : "") + ">" + this.menuIcon(x[0]) + "<span>" + T(x[2]) + '</span><b class="mb" hidden></b></a>';
       const bg = document.createElement("div"); bg.id = "drawerBg"; bg.className = "drawer-bg"; document.body.appendChild(bg);
@@ -249,7 +271,8 @@ const BAS = {
     };
   },
   greet() {
-    let seen = false; try { seen = sessionStorage.getItem("basHi") === "1"; sessionStorage.setItem("basHi", "1"); } catch (e) {}
+    const k = (this.user && this.user.id) + ":" + ((this.user && this.user.last_sign_in_at) || "");
+    let seen = false; try { seen = localStorage.getItem("basHi") === k; localStorage.setItem("basHi", k); } catch (e) {}
     if (!seen && this.firstName()) setTimeout(() => this.toast(this.welcomeText()), 400);
   },
 
@@ -292,7 +315,7 @@ const BAS = {
       const num = q.replace(/^#/, "");
       if (/^\d+$/.test(num)) {
         const r = await supabaseClient.from("reservations").select("id, section_id, service_id, meeting_date, status, place").eq("id", Number(num));
-        (r.data || []).forEach(x => res.push({ g: "Requests", t: "#" + x.id + " · " + this.borrowerName(x.section_id, x.service_id), s: this.fmtDate(x.meeting_date) + " · " + (this.STATUS_LABEL[x.status] || x.status) + " · " + (x.place || ""),
+        (r.data || []).forEach(x => res.push({ g: "Requests", t: "#" + x.id + " · " + this.borrowerName(x.section_id, x.service_id, x.who_name), s: this.fmtDate(x.meeting_date) + " · " + (this.STATUS_LABEL[x.status] || x.status) + " · " + (x.place || ""),
           h: (this.isAdmin() ? this.borrowerURL(x.section_id, x.service_id) + "&" : "section.html?") + "q=" + x.id + "#history" }));
       }
       res = res.concat(idx.filter(x => x.k.includes(q)).slice(0, 30));
@@ -365,8 +388,9 @@ const BAS = {
   itemLabel(stockBy, itemId, varId) {
     const it = stockBy[itemId]; if (!it) return "Item #" + itemId;
     const v = varId ? (it.variants || []).find(x => x.id === varId) : null;
-    return it.name_en + (v ? " (" + v.name + ")" : "");
+    return this.itemName(it) + (v ? " (" + v.name + ")" : "");
   },
+  itemName(it) { return it ? (this.lang === "ar" && it.name_ar ? it.name_ar : it.name_en) : ""; },
   // "2:30 PM" in the reader's language
   time(t) { if (!t) return ""; return this.lang === "ar" ? String(t).replace(/\bPM\b/i, "م").replace(/\bAM\b/i, "ص") : t; },
   money(n) { return Number(n || 0).toLocaleString("en-GB", { maximumFractionDigits: 2 }) + (this.lang === "ar" ? " ج.م" : " EGP"); },
@@ -411,7 +435,7 @@ const BAS = {
         const it = stockBy && stockBy[l.item_id];
         const v = it && l.variant_id ? (it.variants || []).find(x => x.id === l.variant_id) : null;
         return Object.assign(l, {
-          name: it ? it.name_en : "Item #" + l.item_id,
+          name: it ? this.itemName(it) : "Item #" + l.item_id,
           variant: v ? v.name : (l.variant_id ? "colour #" + l.variant_id : ""),
           kind: it ? it.kind : "Returnable",
           out: Math.max(0, (l.issued_qty || 0) - l.returned_qty - l.missing_qty - l.damaged_qty)
@@ -508,7 +532,7 @@ const BAS = {
     if (!losses.length) return '<div class="empty">Nothing missing or damaged. 👌</div>';
     return '<div class="panel tscroll"><table class="ltable"><tr><th>Date</th>' + (opts.who ? "<th>Stage / service</th>" : "") + '<th>Item</th><th>Kind</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Total</th><th class="num">Paid</th><th>Status</th><th>Request</th>' + (opts.admin ? "<th></th>" : "") + "</tr>" +
       losses.map(l => "<tr><td class=\"nowrap\">" + this.esc(this.fmtDate(l.occurred_on)) + "</td>" +
-        (opts.who ? '<td><a class="lnk" href="' + this.borrowerURL(l.section_id, l.service_id) + '"><bdi>' + this.esc(this.borrowerName(l.section_id, l.service_id)) + "</bdi></a></td>" : "") +
+        (opts.who ? '<td><a class="lnk" href="' + this.borrowerURL(l.section_id, l.service_id) + '"><bdi>' + this.esc(this.borrowerName(l.section_id, l.service_id, l.who_name)) + "</bdi></a></td>" : "") +
         '<td><a class="lnk" href="item.html?id=' + l.item_id + '">' + this.esc(this.itemLabel(stockBy, l.item_id, l.variant_id)) + "</a>" + (l.note ? '<br><small class="mut">' + this.esc(l.note) + "</small>" : "") + (this.LOSSWHO[l.id] ? '<br><small class="who-had">👤 ' + this.esc(this.LOSSWHO[l.id]) + "</small>" : "") + "</td>" +
         "<td>" + (l.kind === "missing" ? '<span class="pill bad">MISSING</span>' : '<span class="pill warn">DAMAGED</span>') + '</td><td class="num">' + l.qty + "</td>" +
         '<td class="num">' + (opts.admin ? '<input type="number" min="0" value="' + Number(l.unit_price) + '" data-lp="' + l.id + '">' : Number(l.unit_price)) + '</td><td class="num"><b>' + Number(l.amount) + '</b></td><td class="num">' + Number(l.paid) + "</td>" +
@@ -521,11 +545,11 @@ const BAS = {
   // things to show on a calendar: pickups, return dates, events
   calItems(res, events, withBorrower) {
     const out = [];
-    const who = r => withBorrower ? " \u2068" + this.borrowerName(r.section_id, r.service_id) + "\u2069" : "";
+    const who = r => withBorrower ? " \u2068" + this.borrowerName(r.section_id, r.service_id, r.who_name) + "\u2069" : "";
     res.forEach(r => {
       if (r.status === "Cancelled" || r.status === "Rejected") return;
       out.push({ date: r.meeting_date, cls: "pick", ref: { res: r.id }, text: "📦 #" + r.id + who(r),
-        title: "Pickup #" + r.id + " · " + this.borrowerName(r.section_id, r.service_id) + " · " + (r.meeting_time || "") + " · " + r.items.map(i => this.lineName(i) + " ×" + i.quantity).join(", ") });
+        title: "Pickup #" + r.id + " · " + this.borrowerName(r.section_id, r.service_id, r.who_name) + " · " + (r.meeting_time || "") + " · " + r.items.map(i => this.lineName(i) + " ×" + i.quantity).join(", ") });
       if (r.end_date && r.end_date > r.meeting_date && !(events || []).some(e => e.reservation_id === r.id)) {
         const d = this.d(r.meeting_date); d.setDate(d.getDate() + 1);
         for (; this.isoOf(d) <= r.end_date; d.setDate(d.getDate() + 1)) out.push({ date: this.isoOf(d), cls: r.kind === "Camp" ? "camp" : "trip", ref: { res: r.id }, text: (r.kind === "Camp" ? "⛺ #" : "🚌 #") + r.id + who(r), title: r.kind + " #" + r.id });
