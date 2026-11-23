@@ -156,6 +156,7 @@ function dash() {
 
 // ---------- requests ----------
 function reqActions(r) {
+  if (BAS.isAdmin() && BAS.OUT.indexOf(r.status) >= 0) return '<a class="btn line sm" href="book.html?edit=' + r.id + '">✏️ Edit</a><a class="btn sm" href="team.html#requests">Receive return in Requests</a>';
   if (BAS.PRE.indexOf(r.status) < 0) return "";
   let a = "";
   if (BAS.isAdmin()) a += '<a class="btn line sm" href="book.html?edit=' + r.id + '">✏️ Edit</a><a class="btn sm" href="team.html#requests">Prepare / issue in team portal</a>';

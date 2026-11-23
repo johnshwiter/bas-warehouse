@@ -32,7 +32,7 @@ const $ = id => document.getElementById(id);
 const esc = s => BAS.esc(s);
 const T = x => BAS.tr ? BAS.tr(x) : x;
 const QS = new URLSearchParams(location.search);
-let SECID = null, SEC = null, TAB = (location.hash || "#take").slice(1), MEET = [], ROSTER = [], TAL = [], TL = [], RECS = [], PROF = [];
+let SECID = null, SEC = null, TAB = (location.hash || "#take").slice(1), MEET = [], ROSTER = [], TAL = [], TL = [], RECS = [], PROF = [], ROLES = {}, PANEL = "";
 let CUR = null, STATE = {}, DIRTY = false, Q = "", GROUP = "tali3a";
 
 (async function () {
@@ -61,6 +61,7 @@ async function load(meetId) {
     TL = TAL.length ? await BAS.q(supabaseClient.from("tali3a_leaders").select("*").in("tali3a_id", TAL.map(t => t.id))) : [];
     const ids = MEET.map(m => m.id);
     RECS = ids.length ? await BAS.q(supabaseClient.from("att_records").select("*").in("meeting_id", ids)) : [];
+    const rl = await supabaseClient.rpc("stage_roles", { p_section: SECID }); ROLES = {}; (rl.data || []).forEach(x => { ROLES[x.profile_id] = x.stage_role; });
     if (BAS.isAdmin()) PROF = await BAS.q(supabaseClient.from("profiles").select("id, full_name, stage_role").eq("section_id", SECID).eq("approval_status", "approved"));
     pickMeeting(meetId || (CUR && CUR.id));
     render();
@@ -91,8 +92,12 @@ function lateOf(arrived) {
   const [h, m] = CUR.start_time.split(":").map(Number), [ah, am] = arrived.split(":").map(Number);
   return ah * 60 + am > h * 60 + m + (SEC.att_late_min == null ? 15 : SEC.att_late_min);
 }
+// the 4 kada first (قائد المرحلة, نائب, مساعدين), then everyone A to Z
+const RANK = { head: 0, deputy: 1, assistant: 2 };
+const rankOf = p => p.profile_id && ROLES[p.profile_id] in RANK ? RANK[ROLES[p.profile_id]] : 9;
+const kadaSorted = () => ROSTER.filter(p => p.role === "kada").sort((x, y) => rankOf(x) - rankOf(y) || x.name.localeCompare(y.name));
 function ordered() {
-  const k = ROSTER.filter(p => p.role === "kada"), a = ROSTER.filter(p => p.role !== "kada");
+  const k = kadaSorted(), a = ROSTER.filter(p => p.role !== "kada");
   const groups = [{ title: "Kada", list: k }];
   TAL.forEach(t => groups.push({ title: t.name, list: a.filter(p => p.tali3a_id === t.id) }));
   const none = a.filter(p => !p.tali3a_id || !TAL.some(t => t.id === p.tali3a_id));
@@ -213,22 +218,26 @@ function stats(p) {
 function sumView() {
   const done = MEET.filter(m => m.status === "done").length;
   let h = '<p class="meta" style="margin-bottom:8px">' + done + " " + esc(T("finished meetings since")) + " " + esc(BAS.fmtDate(yearStart(), true)) + ". " + esc(T("Excused absences count in the percentage.")) + "</p>";
-  const K = ROSTER.filter(p => p.role === "kada"), A = ROSTER.filter(p => p.role !== "kada");
-  const krow = p => { const s = stats(p); return "<tr><td>" + gTag(p.gender) + " " + esc(p.name) + (s.unexcused >= 2 ? " ⚠️" : "") + '</td><td class="num">' + s.total + '</td><td class="num">' + s.present + '</td><td class="num">' + s.late + '</td><td class="num"><b class="' + (s.unexcused >= 2 ? "bad" : "") + '">' + s.unexcused + '</b></td><td class="num">' + s.excused + '</td><td class="num">' + s.noUni + '</td><td class="num">' + (s.noFoul >= 2 ? '<b class="bad">' + s.noFoul + "</b>" : s.noFoul) + "</td></tr>"; };
-  h += '<div class="group-title">Kada</div><div class="panel tscroll"><table class="ltable"><tr><th>Name</th><th class="num">Meetings</th><th class="num">Present</th><th class="num">Late</th><th class="num">Absent, no excuse</th><th class="num">Excused</th><th class="num">No uniform</th><th class="num">No foulard</th></tr>' +
+  const K = kadaSorted(), A = ROSTER.filter(p => p.role !== "kada");
+  const c = (v, bad) => '<td class="' + (bad ? "bad" : v ? "" : "z") + '">' + v + "</td>";
+  const nm = (p, warn, extra) => "<td>" + gTag(p.gender) + " " + esc(p.name) + (warn ? " ⚠️" : "") + (extra || "") + "</td>";
+  const krow = p => { const s = stats(p); return "<tr>" + nm(p, s.unexcused >= 2) + c(s.total) + c(s.present) + c(s.late) + c(s.unexcused, s.unexcused >= 2) + c(s.excused) + c(s.noUni) + c(s.noFoul, s.noFoul >= 2) + "</tr>"; };
+  const th = x => "<th>" + esc(T(x)) + "</th>";
+  h += '<div class="stab-legend">👕 = ' + esc(T("no uniform")) + " · 🧣 = " + esc(T("no foulard")) + "</div>";
+  h += '<div class="group-title">Kada</div><div class="panel tscroll stabw"><table class="stab"><tr>' + th("Name") + th("Meetings") + th("Present") + th("Late") + th("Absent") + th("Excused") + "<th>👕</th><th>🧣</th></tr>" +
     (K.length ? K.map(krow).join("") : '<tr><td colspan="8" class="mut">—</td></tr>') + "</table></div>";
-  const arow = p => { const s = stats(p); return "<tr><td>" + gTag(p.gender) + " " + esc(p.name) + (s.band === "rr" ? " ⚠️" : "") + (p.tali3a_id ? ' <small class="mut">' + esc(tName(p.tali3a_id)) + "</small>" : "") + '</td><td class="num">' + (s.total ? '<span class="band ' + s.band + '">' + s.pct + "%</span>" : "—") +
-    '</td><td class="num">' + s.total + '</td><td class="num">' + s.present + '</td><td class="num">' + s.late + '</td><td class="num">' + s.absent + '</td><td class="num">' + s.excused + '</td><td class="num">' + s.noUni + '</td><td class="num">' + (s.noFoul >= 2 ? '<b class="bad">' + s.noFoul + "</b>" : s.noFoul) + "</td></tr>"; };
-  const head = '<tr><th>Name</th><th class="num">Absent %</th><th class="num">Meetings</th><th class="num">Present</th><th class="num">Late</th><th class="num">Absent</th><th class="num">Excused</th><th class="num">No uniform</th><th class="num">No foulard</th></tr>';
+  const arow = p => { const s = stats(p); return "<tr>" + nm(p, s.band === "rr", p.tali3a_id && GROUP === "colour" ? ' <small class="mut">' + esc(tName(p.tali3a_id)) + "</small>" : "") +
+    "<td>" + (s.total ? '<span class="band ' + s.band + '">' + s.pct + "%</span>" : '<span class="z">—</span>') + "</td>" + c(s.total) + c(s.present) + c(s.late) + c(s.absent) + c(s.excused) + c(s.noUni) + c(s.noFoul, s.noFoul >= 2) + "</tr>"; };
+  const head = "<tr>" + th("Name") + th("Absent %") + th("Meetings") + th("Present") + th("Late") + th("Absent") + th("Excused") + "<th>👕</th><th>🧣</th></tr>";
   h += '<div class="group-title">Awlad</div><div class="tabs" style="margin-bottom:8px"><button class="tab' + (GROUP === "tali3a" ? " on" : "") + '" data-g="tali3a">By tali3a</button><button class="tab' + (GROUP === "colour" ? " on" : "") + '" data-g="colour">By colour</button></div>';
   if (!A.length) h += '<div class="empty">No awlad in the list yet.</div>';
   else if (GROUP === "colour") {
     [["rr", "🔴 ⚠️ 75–100% absent"], ["r", "🔴 50–75% absent"], ["y", "🟡 25–50% absent"], ["g", "🟢 0–25% absent"], ["", "No meetings yet"]].forEach(b => {
       const L = A.filter(p => stats(p).band === b[0]).sort((x, y) => stats(y).pct - stats(x).pct);
-      if (L.length) h += '<div class="colgrp"><h3>' + esc(T(b[1])) + " (" + L.length + ')</h3><div class="panel tscroll"><table class="ltable">' + head + L.map(arow).join("") + "</table></div></div>";
+      if (L.length) h += '<div class="colgrp"><h3>' + esc(T(b[1])) + " (" + L.length + ')</h3><div class="panel tscroll stabw"><table class="stab">' + head + L.map(arow).join("") + "</table></div></div>";
     });
   } else {
-    ordered().filter(g => g.title !== "Kada").forEach(g => { h += '<div class="colgrp"><h3>' + esc(T(g.title)) + '</h3><div class="panel tscroll"><table class="ltable">' + head + g.list.map(arow).join("") + "</table></div></div>"; });
+    ordered().filter(g => g.title !== "Kada").forEach(g => { h += '<div class="colgrp"><h3>' + esc(T(g.title)) + '</h3><div class="panel tscroll stabw"><table class="stab">' + head + g.list.map(arow).join("") + "</table></div></div>"; });
   }
   $("view").innerHTML = h;
   document.querySelectorAll("[data-g]").forEach(b => b.onclick = () => { GROUP = b.dataset.g; sumView(); });
@@ -237,25 +246,27 @@ function sumView() {
 // ---------- people and tali3as ----------
 function peopleView() {
   const tOpts = sel => '<option value="">No tali3a</option>' + TAL.map(t => '<option value="' + t.id + '"' + (t.id === sel ? " selected" : "") + ">" + esc(t.name) + "</option>").join("");
-  const role = p => { const x = PROF.find(r => r.id === p.profile_id); return x && x.stage_role && x.stage_role !== "leader" ? ' <span class="pill info">' + esc({ head: "قائد المرحلة", deputy: "نائب قائد المرحلة", assistant: "مساعد قائد المرحلة" }[x.stage_role]) + "</span>" : ""; };
+  const role = p => { const r = p.profile_id && ROLES[p.profile_id]; return r ? ' <span class="pill info">' + esc({ head: "قائد المرحلة", deputy: "نائب قائد المرحلة", assistant: "مساعد قائد المرحلة" }[r]) + "</span>" : ""; };
   const row = p => '<div class="person" data-p="' + p.id + '"><div><b>' + esc(p.name) + "</b>" + (p.profile_id ? ' <span class="pill mut">ACCOUNT</span>' : "") + role(p) + "</div>" +
-    '<div class="actions" style="margin:0"><select data-gen aria-label="Boy / girl"><option value=""' + (p.gender ? "" : " selected") + '>?</option><option value="M"' + (p.gender === "M" ? " selected" : "") + '>♂ Boy</option><option value="F"' + (p.gender === "F" ? " selected" : "") + ">♀ Girl</option></select>" +
+    '<div class="actions" style="margin:0"><select data-gen class="gsel' + (p.gender ? "" : " need") + '" aria-label="Boy / girl">' + (p.gender ? "" : '<option value="" selected disabled>' + esc(T("Choose boy / girl")) + "</option>") + '<option value="M"' + (p.gender === "M" ? " selected" : "") + '>♂ Boy</option><option value="F"' + (p.gender === "F" ? " selected" : "") + ">♀ Girl</option></select>" +
     (p.role !== "kada" ? '<select data-tal aria-label="Tali3a">' + tOpts(p.tali3a_id) + "</select>" : "") +
     (p.profile_id ? "" : '<button class="btn line sm" data-ren>Rename</button><button class="btn danger sm" data-hide>Remove</button>') + "</div></div>";
-  const K = ROSTER.filter(p => p.role === "kada"), A = ROSTER.filter(p => p.role !== "kada");
+  const K = kadaSorted(), A = ROSTER.filter(p => p.role !== "kada");
   const kadaAcc = K.filter(p => p.profile_id);
-  let h = '<div class="cols"><div><div class="panel"><h3>+ Add names</h3><p class="meta">One name per line. You can paste a whole list (numbers at the start are removed).</p>' +
+  let h = '<div class="ptools"><button class="btn ' + (PANEL === "add" ? "gold" : "line") + '" data-panel="add">+ ' + esc(T("Add names")) + '</button><button class="btn ' + (PANEL === "tal" ? "gold" : "line") + '" data-panel="tal">' + esc(T("Tali3as")) + " (" + TAL.length + ")</button></div>" +
+    '<div class="cols' + (PANEL ? "" : " onecol") + '"><div' + (PANEL ? "" : " hidden") + '><div class="panel"' + (PANEL === "add" ? "" : " hidden") + '><h3>+ Add names</h3><p class="meta">One name per line. You can paste a whole list (numbers at the start are removed).</p>' +
     '<div class="field"><textarea id="pNames" rows="6" placeholder="Kiro Samy&#10;Mina Adel&#10;Bola Nabil"></textarea></div><div class="grid3">' +
     '<div class="field"><label>Kada or walad</label><select id="pRole"><option value="3ayel">Walad</option><option value="kada">Kada</option></select></div>' +
     '<div class="field"><label>Boy / girl</label><select id="pGen"><option value="M">Boy / man</option><option value="F">Girl / woman</option></select></div>' +
     '<div class="field"><label>Tali3a</label><select id="pTal">' + tOpts(null) + "</select></div></div>" +
     '<button class="btn gold" id="pAdd">Add to the list</button><p class="meta mt">Leaders with an account are added by themselves once the warehouse team approves them.</p></div>' +
-    '<div class="panel"><h3>Tali3as</h3>' + (TAL.length ? TAL.map(t => { const ls = TL.filter(x => x.tali3a_id === t.id).map(x => (K.find(k => k.profile_id === x.profile_id) || {}).name).filter(Boolean);
+    '<div class="panel"' + (PANEL === "tal" ? "" : " hidden") + '><h3>Tali3as</h3>' + (TAL.length ? TAL.map(t => { const ls = TL.filter(x => x.tali3a_id === t.id).map(x => (K.find(k => k.profile_id === x.profile_id) || {}).name).filter(Boolean);
       return '<div class="person"><div><b>' + esc(t.name) + '</b><div class="meta">' + A.filter(p => p.tali3a_id === t.id).length + " " + esc(T("awlad")) + " · " + (ls.length ? esc(ls.join("، ")) : esc(T("no leaders yet"))) + '</div></div><button class="btn line sm" data-tal-edit="' + t.id + '">Edit</button></div>'; }).join("") : '<div class="empty">No tali3as yet.</div>') +
     '<button class="btn line" id="tNew">+ New tali3a</button></div></div>' +
     '<div><input type="search" class="psearch" id="pq" placeholder="Search a name…" autocomplete="off"><div class="group-title">Kada (' + K.length + ")</div>" + (K.length ? K.map(row).join("") : '<div class="empty">—</div>') +
     '<div class="group-title">Awlad (' + A.length + ")</div>" + (A.length ? A.map(row).join("") : '<div class="empty">No awlad yet. Add them on the left.</div>') + "</div></div>";
   $("view").innerHTML = h;
+  document.querySelectorAll("[data-panel]").forEach(b => b.onclick = () => { PANEL = PANEL === b.dataset.panel ? "" : b.dataset.panel; peopleView(); });
   $("pq").oninput = () => { const q = BAS.norm($("pq").value); document.querySelectorAll(".person[data-p]").forEach(el => { el.hidden = !!q && !BAS.norm(el.querySelector("b").textContent).includes(q); }); };
   $("pRole").onchange = () => { $("pTal").disabled = $("pRole").value === "kada"; };
   $("pAdd").onclick = async () => {
@@ -267,7 +278,7 @@ function peopleView() {
   const upd = async (id, row) => { const { error } = await supabaseClient.from("roster").update(row).eq("id", id); if (error) { BAS.toast(BAS.errText(error), "err"); return false; } Object.assign(ROSTER.find(p => p.id === id), row); return true; };
   document.querySelectorAll(".person[data-p]").forEach(el => {
     const id = Number(el.dataset.p), p = ROSTER.find(x => x.id === id);
-    el.querySelector("[data-gen]").onchange = e => upd(id, { gender: e.target.value || null }).then(ok => ok && BAS.toast("Saved"));
+    el.querySelector("[data-gen]").onchange = e => upd(id, { gender: e.target.value || null }).then(ok => { if (ok) { BAS.toast("Saved"); e.target.classList.remove("need"); const o = e.target.querySelector("option[disabled]"); if (o) o.remove(); } });
     const tl = el.querySelector("[data-tal]"); if (tl) tl.onchange = () => upd(id, { tali3a_id: tl.value ? Number(tl.value) : null }).then(ok => ok && BAS.toast("Saved"));
     const rn = el.querySelector("[data-ren]"); if (rn) rn.onclick = async () => { const n = prompt("New name:", p.name); if (n && n.trim() && await upd(id, { name: n.trim() })) peopleView(); };
     const hd = el.querySelector("[data-hide]"); if (hd) hd.onclick = async () => { if (confirm("Remove " + p.name + " from the stage's list? Past attendance keeps the name.") && await upd(id, { is_active: false })) { ROSTER = ROSTER.filter(x => x.id !== id); peopleView(); } };
@@ -295,7 +306,7 @@ function peopleView() {
 
 // ---------- settings for this stage ----------
 function setView() {
-  const roles = BAS.isAdmin() ? PROF.filter(p => p.stage_role && p.stage_role !== "leader") : [];
+  const roles = PROF.filter(p => p.stage_role && p.stage_role !== "leader");
   $("view").innerHTML = '<div class="panel" style="max-width:600px"><h3>Late</h3><p class="meta">Every stage can have its own rule.</p>' +
     '<div class="grid2"><div class="field"><label>Late after (minutes from the start)</label><input type="number" min="0" max="180" id="sMin" value="' + (SEC.att_late_min == null ? 15 : SEC.att_late_min) + '"></div>' +
     '<div class="field"><label>Does late count as absent?</label><select id="sAbs"><option value="0"' + (SEC.att_late_absent ? "" : " selected") + '>No</option><option value="1"' + (SEC.att_late_absent ? " selected" : "") + ">Yes</option></select></div></div>" +

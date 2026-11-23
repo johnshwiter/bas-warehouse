@@ -89,6 +89,7 @@ const BAS = {
     if (this.isApproved()) {
       this.askName(); this.greet();
       supabaseClient.rpc("check_alerts").then(() => this.loadBell());
+      supabaseClient.rpc("mark_delivered").then(() => {}); this._bd = setInterval(() => supabaseClient.rpc("mark_delivered").then(() => {}), 120000);
       if (this.profile.lang !== this.lang) supabaseClient.rpc("set_my_lang", { p_lang: this.lang }).then(() => {});
       clearInterval(this._bt); this._bt = setInterval(() => this.loadBell(), 60000);
     }
@@ -321,7 +322,7 @@ const BAS = {
     t.textContent = msg;
     t.className = "toast show " + (kind || "");
     clearTimeout(this._tt);
-    this._tt = setTimeout(() => { t.className = "toast " + (kind || ""); }, 3500);
+    this._tt = setTimeout(() => { t.className = "toast " + (kind || ""); }, 5000);
   },
   errText(e) {
     if (!e) return "Something went wrong.";
@@ -673,7 +674,17 @@ const BAS = {
     const r = await q;
     if (r.error) return [];
     this.NAMES = this.NAMES || {};
-    r.data.forEach(m => { if (m.sender_name && !this.NAMES[m.sender]) this.NAMES[m.sender] = m.sender_name; });
+    r.data.forEach(m => { if (m.sender_name && !this.NAMES[m.sender]) this.NAMES[m.sender] = m.sender_name; m.reacts = []; m.reads = []; });
+    // reactions and delivered / seen
+    if (r.data.length) {
+      const x = await supabaseClient.rpc("msg_extras", { p_ids: r.data.map(m => m.id) });
+      if (!x.error && x.data) {
+        const by = {}; r.data.forEach(m => { by[m.id] = m; });
+        (x.data.reactions || []).forEach(e => { if (by[e.m]) by[e.m].reacts.push(e); });
+        (x.data.reads || []).forEach(e => { if (by[e.m] && e.p !== by[e.m].sender) by[e.m].reads.push(e); });
+      }
+    }
+    this._msgx = this._msgx || {}; r.data.forEach(m => { this._msgx[m.id] = m; });
     return r.data;
   },
   bubbles(msgs) {
@@ -692,7 +703,8 @@ const BAS = {
       const can = mine || this.isAdmin(), pin = !!m.pinned_at;
       return sep + '<div class="bub' + (mine ? " mine" : "") + (team && !mine ? " team" : "") + (pin ? " pinned" : "") + '" id="msg' + m.id + '"><div class="bub-who">' + (pin ? "📌 " : "") + this.esc(mine ? t("You") : (m.sender_name || (this.NAMES || {})[m.sender] || "")) + (team ? ' <span class="pill svc">WAREHOUSE</span>' : "") + "</div>" + quote +
         (imgs.length ? '<div class="bub-imgs n' + imgs.length + '">' + imgs.map(p => '<img alt="photo" data-img="' + this.esc(p) + '">').join("") + "</div>" : "") +
-        (m.body ? '<div class="bub-txt" dir="auto">' + this.esc(m.body) + "</div>" : "") + '<div class="bub-time">' + time + (m.edited_at ? " · " + this.esc(t("edited")) : "") +
+        (m.body ? '<div class="bub-txt" dir="auto">' + this.esc(m.body) + "</div>" : "") + this.reactsHTML(m) + '<div class="bub-time">' + time + (m.edited_at ? " · " + this.esc(t("edited")) : "") +
+        " " + this.ticksHTML(m) + ' · <button class="linkbtn sm" data-mreact="' + m.id + '" aria-label="React">☺+</button>' +
         ' · <button class="linkbtn sm" data-mrep="' + m.id + '">' + this.esc(t("reply")) + "</button>" +
         (!pin ? ' · <button class="linkbtn sm" data-mpin="' + m.id + '" data-on="1">' + this.esc(t("pin")) + "</button>" : (this.isAdmin() || m.pinned_by === this.user.id) ? ' · <button class="linkbtn sm" data-mpin="' + m.id + '" data-on="0">' + this.esc(t("unpin")) + "</button>" : "") +
         (can && m.body ? ' · <button class="linkbtn sm" data-medit="' + m.id + '">' + this.esc(t("edit")) + "</button>" : "") +
@@ -734,6 +746,25 @@ const BAS = {
     });
   },
   // a whole chat box; target = {section, service, reservation}
+  EMOJI: ["👍", "❤️", "😂", "✅", "🙏"],
+  reactsHTML(m) {
+    const R = m.reacts || []; if (!R.length) return "";
+    return '<div class="reacts">' + this.EMOJI.filter(e => R.some(x => x.e === e)).map(e => { const L = R.filter(x => x.e === e), on = L.some(x => x.p === this.user.id);
+      return '<button type="button" class="rc' + (on ? " on" : "") + '" data-react="' + m.id + "|" + e + '" title="' + this.esc(L.map(x => x.n || "").join("، ")) + '">' + e + " " + L.length + "</button>"; }).join("") + "</div>";
+  },
+  // ✓ sent · ✓✓ delivered · ✓✓ (gold) seen; tap to see who
+  ticksHTML(m) {
+    const R = m.reads || [], seen = R.filter(x => x.s).length;
+    const cls = seen ? "seen" : R.length ? "dlv" : "";
+    return '<button type="button" class="ticks ' + cls + '" data-rcpt="' + m.id + '" title="' + this.esc(seen ? (this.tr ? this.tr("Seen") : "Seen") + " " + seen : R.length ? (this.tr ? this.tr("Delivered") : "Delivered") + " " + R.length : (this.tr ? this.tr("Sent") : "Sent")) + '">' + (R.length ? "✓✓" : "✓") + (seen ? "<small>" + seen + "</small>" : "") + "</button>";
+  },
+  rcptHTML(m) {
+    const t = x => this.esc(this.tr ? this.tr(x) : x), f = d => this.esc(new Date(d).toLocaleString(this.loc(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }));
+    const R = m.reads || [], S = R.filter(x => x.s), D = R.filter(x => !x.s);
+    return '<div class="rcpt">' + (S.length ? "<b>✓✓ " + t("Seen by") + "</b>" + S.map(x => "<div><span>" + this.esc(x.n || "") + "</span><small>" + f(x.s) + "</small></div>").join("") : "") +
+      (D.length ? "<b>✓✓ " + t("Delivered to") + "</b>" + D.map(x => "<div><span>" + this.esc(x.n || "") + "</span><small>" + f(x.d) + "</small></div>").join("") : "") +
+      (!R.length ? "<b>✓ " + t("Sent. Nobody has opened the site since.") + "</b>" : "") + "</div>";
+  },
   pinsHTML(msgs) {
     const P = msgs.filter(m => m.pinned_at && !m.deleted_at).sort((a, b) => a.pinned_at < b.pinned_at ? 1 : -1);
     if (!P.length) return "";
@@ -798,6 +829,32 @@ const BAS = {
       ta.focus();
     });
     box.querySelectorAll("[data-jump]").forEach(q => q.onclick = () => { const el = document.getElementById("msg" + q.dataset.jump); if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 1200); } });
+    // reactions
+    const react = async (id, e) => {
+      const m = (this._msgx || {})[id], mine = m && (m.reacts || []).some(x => x.p === this.user.id && x.e === e);
+      const r = mine ? await supabaseClient.from("message_reactions").delete().eq("message_id", id).eq("profile_id", this.user.id).eq("emoji", e)
+                     : await supabaseClient.from("message_reactions").insert({ message_id: id, emoji: e });
+      if (r.error) return this.toast(this.errText(r.error), "err");
+      reload();
+    };
+    box.querySelectorAll("[data-react]").forEach(b => b.onclick = () => { const [id, e] = b.dataset.react.split("|"); react(Number(id), e); });
+    box.querySelectorAll("[data-mreact]").forEach(b => b.onclick = () => {
+      const bub = b.closest(".bub"), old = bub.querySelector(".rpick"); if (old) { old.remove(); return; }
+      box.querySelectorAll(".rpick").forEach(x => x.remove());
+      const d = document.createElement("div"); d.className = "rpick";
+      d.innerHTML = this.EMOJI.map(e => '<button type="button" data-e="' + e + '">' + e + "</button>").join("");
+      bub.appendChild(d); d.querySelectorAll("[data-e]").forEach(x => x.onclick = () => react(Number(b.dataset.mreact), x.dataset.e));
+    });
+    box.querySelectorAll("[data-rcpt]").forEach(b => b.onclick = () => {
+      const bub = b.closest(".bub"), old = bub.querySelector(".rcpt"); if (old) { old.remove(); return; }
+      const m = (this._msgx || {})[Number(b.dataset.rcpt)]; if (!m) return;
+      bub.insertAdjacentHTML("beforeend", this.rcptHTML(m));
+    });
+    // seen: the messages on this screen that others sent
+    this._seen = this._seen || {};
+    const unseen = [...box.querySelectorAll(".bub[id^=msg]:not(.mine):not(.deleted)")].map(x => Number(x.id.slice(3))).filter(id => {
+      const m = (this._msgx || {})[id]; return !this._seen[id] && !(m && (m.reads || []).some(r => r.p === this.user.id && r.s)); });
+    if (unseen.length && document.visibilityState === "visible") { unseen.forEach(id => { this._seen[id] = 1; }); supabaseClient.rpc("mark_seen", { p_ids: unseen }).then(() => {}); }
     box.querySelectorAll("[data-mpin]").forEach(b => b.onclick = async () => {
       const on = b.dataset.on === "1";
       if (!on && !confirm(this.tr ? this.tr("Remove this pin?") : "Remove this pin?")) return;

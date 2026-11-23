@@ -694,9 +694,9 @@ function peopleView() {
     (p.section_id && p.approval_status === "approved" ? '<select data-f="stage_role" aria-label="Role in the stage">' + [["leader", "Leader"], ["head", "قائد المرحلة"], ["deputy", "نائب قائد المرحلة"], ["assistant", "مساعد قائد المرحلة"]]
       .map(o => '<option value="' + o[0] + '"' + ((p.stage_role || "leader") === o[0] ? " selected" : "") + ">" + o[1] + "</option>").join("") + "</select>" : "") +
     (p.approval_status !== "approved" ? '<button class="btn ok sm" data-ap="approved">Approve</button>' : "") + (p.approval_status !== "rejected" && p.id !== BAS.user.id ? '<button class="btn danger sm" data-ap="rejected">Reject</button>' : "") + (p.id !== BAS.user.id && p.approval_status !== "pending" ? '<button class="btn danger sm" data-rm="1">Remove account</button>' : "") + "</div></div>";
-  $("view").innerHTML = '<div class="group-title">New accounts waiting</div>' + (pend.length ? pend.map(row).join("") : '<div class="empty">No one is waiting.</div>') +
-    '<div class="group-title">Stage transfer requests</div>' + (tr.length ? tr.map(t => '<div class="person"><div><h4>' + esc(person(t.profile_id)) + '</h4><div class="meta">' + BAS.secHTML(t.from_section) + " → <b>" + BAS.secHTML(t.to_section) + "</b> · " + esc(BAS.fmtDate(t.created_at)) + (t.note ? " · " + esc(t.note) : "") + "</div></div>" +
-      '<div class="actions" style="margin:0"><button class="btn ok sm" data-tr="' + t.id + '" data-ok="1">Approve</button><button class="btn danger sm" data-tr="' + t.id + '" data-ok="0">Reject</button></div></div>').join("") : '<div class="empty">No transfer requests.</div>') +
+  $("view").innerHTML = (pend.length ? '<div class="group-title">New accounts waiting</div>' + pend.map(row).join("") : "") +
+    (tr.length ? '<div class="group-title">Stage transfer requests</div>' + tr.map(t => '<div class="person"><div><h4>' + esc(person(t.profile_id)) + '</h4><div class="meta">' + BAS.secHTML(t.from_section) + " → <b>" + BAS.secHTML(t.to_section) + "</b> · " + esc(BAS.fmtDate(t.created_at)) + (t.note ? " · " + esc(t.note) : "") + "</div></div>" +
+      '<div class="actions" style="margin:0"><button class="btn ok sm" data-tr="' + t.id + '" data-ok="1">Approve</button><button class="btn danger sm" data-tr="' + t.id + '" data-ok="0">Reject</button></div></div>').join("") : "") +
     '<div class="group-title">Everyone else</div>' + rest.map(row).join("");
   $("view").querySelectorAll(".person[data-p]").forEach(el => {
     const id = el.dataset.p;
@@ -775,7 +775,7 @@ function settingsView() {
     '<button class="btn gold" id="secAdd">+ Add stage</button></div>' +
     '<div class="group-title">Other church services</div><div class="panel" style="max-width:640px">' +
     BAS.services.map(v => '<div class="person"><div><h4><bdi>' + esc(v.name_ar) + "</bdi>" + (v.name_en && v.name_en !== v.name_ar ? " · " + esc(v.name_en) : "") + "</h4></div>" +
-      '<div class="actions" style="margin:0"><a class="btn line sm" href="' + BAS.borrowerURL(null, v.id) + '">Open page</a><button class="btn line sm" data-svc="' + v.id + '" data-on="' + (!v.is_active) + '">' + (v.is_active ? "Hide" : "Show") + "</button><button class=\"btn danger sm\" data-svdel=\"" + v.id + "\">Delete</button></div></div>").join("") +
+      '<div class="actions" style="margin:0"><a class="btn line sm" href="' + BAS.borrowerURL(null, v.id) + '">Open page</a><button class="btn line sm" data-svren="' + v.id + '">Rename</button><button class="btn line sm" data-svc="' + v.id + '" data-on="' + (!v.is_active) + '">' + (v.is_active ? "Hide" : "Show") + "</button><button class=\"btn danger sm\" data-svdel=\"" + v.id + "\">Delete</button></div></div>").join("") +
     '<div class="grid2" style="margin-top:10px"><div class="field"><label>New service or church (name)</label><input id="svAr"></div><div class="field"><label>Other spelling (optional)</label><input id="svEn"></div></div>' +
     '<button class="btn gold" id="svAdd">Add service</button></div>' +
     '<div class="group-title">Attendance</div><div class="panel" style="max-width:640px"><p class="meta"><span>The scout year started on</span> <b>' + esc(BAS.fmtDate(s.att_year_start || BAS.todayISO(), true)) + '</b> · <span>Percentages and absence counts start from this day.</span></p>' +
@@ -809,6 +809,13 @@ function settingsView() {
   $("view").querySelectorAll("[data-sec]").forEach(b => b.onclick = () => secEdit(BAS.sections.find(x => x.id === Number(b.dataset.sec))));
   $("view").querySelectorAll("[data-secdel]").forEach(b => b.onclick = () => { if (confirm("Delete this stage? It is hidden everywhere; you can restore it from Deleted.")) rpc("trash_item", { p_kind: "section", p_id: b.dataset.secdel }, "Deleted").then(() => location.reload()); });
   $("view").querySelectorAll("[data-svdel]").forEach(b => b.onclick = () => { if (confirm("Delete this service? You can restore it from Deleted.")) rpc("trash_item", { p_kind: "service", p_id: b.dataset.svdel }, "Deleted"); });
+  $("view").querySelectorAll("[data-svren]").forEach(b => b.onclick = async () => {
+    const v = BAS.services.find(x => x.id === Number(b.dataset.svren)); const n = prompt("New name:", v.name_ar); if (!n || !n.trim()) return;
+    const en = prompt("Other spelling (optional):", v.name_en || "");
+    const { error } = await supabaseClient.from("services").update({ name_ar: n.trim(), name_en: (en || "").trim() || n.trim() }).eq("id", v.id);
+    if (error) return BAS.toast(/unique|duplicate/i.test(error.message) ? "That service already exists" : BAS.errText(error), "err");
+    BAS.toast("Saved"); await loadAll();
+  });
   $("svAdd").onclick = async () => {
     const ar = $("svAr").value.trim();
     if (!ar) return BAS.toast("Write the service name", "err");

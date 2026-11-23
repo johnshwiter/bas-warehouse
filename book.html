@@ -49,7 +49,7 @@
 "use strict";
 const $ = id => document.getElementById(id);
 const esc = s => BAS.esc(s);
-let STOCK = [], CART = {}, CAT = "All", EDIT = null, OWN = {}, WAIT = [], DRAFTS = [], DRAFT = null, EVENT = null;
+let MOST = { stage: [], all: [] }, STOCK = [], CART = {}, CAT = "All", EDIT = null, OWN = {}, WAIT = [], DRAFTS = [], DRAFT = null, EVENT = null;
 
 (async function () {
   await BAS.init("book");
@@ -74,6 +74,8 @@ let STOCK = [], CART = {}, CAT = "All", EDIT = null, OWN = {}, WAIT = [], DRAFTS
     }
     if (EDIT) $("campHint").hidden = true;
     document.querySelectorAll("[data-tocamp]").forEach(b => b.onclick = () => toCamp(b.dataset.tocamp));
+    try { const mu = await supabaseClient.rpc("most_used_items", { p_section: BAS.profile.section_id || null }); if (!mu.error && mu.data) MOST = mu.data; } catch (e) {}
+    if (!EDIT && (MOST.stage.length || MOST.all.length)) CAT = "★";
     chips(); draw(); waitAlerts();
   } catch (e) { $("grid").innerHTML = '<div class="msg err">' + esc(BAS.errText(e)) + "</div>"; }
 })();
@@ -164,8 +166,8 @@ function waitAlerts() {
 
 // ---------- catalogue ----------
 function chips() {
-  const c = ["All"]; STOCK.forEach(i => { const k = i.category || "Other"; if (c.indexOf(k) < 0) c.push(k); });
-  $("chips").innerHTML = c.map(k => '<button class="tab' + (k === CAT ? " on" : "") + '" data-c="' + esc(k) + '">' + (k === "All" ? "All items" : BAS.icon(k) + " " + esc(k)) + "</button>").join("");
+  const c = (MOST.stage.length || MOST.all.length ? ["★"] : []).concat(["All"]); STOCK.forEach(i => { const k = i.category || "Other"; if (c.indexOf(k) < 0) c.push(k); });
+  $("chips").innerHTML = c.map(k => '<button class="tab' + (k === CAT ? " on" : "") + '" data-c="' + esc(k) + '">' + (k === "★" ? "⭐ " + esc(BAS.tr ? BAS.tr("Most used") : "Most used") : k === "All" ? "All items" : BAS.icon(k) + " " + esc(k)) + "</button>").join("");
   $("chips").querySelectorAll("[data-c]").forEach(b => b.onclick = () => { CAT = b.dataset.c; chips(); draw(); });
 }
 $("search").oninput = draw;
@@ -214,10 +216,21 @@ function card(i) {
 
 function draw() {
   const q = $("search").value.trim().toLowerCase();
-  const L = STOCK.filter(i => (!q || (i.name_en || "").toLowerCase().includes(q) || (i.name_ar || "").includes(q) || (i.category || "").toLowerCase().includes(q)) &&
-    (CAT === "All" || (i.category || "Other") === CAT));
+  const hit = i => !q || (i.name_en || "").toLowerCase().includes(q) || (i.name_ar || "").includes(q) || (i.category || "").toLowerCase().includes(q);
+  let L;
+  if (CAT === "★" && !q) {
+    // most used: what this stage books most, then what the whole warehouse lends most
+    const pick = ids => ids.map(id => STOCK.find(i => i.id === id)).filter(i => i && hit(i));
+    const A = pick(MOST.stage), B = pick(MOST.all).filter(i => A.indexOf(i) < 0);
+    L = A.concat(B);
+    const T = x => esc(BAS.tr ? BAS.tr(x) : x);
+    $("grid").innerHTML = (A.length ? '<div class="group-title" style="grid-column:1/-1">' + T("Your stage books these most") + "</div>" + A.map(card).join("") : "") +
+      (B.length ? '<div class="group-title" style="grid-column:1/-1">' + T("Most booked from the warehouse") + "</div>" + B.map(card).join("") : "");
+  } else {
+    L = STOCK.filter(i => hit(i) && (CAT === "All" || CAT === "★" || (i.category || "Other") === CAT));
+    $("grid").innerHTML = L.map(card).join("");
+  }
   $("none").hidden = L.length > 0;
-  $("grid").innerHTML = L.map(card).join("");
   $("grid").querySelectorAll("[data-k]").forEach(b => b.onclick = () => {
     const k = b.dataset.k; let n = (CART[k] || 0) + Number(b.dataset.d);
     n = Math.max(0, Math.min(n, availFor(k)));
