@@ -86,7 +86,7 @@ function draw() {
         body += '<div class="tscroll"><table class="ltable"><tr><th>Person</th><th>Has</th></tr>' + Object.keys(byP).map(pid => {
           const p = people.find(x => x.id === Number(pid)) || { name: "?", gender: "M" };
           if (q && !BAS.norm(p.name + " " + byP[pid].map(c => BAS.itemLabel(BY, c.item_id, c.variant_id)).join(" ")).includes(q) && !BAS.norm(itemsTxt + " #" + r.id).includes(q)) return "";
-          return '<tr><td><span class="gender ' + (p.gender || "null") + '">' + (p.gender === "M" ? "♂" : p.gender === "F" ? "♀" : "?") + "</span> <b>" + esc(p.name) + '</b> <small class="mut">' + (p.role === "kada" ? "Kada" : "Walad") + "</small></td><td>" +
+          return '<tr><td><span class="gender ' + (p.gender || "null") + '">' + (p.gender === "M" ? "♂" : p.gender === "F" ? "♀" : "?") + "</span> <b>" + esc(p.name) + '</b> <small class="mut">' + (p.role === "kada" ? "Kada" : "Scout") + "</small></td><td>" +
             byP[pid].map(c => '<a class="lnk" href="item.html?id=' + c.item_id + '">' + esc(BAS.itemLabel(BY, c.item_id, c.variant_id)) + "</a> ×" + (c.qty - c.returned_qty)).join(" · ") + "</td></tr>";
         }).join("") + "</table></div>";
       } else {

@@ -62,7 +62,7 @@ async function load() {
 
 const canEdit = () => R && ["Returned", "Completed", "Cancelled", "Rejected"].indexOf(R.status) < 0 && (BAS.isAdmin() || R.section_id === BAS.profile.section_id);
 const has3 = () => !!(SEC && SEC.has_3eyal);
-const roleName = r => r === "kada" ? "Kada" : "Walad";
+const roleName = r => r === "kada" ? "Kada" : "Scout";
 const gTag = g => '<span class="gender ' + (g || "null") + '">' + (g === "M" ? "♂" : g === "F" ? "♀" : "?") + "</span>";
 const secOf = () => NEW ? NEW.sec : R.section_id;
 const qtyOf = l => l.issued_qty != null ? l.issued_qty : (l.prepared_qty || l.quantity);
@@ -113,7 +113,7 @@ function printPDF() {
     "<h2>" + esc(T("Phase 1: items")) + "</h2><table><tr><th>" + esc(T("Item")) + '</th><th class="num">' + esc(T("Asked")) + '</th><th class="num">' + esc(T("Taken")) + '</th><th class="num">' + esc(T("Back")) + "</th></tr>" +
     R.items.map(i => "<tr><td>" + esc(BAS.lineName(i)) + (BY[i.item_id] && BY[i.item_id].name_ar ? " · " + esc(BY[i.item_id].name_ar) : "") + '</td><td class="num">' + i.quantity + '</td><td class="num">' + (i.issued_qty == null ? "" : i.issued_qty) + '</td><td class="num">' + (i.issued_qty == null ? "" : i.returned_qty) + "</td></tr>").join("") + "</table>" +
     "<h2>" + esc(T("Phase 2: who is going")) + " (" + PEOPLE.length + ")</h2>" +
-    (PEOPLE.length ? "<p><b>" + esc(T("Kada")) + " (" + k.length + "):</b> " + k.map(p => esc(p.name)).join("، ") + "</p>" + (R.kids_count ? "<p><b>" + esc(T("Kids")) + ":</b> " + R.kids_count + "</p>" : "") + (a.length ? "<p><b>" + esc(T("Awlad")) + " (" + a.length + "):</b> " + a.map(p => esc(p.name)).join("، ") + "</p>" : "") : '<p class="mut">—</p>') +
+    (PEOPLE.length ? "<p><b>" + esc(T("Kada")) + " (" + k.length + "):</b> " + k.map(p => esc(p.name)).join("، ") + "</p>" + (R.kids_count ? "<p><b>" + esc(T("Kids")) + ":</b> " + R.kids_count + "</p>" : "") + (a.length ? "<p><b>" + esc(T("Scouts")) + " (" + a.length + "):</b> " + a.map(p => esc(p.name)).join("، ") + "</p>" : "") : '<p class="mut">—</p>') +
     "<h2>" + esc(T("3ohda: who carries what")) + "</h2>" +
     (PEOPLE.length && CUST.length ? "<table><tr><th>" + esc(T("Person")) + "</th><th>" + esc(T("Has")) + '</th><th style="width:22%">' + esc(T("Signature")) + "</th></tr>" +
       PEOPLE.map(p => { const has = cols.filter(l => Number(g[p.id][l.item_id + ":" + (l.variant_id || "")]) > 0).map(l => esc(BAS.lineName(l)) + " ×" + g[p.id][l.item_id + ":" + (l.variant_id || "")]);
@@ -130,7 +130,7 @@ function phase2View() {
   const list = L => L.map(p => '<span class="pick on" style="cursor:default">' + gTag(p.gender) + " " + esc(p.name) + "</span>").join("");
   return '<div class="panel"><div class="meta" style="margin-bottom:8px">' + PEOPLE.length + " people · saved " + esc(BAS.fmtDateTime(R.phase2_at)) + "</div>" +
     "<b>Kada (" + k.length + ')</b><div class="picks" style="margin:6px 0 12px">' + list(k) + "</div>" +
-    (a.length ? "<b>Awlad (" + a.length + ')</b><div class="picks" style="margin-top:6px">' + list(a) + "</div>" : "") +
+    (a.length ? "<b>Scouts (" + a.length + ')</b><div class="picks" style="margin-top:6px">' + list(a) + "</div>" : "") +
     (R.kids_count ? '<p class="meta" style="margin-top:8px">👧👦 ' + esc(BAS.tr ? BAS.tr("Kids") : "Kids") + ": <b>" + R.kids_count + "</b></p>" : "") +
     (canEdit() ? '<div class="actions"><button class="btn line sm" id="p2Edit">✏️ Edit the list</button></div>' : "") + "</div>";
 }
@@ -143,17 +143,17 @@ function phase2Form(embedded) {
   const kids = NEW ? NEW.kids : R.kids_count;
   return '<div class="panel">' + (embedded ? "<h3>Phase 2: who is going</h3>" : "") + '<p class="meta" style="margin-bottom:10px">Tick everyone who is going. Names you add are saved in the stage\'s list for next time.</p>' + (has3() ? "" : '<p class="meta" style="margin-bottom:10px">In this stage only kada are listed; write the number of kids.</p>') +
     '<input type="search" class="psearch" id="pq" placeholder="Search a name…" autocomplete="off">' +
-    "<b>Kada</b>" + group("kada") + (has3() ? '<div style="margin-top:12px"><b>Awlad</b>' + group("3ayel") + "</div>" :
+    "<b>Kada</b>" + group("kada") + (has3() ? '<div style="margin-top:12px"><b>Scouts</b>' + group("3ayel") + "</div>" :
       '<div class="field" style="margin-top:12px;max-width:260px"><label>Number of kids going</label><input type="number" min="0" id="kidsN" inputmode="numeric" value="' + (kids == null ? "" : kids) + '"></div>') +
     '<details class="mt"><summary class="linkbtn">+ Add names to the stage\'s list</summary><p class="meta">One name per line, or paste a whole list.</p>' +
     '<div class="field"><textarea id="nNames" rows="3" placeholder="Kiro Samy&#10;Mina Adel"></textarea></div><div class="grid3">' +
     '<div class="field"><label>Boy / girl</label><select id="nGen"><option value="M">Boy / man</option><option value="F">Girl / woman</option></select></div>' +
-    '<div class="field"><label>Kada or walad</label><select id="nRole"><option value="kada">Kada</option>' + (has3() ? '<option value="3ayel" selected>Walad</option>' : "") + "</select></div><div></div></div>" +
+    '<div class="field"><label>Kada or scout</label><select id="nRole"><option value="kada">Kada</option>' + (has3() ? '<option value="3ayel" selected>Scout</option>' : "") + "</select></div><div></div></div>" +
     '<button type="button" class="btn line sm" id="nAdd">+ Add to list</button></details>' +
     '<details class="mt"><summary class="linkbtn">+ One-time name (not saved in the list)</summary>' +
     TYPED.map((t, i) => '<div class="person"><div>' + gTag(t.gender) + " " + esc(t.name) + ' <span class="pill mut">' + esc(roleName(t.role).toUpperCase()) + '</span></div><button type="button" class="btn danger sm" data-tdel="' + i + '">Remove</button></div>').join("") +
     '<div class="grid3"><div class="field"><label>Name</label><input id="tName" placeholder="Guest leader…"></div><div class="field"><label>Boy / girl</label><select id="tGen"><option value="M">Boy / man</option><option value="F">Girl / woman</option></select></div>' +
-    '<div class="field"><label>Kada or walad</label><select id="tRole"><option value="kada">Kada</option>' + (has3() ? '<option value="3ayel">Walad</option>' : "") + '</select></div></div><button type="button" class="btn line sm" id="tAdd">+ Add one-time name</button></details>' +
+    '<div class="field"><label>Kada or scout</label><select id="tRole"><option value="kada">Kada</option>' + (has3() ? '<option value="3ayel">Scout</option>' : "") + '</select></div></div><button type="button" class="btn line sm" id="tAdd">+ Add one-time name</button></details>' +
     (TYPED.length ? '<p class="meta">One-time: ' + TYPED.map(t => esc(t.name)).join("، ") + "</p>" : "") +
     (embedded ? "" : '<div id="p2Err" class="msg err" hidden></div><div class="actions"><button class="btn gold" id="p2Save">Save who is going</button>' + (PEOPLE.length ? '<button class="btn line" id="p2Cancel">Back</button>' : "") + "</div>" +
     (CUST.length ? '<p class="meta mt">The 3ohda is kept: people you take off give their items to the others, and new people get a share. The warehouse team gets a note to check it.</p>' : "")) + "</div>";

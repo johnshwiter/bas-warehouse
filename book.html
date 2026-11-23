@@ -298,7 +298,7 @@ function openCheckout() {
     '<div class="panel">' + who +
     (r ? "" : '<div class="grid2"><div class="field"><label>What is it for?</label><select id="coKind"><option value="Meeting">Meeting</option><option value="Trip">Trip →</option><option value="Camp">Camp →</option></select></div>' +
       '<div class="field" id="coEndW" hidden><label>Last day</label><input type="date" id="coEnd" min="' + BAS.todayISO() + '"></div></div>' +
-      '<div class="msg info" id="coP2" hidden>Phase 2: after sending, write who is going (kada' + (BAS.isAdmin() || (BAS.sections.find(x => x.id === BAS.profile.section_id) || {}).has_3eyal ? " and awlad" : "") + "). You'll get a reminder every day until it's done.</div>") +
+      '<div class="msg info" id="coP2" hidden>Phase 2: after sending, write who is going (kada' + (BAS.isAdmin() || (BAS.sections.find(x => x.id === BAS.profile.section_id) || {}).has_3eyal ? " and scouts" : "") + "). You'll get a reminder every day until it's done.</div>") +
     '<div class="grid2"><div class="field"><label>Meeting date (pickup)</label><input type="date" id="coDate" min="' + BAS.todayISO() + '" value="' + esc(r ? r.meeting_date : "") + '"></div>' +
     '<div class="field"><label>From</label><input type="time" id="coTime" value="' + esc(T0[0]) + '"></div></div>' +
     '<div class="grid2"><div class="field"><label>Until (optional)</label><input type="time" id="coUntil" value="' + esc(T0[1]) + '"></div><div></div></div>' +

@@ -802,7 +802,7 @@ function settingsView() {
     '<div class="field"><label>Meeting times (comma separated)</label><input id="sTimes" value="' + esc((s.times || []).join(", ")) + '"></div></div>' +
     '<div id="fErr" class="msg err" hidden></div><button class="btn ok" id="sSave">Save settings</button></div>' +
     '<div class="group-title">Scout stages</div><div class="panel" style="max-width:640px">' +
-    BAS.sections.map(x => '<div class="person"><div><h4><bdi>' + esc(x.name_ar) + "</bdi> · " + esc(x.name_en) + '</h4><div class="meta">' + (x.has_3eyal ? "Kada + awlad in camps" : "Kada only in camps (and a number of kids)") + "</div></div>" +
+    BAS.sections.map(x => '<div class="person"><div><h4><bdi>' + esc(x.name_ar) + "</bdi> · " + esc(x.name_en) + '</h4><div class="meta">' + (x.has_3eyal ? "Kada + scouts in camps" : "Kada only in camps (and a number of kids)") + "</div></div>" +
       '<div class="actions" style="margin:0"><button class="btn line sm" data-sec="' + x.id + '">Edit</button><button class="btn danger sm" data-secdel="' + x.id + '">Delete</button></div></div>').join("") +
     '<button class="btn gold" id="secAdd">+ Add stage</button></div>' +
     '<div class="group-title">Other church services</div><div class="panel" style="max-width:640px">' +
@@ -834,7 +834,7 @@ function settingsView() {
   const secEdit = x => {
     const ar = prompt("Stage name (Arabic):", x ? x.name_ar : ""); if (ar === null || !ar.trim()) return;
     const en = prompt("Stage name (English / Franco):", x ? x.name_en : ""); if (en === null) return;
-    const three = confirm("Does this stage list awlad by name in camps (like Motakdem & Ra2edat)? OK = yes, Cancel = kada only.");
+    const three = confirm("Does this stage list scouts by name in camps (like Motakdem & Ra2edat)? OK = yes, Cancel = kada only.");
     rpc("admin_save_section", { p_id: x ? x.id : null, p_ar: ar, p_en: en, p_has_3eyal: three }, "Saved").then(() => location.reload());
   };
   $("secAdd").onclick = () => secEdit(null);

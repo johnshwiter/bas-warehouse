@@ -116,7 +116,7 @@ function draw() {
   $("fC").onchange = e => { FC = e.target.value; draw(); };
   $("view").querySelectorAll("[data-go]").forEach(el => el.onclick = () => { location.href = el.dataset.go; });
   if ($("subEdit")) $("subEdit").onclick = async () => {
-    const v = prompt("Yearly subscription per person in EGP (kada and awlad; 0 = none):", String(Number(BAS.settings.sub_amount || 0)));
+    const v = prompt("Yearly subscription per person in EGP (kada and scouts; 0 = none):", String(Number(BAS.settings.sub_amount || 0)));
     if (v === null) return;
     if (!(Number(v) >= 0)) return BAS.toast("Write a number", "err");
     const { error } = await supabaseClient.rpc("set_sub_amount", { p_amount: Number(v) });

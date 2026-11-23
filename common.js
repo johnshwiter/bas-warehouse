@@ -75,7 +75,8 @@ const BAS = {
   async init(active) {
     const { data: { session } } = await supabaseClient.auth.getSession();
     this.user = session ? session.user : null;
-    let sec = await supabaseClient.from("sections").select("id, name_en, name_ar, has_3eyal, is_active, att_late_min, att_late_absent, att_half_min, att_alert_pct, arif_every, arif_unit").order("id");
+    let sec = await supabaseClient.from("sections").select("id, name_en, name_ar, has_3eyal, is_active, att_late_min, att_late_absent, att_half_min, att_alert_pct, arif_every, arif_unit, att_w_present, att_w_late, att_w_half, att_w_excused, att_w_absent, att_excused_came").order("id");
+    if (sec.error) sec = await supabaseClient.from("sections").select("id, name_en, name_ar, has_3eyal, is_active, att_late_min, att_late_absent, att_half_min, att_alert_pct, arif_every, arif_unit").order("id");
     if (sec.error) sec = await supabaseClient.from("sections").select("id, name_en, name_ar, has_3eyal, is_active, att_late_min, att_late_absent, att_half_min").order("id");
     if (sec.error) sec = await supabaseClient.from("sections").select("id, name_en, name_ar, has_3eyal, is_active, att_late_min, att_late_absent").order("id");
     if (sec.error) sec = await supabaseClient.from("sections").select("id, name_en, name_ar").order("id");
@@ -293,7 +294,7 @@ const BAS = {
       (p.data || []).filter(x => x.approval_status !== "removed").forEach(x => idx.push({ g: "People", t: x.full_name, s: (x.role === "admin" ? "Warehouse team" : "") + (x.section_id ? " " + this.sectionName(x.section_id) : "") + (x.email ? " · " + x.email : ""), h: "team.html#people", k: this.norm(x.full_name + " " + (x.email || "")) }));
     }
     const ro = await supabaseClient.from("roster").select("id, name, role, section_id").eq("is_active", true);
-    (ro.data || []).forEach(x => idx.push({ g: "People", t: x.name, s: (x.role === "kada" ? "Kada" : "Walad") + " · " + this.sectionName(x.section_id), h: "ohda.html?q=" + encodeURIComponent(x.name), k: this.norm(x.name) }));
+    (ro.data || []).forEach(x => idx.push({ g: "People", t: x.name, s: (x.role === "kada" ? "Kada" : "Scout") + " · " + this.sectionName(x.section_id), h: "ohda.html?q=" + encodeURIComponent(x.name), k: this.norm(x.name) }));
     this._idx = idx;
     return idx;
   },

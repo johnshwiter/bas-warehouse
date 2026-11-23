@@ -16,7 +16,7 @@
 <body>
 <main class="page">
   <div class="head"><div><p class="eyebrow">Attendance</p><h1 id="ttl">Who <em>came</em></h1>
-    <p class="sub" id="sub">Take attendance for each meeting. Kada and awlad of the stage are listed.</p></div>
+    <p class="sub" id="sub">Take attendance for each meeting. Kada and scouts of the stage are listed.</p></div>
     <select id="fSec" hidden aria-label="Stage"></select></div>
   <div class="tabs wrap" id="tabs"></div>
   <div id="view"><div class="loading">Loading…</div></div>
@@ -101,26 +101,35 @@ function render() {
 const tName = id => (TAL.find(t => t.id === id) || {}).name || "";
 const gTag = g => '<span class="gender ' + (g || "null") + '">' + (g === "M" ? "♂" : g === "F" ? "♀" : "?") + "</span>";
 const fmtT = t => { if (!t) return ""; let [h, m] = t.slice(0, 5).split(":").map(Number); const ap = h >= 12 ? "PM" : "AM"; h = h % 12 || 12; return h + ":" + String(m).padStart(2, "0") + " " + ap; };
-function minsLate(arrived) {
-  if (!arrived || !CUR || !CUR.start_time) return -1;
-  const [h, m] = CUR.start_time.split(":").map(Number), [ah, am] = arrived.split(":").map(Number);
-  return ah * 60 + am - (h * 60 + m);
-}
-function lateOf(arrived) { return minsLate(arrived) > (SEC.att_late_min == null ? 15 : SEC.att_late_min); }
-// after "half absent after" minutes, someone who came counts as half absent
-function halfOf(arrived) { return SEC.att_half_min != null && minsLate(arrived) > SEC.att_half_min; }
 // the 4 kada first (قائد المرحلة, نائب, مساعدين), then everyone A to Z
 const RANK = { head: 0, deputy: 1, assistant: 2 };
 const rankOf = p => p.profile_id && ROLES[p.profile_id] in RANK ? RANK[ROLES[p.profile_id]] : 9;
 const kadaSorted = () => ROSTER.filter(p => p.role === "kada").sort((x, y) => rankOf(x) - rankOf(y) || x.name.localeCompare(y.name));
+// sort: by tali3a (1, 2, 3…), A–Z, or school year (oldest / youngest first)
+let SORT = (() => { try { return localStorage.getItem("basSort") || "tali3a"; } catch (e) { return "tali3a"; } })();
+const yIdx = p => { const i = YEARS.indexOf(p.school_year || ""); return i < 0 ? -1 : i; };
+const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true });
+const talSorted = () => TAL.slice().sort(byName);
+function sortList(L) {
+  const x = L.slice();
+  if (SORT === "old" || SORT === "young") {
+    const d = SORT === "old" ? -1 : 1;
+    x.sort((a, b) => { const ya = yIdx(a), yb = yIdx(b); if (ya < 0 && yb >= 0) return 1; if (yb < 0 && ya >= 0) return -1; if (ya !== yb) return d * (ya - yb);
+      if (a.birthday && b.birthday && a.birthday !== b.birthday) return d * (a.birthday < b.birthday ? 1 : -1); return byName(a, b); });
+  } else x.sort(byName);
+  return x;
+}
 function ordered() {
   const k = kadaSorted(), a = ROSTER.filter(p => p.role !== "kada");
   const groups = [{ title: "Kada", list: k }];
-  TAL.forEach(t => groups.push({ title: t.name, list: a.filter(p => p.tali3a_id === t.id) }));
+  if (SORT !== "tali3a") { groups.push({ title: "Scouts", list: sortList(a) }); return groups.filter(g => g.list.length); }
+  talSorted().forEach(t => groups.push({ title: t.name, list: sortList(a.filter(p => p.tali3a_id === t.id)) }));
   const none = a.filter(p => !p.tali3a_id || !TAL.some(t => t.id === p.tali3a_id));
-  if (none.length) groups.push({ title: TAL.length ? "No tali3a yet" : "Awlad", list: none });
+  if (none.length) groups.push({ title: TAL.length ? "No tali3a" : "Scouts", list: sortList(none) });
   return groups.filter(g => g.list.length);
 }
+const sortSel = () => '<select class="sortsel" data-sort aria-label="Sort">' + [["tali3a", "By tali3a"], ["az", "A–Z"], ["old", "School year: oldest first"], ["young", "School year: youngest first"]].map(o => '<option value="' + o[0] + '"' + (SORT === o[0] ? " selected" : "") + ">↕ " + esc(T(o[1])) + "</option>").join("") + "</select>";
+function bindSort(redraw) { document.querySelectorAll("[data-sort]").forEach(x => x.onchange = () => { SORT = x.value; try { localStorage.setItem("basSort", SORT); } catch (e) {} redraw(); }); }
 
 // ---------- take attendance ----------
 function takeView() {
@@ -134,11 +143,11 @@ function takeView() {
   h += '<div class="panel"><div class="req-top"><h3>' + esc(BAS.fmtDate(CUR.meet_date, true)) + "<small>" + esc(CUR.start_time ? T("Starts") + " " + fmtT(CUR.start_time) : T("No start time")) + (CUR.title ? " · " + esc(CUR.title) : "") +
     (CUR.reservation_id ? " · #" + CUR.reservation_id : "") + '</small></h3><div><button class="linkbtn" id="mEdit">✏️ Time / title</button></div></div>' +
     '<div class="meta">' + (CUR.status === "done" ? "✅ Taken by " + esc(CUR.taken_by_name || "") + " · " + esc(BAS.fmtDateTime(CUR.taken_at)) : CUR.status === "draft" ? "📝 Draft saved by " + esc(CUR.taken_by_name || "") + " · " + esc(BAS.fmtDateTime(CUR.taken_at)) : "Not taken yet") +
-    " · " + esc(T("Late after")) + " " + (SEC.att_late_min == null ? 15 : SEC.att_late_min) + " " + esc(T("min")) + (SEC.att_half_min != null ? " · " + esc(T("half absent after")) + " " + SEC.att_half_min + " " + esc(T("min")) : "") + (SEC.att_late_absent ? " · " + esc(T("late counts as absent")) : "") + "</div></div>";
+    "</div></div>";
   if (fut) { $("view").innerHTML = h + '<div class="empty">This meeting hasn\'t happened yet.</div>'; bindTake(); return; }
   if (!ROSTER.length) { $("view").innerHTML = h + '<div class="empty">Nobody in the stage\'s list yet. <a class="lnk" href="#people" data-go="people">Add names</a></div>'; bindTake(); return; }
   h += '<input type="search" class="psearch" id="aq" placeholder="Search a name…" value="' + esc(Q) + '" autocomplete="off">' +
-    '<div class="actions" style="margin:0 0 8px"><button class="btn line sm" id="allP">✓ Everyone present</button><button class="btn line sm" id="allU">👕🧣 Everyone in uniform + foulard</button></div>';
+    '<div class="actions" style="margin:0 0 8px">' + sortSel() + '<button class="btn line sm" id="allP">✓ Everyone present</button><button class="btn line sm" id="allU">👕🧣 Everyone in uniform + foulard</button></div>';
   ordered().forEach(g => {
     h += '<div class="group-title">' + esc(T(g.title)) + " (" + g.list.length + ')</div><div class="att-list">' + g.list.map(rowHTML).join("") + "</div>";
   });
@@ -148,12 +157,12 @@ function takeView() {
 }
 const isHere = s => s.status === "present" || s.status === "late" || s.status === "half";
 function rowHTML(p) {
-  const s = STATE[p.id], half = s.status === "half", late = !half && (s.status === "late" || ((s.status === "present") && lateOf(s.arrived))), here = isHere(s), off = here ? "" : " disabled";
+  const s = STATE[p.id], half = s.status === "half", late = s.status === "late", here = isHere(s), off = here ? "" : " disabled";
   const noF = p.owns_foulard === false;
   return '<div class="att-row ' + (half ? "half" : late ? "late" : s.status || "unmarked") + '" data-row="' + p.id + '" data-nm="' + esc(BAS.norm(p.name)) + '"><div class="att-name">' + gTag(p.gender) + " " + esc(p.name) + star(p) + cake(p) +
     (half ? ' <span class="pill warn">½ ' + esc(T("HALF ABSENT")) + "</span>" : late ? ' <span class="pill warn">' + esc(T("LATE")) + "</span>" : "") + "</div>" +
-    '<div class="att-ctl"><span class="seg">' + [["present", "✓"], ["half", "½"], ["absent", "Absent"], ["excused", "Excused"]].map(x => '<button type="button" data-st="' + x[0] + '"' + (x[0] === "half" ? ' title="' + esc(T("Half absent")) + '"' : "") + ' class="' + (s.status === x[0] || (x[0] === "present" && s.status === "late") ? "on" : "") + '">' + esc(T(x[1])) + "</button>").join("") + "</span>" +
-    '<input type="time" data-arr="' + p.id + '" value="' + esc(here ? s.arrived : "") + '" title="' + esc(T("Arrived at")) + '" aria-label="' + esc(T("Arrived at")) + '"' + off + '><label class="uni' + (here ? "" : " off") + '"><input type="checkbox" data-uni="' + p.id + '"' + (here && s.uniform ? " checked" : "") + off + "> 👕 " + esc(T("Uniform")) + "</label>" +
+    '<div class="att-ctl"><span class="seg">' + [["present", "✓"], ["late", "Late"], ["half", "½"], ["absent", "Absent"], ["excused", "Excused"]].map(x => '<button type="button" data-st="' + x[0] + '"' + (x[0] === "half" ? ' title="' + esc(T("Half absent")) + '"' : "") + ' class="' + (s.status === x[0] ? "on" : "") + '">' + esc(T(x[1])) + "</button>").join("") + "</span>" +
+    '<label class="uni' + (here ? "" : " off") + '"><input type="checkbox" data-uni="' + p.id + '"' + (here && s.uniform ? " checked" : "") + off + "> 👕 " + esc(T("Uniform")) + "</label>" +
       (noF ? '<span class="uni off nof" title="' + esc(T("Doesn't have a foulard yet")) + '">🧣 ' + esc(T("no foulard yet")) + "</span>"
         : '<label class="uni' + (here ? "" : " off") + '"><input type="checkbox" data-foul="' + p.id + '"' + (here && s.foulard ? " checked" : "") + off + "> 🧣 " + esc(T("Foulard")) + "</label>") + "</div></div>";
 }
@@ -164,7 +173,7 @@ function redrawRow(id) {
 }
 function counts() {
   const L = ROSTER.map(p => STATE[p.id]), n = x => L.filter((s, i) => x(s, i)).length;
-  if ($("aCount")) $("aCount").textContent = (n(s => !s.status) ? T("Not marked") + " " + n(s => !s.status) + " · " : "") + T("Present") + " " + n(s => s.status === "present" || s.status === "late") + " · " + T("Half absent") + " " + n(s => s.status === "half") + " · " + T("Absent") + " " + n(s => s.status === "absent") + " · " + T("Excused") + " " + n(s => s.status === "excused") + " · " + T("No uniform") + " " + n(s => isHere(s) && !s.uniform) + " · " + T("No foulard") + " " + n((s, i) => isHere(s) && !s.foulard && ROSTER[i].owns_foulard !== false);
+  if ($("aCount")) $("aCount").textContent = (n(s => !s.status) ? T("Not marked") + " " + n(s => !s.status) + " · " : "") + T("Present") + " " + n(s => s.status === "present") + " · " + T("Late") + " " + n(s => s.status === "late") + " · " + T("Half absent") + " " + n(s => s.status === "half") + " · " + T("Absent") + " " + n(s => s.status === "absent") + " · " + T("Excused") + " " + n(s => s.status === "excused") + " · " + T("No uniform") + " " + n(s => isHere(s) && !s.uniform) + " · " + T("No foulard") + " " + n((s, i) => isHere(s) && !s.foulard && ROSTER[i].owns_foulard !== false);
 }
 function filter() { const q = BAS.norm(Q); document.querySelectorAll(".att-row[data-nm]").forEach(r => { r.hidden = !!q && !r.dataset.nm.includes(q); }); }
 function bindRows() {
@@ -172,9 +181,8 @@ function bindRows() {
     const id = Number(r.dataset.row);
     r.querySelectorAll("[data-st]").forEach(b => b.onclick = () => { const s = STATE[id], p = ROSTER.find(x => x.id === id);
       // tapping it again clears it; marking someone here ticks uniform and foulard
-      if (s.status === b.dataset.st || (b.dataset.st === "present" && s.status === "late")) s.status = ""; else { if (!isHere(s)) { s.uniform = true; s.foulard = p.owns_foulard !== false; } s.status = b.dataset.st; }
+      if (s.status === b.dataset.st) s.status = ""; else { if (!isHere(s)) { s.uniform = true; s.foulard = p.owns_foulard !== false; } s.status = b.dataset.st; }
       if (!isHere(s)) s.arrived = ""; DIRTY = true; redrawRow(id); });
-    const a = r.querySelector("[data-arr]"); if (a) a.onchange = () => { STATE[id].arrived = a.value; STATE[id].status = halfOf(a.value) ? "half" : "present"; DIRTY = true; redrawRow(id); };
     const u = r.querySelector("[data-uni]"); if (u) u.onchange = () => { STATE[id].uniform = u.checked; DIRTY = true; counts(); };
     const f = r.querySelector("[data-foul]"); if (f) f.onchange = () => { STATE[id].foulard = f.checked; DIRTY = true; counts(); };
   });
@@ -198,13 +206,14 @@ function bindTake() {
   if ($("allU")) $("allU").onclick = () => { ROSTER.forEach(p => { STATE[p.id].uniform = true; STATE[p.id].foulard = true; }); DIRTY = true; takeView(); };
   if ($("aFin")) $("aFin").onclick = () => save(true);
   if ($("aDraft")) $("aDraft").onclick = () => save(false);
+  bindSort(takeView);
   bindRows();
 }
 async function save(finish) {
   const un = ROSTER.filter(p => !STATE[p.id].status).length;
   if (finish && !confirm((un ? T("Not marked") + ": " + un + ". " + T("They will count as absent.") + "\n\n" : "") + "Finish attendance for " + BAS.fmtDate(CUR.meet_date, true) + "? Alerts are sent now (absences, uniform).")) return;
   // a draft keeps only the people you marked; Finish saves the rest as absent
-  const rows = ROSTER.filter(p => finish || STATE[p.id].status).map(p => ({ roster_id: p.id, status: STATE[p.id].status || "absent", arrived: STATE[p.id].arrived || null, uniform: STATE[p.id].uniform, foulard: STATE[p.id].foulard }));
+  const rows = ROSTER.filter(p => finish || STATE[p.id].status).map(p => ({ roster_id: p.id, status: STATE[p.id].status || "absent", uniform: STATE[p.id].uniform, foulard: STATE[p.id].foulard }));
   const bs = [$("aFin"), $("aDraft")]; bs.forEach(b => { b.disabled = true; });
   const { error } = await supabaseClient.rpc("save_attendance", { p_meeting: CUR.id, p_rows: rows, p_finish: finish });
   bs.forEach(b => { b.disabled = false; });
@@ -234,38 +243,41 @@ function stats(p) {
   const done = MEET.filter(m => m.status === "done").map(m => m.id);
   const R = HIST ? HIST.filter(r => r.roster_id === p.id && r.meet_status === "done") : RECS.filter(r => r.roster_id === p.id && done.indexOf(r.meeting_id) >= 0);
   const c = x => R.filter(r => r.status === x).length;
-  const lateAbs = !!SEC.att_late_absent;
   const here = r => r.status === "present" || r.status === "late" || r.status === "half";
   const o = { total: R.length, present: c("present"), absent: c("absent"), excused: c("excused"), late: c("late"), half: c("half"), noUni: R.filter(r => here(r) && !r.uniform).length, noFoul: p.owns_foulard === false ? 0 : R.filter(r => here(r) && r.foulard === false).length };
-  // half absent = half a meeting
-  o.missed = o.absent + o.excused + (lateAbs ? o.late : 0) + o.half / 2;
-  o.unexcused = o.absent + (lateAbs ? o.late : 0) + o.half / 2;
-  // attendance %: how much they came
-  o.pct = o.total ? Math.round((o.total - o.missed) * 100 / o.total) : 0;
+  // Final %: each status is worth what the stage decided; Attended %: came at all (✓, late, ½, and excused if the stage says so)
+  const W = { present: num(SEC.att_w_present, 1), late: num(SEC.att_w_late, 0), half: num(SEC.att_w_half, 0.5), excused: num(SEC.att_w_excused, 0.25), absent: num(SEC.att_w_absent, 0) };
+  const worth = R.reduce((t, r) => t + (W[r.status] == null ? 0 : W[r.status]), 0);
+  o.missed = o.total - worth;
+  o.unexcused = R.filter(r => r.status !== "excused").reduce((t, r) => t + (1 - (W[r.status] == null ? 0 : W[r.status])), 0);
+  o.came = o.present + o.late + o.half + (SEC.att_excused_came ? o.excused : 0);
+  o.apct = o.total ? Math.round(o.came * 100 / o.total) : 0;
+  o.pct = o.total ? Math.round(worth * 100 / o.total) : 0;
   const al = SEC.att_alert_pct == null ? 25 : SEC.att_alert_pct;
   o.band = !o.total ? "" : o.pct <= al ? "rr" : o.pct >= 75 ? "g" : o.pct >= 50 ? "y" : "r";
   return o;
 }
+const num = (v, d) => v == null || v === "" || isNaN(Number(v)) ? d : Number(v);
 function sumView() {
   const done = MEET.filter(m => m.status === "done").length;
-  let h = '<p class="meta" style="margin-bottom:8px">' + done + " " + esc(T(done === 1 ? "finished meeting since" : "finished meetings since")) + " " + esc(BAS.fmtDate(yearStart(), true)) + ". " + esc(T("Attendance % = how much they came. Excused counts as not coming; half absent counts as half.")) + (HIST && HIST.some(r => r.section_id !== SECID) ? " " + esc(T("People who moved up bring their attendance with them.")) : "") + "</p>";
+  let h = '<p class="meta" style="margin-bottom:8px">' + done + " " + esc(T(done === 1 ? "finished meeting since" : "finished meetings since")) + " " + esc(BAS.fmtDate(yearStart(), true)) + ". " + esc(T("Attended % = meetings they came to. Final % = by your stage's values")) + " (✓ " + num(SEC.att_w_present, 1) + " · " + esc(T("Late")) + " " + num(SEC.att_w_late, 0) + " · ½ " + num(SEC.att_w_half, 0.5) + " · " + esc(T("Excused")) + " " + num(SEC.att_w_excused, 0.25) + " · " + esc(T("Absent")) + " " + num(SEC.att_w_absent, 0) + ")." + (HIST && HIST.some(r => r.section_id !== SECID) ? " " + esc(T("People who moved up bring their attendance with them.")) : "") + "</p>";
   const K = kadaSorted(), A = ROSTER.filter(p => p.role !== "kada");
   const c = (v, bad) => '<td class="' + (bad ? "bad" : v ? "" : "z") + '">' + v + "</td>";
   const nm = (p, warn, extra) => "<td>" + gTag(p.gender) + " " + esc(p.name) + (warn ? " ⚠️" : "") + (extra || "") + "</td>";
-  const pctCell = s => "<td>" + (s.total ? '<span class="band ' + s.band + '">' + s.pct + "%</span>" : '<span class="z">—</span>') + "</td>";
+  const pctCell = s => "<td>" + (s.total ? s.apct + "%" : '<span class="z">—</span>') + "</td><td>" + (s.total ? '<span class="band ' + s.band + '">' + s.pct + "%</span>" : '<span class="z">—</span>') + "</td>";
   const krow = p => { const s = stats(p); return "<tr>" + nm(p, s.unexcused >= 2) + pctCell(s) + c(s.total) + c(s.present) + c(s.late) + c(s.half) + c(s.unexcused, s.unexcused >= 2) + c(s.excused) + c(s.noUni) + c(s.noFoul, s.noFoul >= 2) + "</tr>"; };
   const th = x => "<th>" + esc(T(x)) + "</th>";
   h += '<div class="stab-legend">👕 = ' + esc(T("no uniform")) + " · 🧣 = " + esc(T("no foulard")) + "</div>";
-  h += '<div class="group-title">Kada</div><div class="panel tscroll stabw"><table class="stab"><tr>' + th("Name") + th("Attendance %") + th("Meetings") + th("Present") + th("Late") + th("½ Half") + th("Absent") + th("Excused") + "<th>👕</th><th>🧣</th></tr>" +
-    (K.length ? K.map(krow).join("") : '<tr><td colspan="10" class="mut">—</td></tr>') + "</table></div>";
+  h += '<div class="group-title">Kada</div><div class="panel tscroll stabw"><table class="stab"><tr>' + th("Name") + th("Attended %") + th("Final %") + th("Meetings") + th("Present") + th("Late") + th("½ Half") + th("Absent") + th("Excused") + "<th>👕</th><th>🧣</th></tr>" +
+    (K.length ? K.map(krow).join("") : '<tr><td colspan="11" class="mut">—</td></tr>') + "</table></div>";
   const arow = p => { const s = stats(p); return "<tr>" + nm(p, s.band === "rr", p.tali3a_id && GROUP === "colour" ? ' <small class="mut">' + esc(tName(p.tali3a_id)) + "</small>" : "") +
     pctCell(s) + c(s.total) + c(s.present) + c(s.late) + c(s.half) + c(s.absent) + c(s.excused) + c(s.noUni) + c(s.noFoul, s.noFoul >= 2) + "</tr>"; };
-  const head = "<tr>" + th("Name") + th("Attendance %") + th("Meetings") + th("Present") + th("Late") + th("½ Half") + th("Absent") + th("Excused") + "<th>👕</th><th>🧣</th></tr>";
-  h += '<div class="group-title">Awlad</div><div class="tabs" style="margin-bottom:8px"><button class="tab' + (GROUP === "tali3a" ? " on" : "") + '" data-g="tali3a">By tali3a</button><button class="tab' + (GROUP === "colour" ? " on" : "") + '" data-g="colour">By colour</button></div>';
-  if (!A.length) h += '<div class="empty">No awlad in the list yet.</div>';
+  const head = "<tr>" + th("Name") + th("Attended %") + th("Final %") + th("Meetings") + th("Present") + th("Late") + th("½ Half") + th("Absent") + th("Excused") + "<th>👕</th><th>🧣</th></tr>";
+  h += '<div class="group-title">Scouts</div><div class="actions" style="margin:0 0 8px"><div class="tabs" style="margin:0"><button class="tab' + (GROUP === "tali3a" ? " on" : "") + '" data-g="tali3a">' + esc(T("By list")) + '</button><button class="tab' + (GROUP === "colour" ? " on" : "") + '" data-g="colour">By colour</button></div>' + (GROUP === "colour" ? "" : sortSel()) + "</div>";
+  if (!A.length) h += '<div class="empty">No scouts in the list yet.</div>';
   else if (GROUP === "colour") {
     const al = SEC.att_alert_pct == null ? 25 : SEC.att_alert_pct;
-    [["g", "🟢 " + T("came 75% or more")], ["y", "🟡 " + T("came 50–75%")], ["r", "🔴 " + T("came less than 50%")], ["rr", "🔴 ⚠️ " + T("came") + " " + al + "% " + T("or less (alert)")], ["", T("No meetings yet")]].forEach(b => {
+    [["g", "🟢 " + T("Final 75% or more")], ["y", "🟡 " + T("Final 50–75%")], ["r", "🔴 " + T("Final under 50%")], ["rr", "🔴 ⚠️ " + T("Final") + " " + al + "% " + T("or less (alert)")], ["", T("No meetings yet")]].forEach(b => {
       const L = A.filter(p => stats(p).band === b[0]).sort((x, y) => stats(y).pct - stats(x).pct);
       if (L.length) h += '<div class="colgrp"><h3>' + esc(T(b[1])) + " (" + L.length + ')</h3><div class="panel tscroll stabw"><table class="stab">' + head + L.map(arow).join("") + "</table></div></div>";
     });
@@ -274,6 +286,7 @@ function sumView() {
   }
   $("view").innerHTML = h;
   document.querySelectorAll("[data-g]").forEach(b => b.onclick = () => { GROUP = b.dataset.g; sumView(); });
+  bindSort(sumView);
 }
 
 // ---------- people and tali3as ----------
@@ -289,23 +302,25 @@ function peopleView() {
   let h = '<div class="ptools"><button class="btn ' + (PANEL === "add" ? "gold" : "line") + '" data-panel="add">+ ' + esc(T("Add names")) + '</button><button class="btn ' + (PANEL === "tal" ? "gold" : "line") + '" data-panel="tal">' + esc(T("Tali3as")) + " (" + TAL.length + ")</button></div>" +
     '<div class="cols' + (PANEL ? "" : " onecol") + '"><div' + (PANEL ? "" : " hidden") + '><div class="panel"' + (PANEL === "add" ? "" : " hidden") + '><h3>+ Add names</h3><p class="meta">One name per line. You can paste a whole list (numbers at the start are removed).</p>' +
     '<div class="field"><textarea id="pNames" rows="6" placeholder="Kiro Samy&#10;Mina Adel&#10;Bola Nabil"></textarea></div><div class="grid3">' +
-    '<div class="field"><label>Kada or walad</label><select id="pRole"><option value="3ayel">Walad</option><option value="kada">Kada</option></select></div>' +
+    '<div class="field"><label>Kada or scout</label><select id="pRole"><option value="3ayel">Scout</option><option value="kada">Kada</option></select></div>' +
     '<div class="field"><label>Boy / girl</label><select id="pGen"><option value="M">Boy / man</option><option value="F">Girl / woman</option></select></div>' +
     '<div class="field"><label>Tali3a</label><select id="pTal">' + tOpts(null) + "</select></div></div>" +
     '<button class="btn gold" id="pAdd">Add to the list</button><p class="meta mt">Leaders with an account are added by themselves once the warehouse team approves them.</p></div>' +
-    '<div class="panel"' + (PANEL === "tal" ? "" : " hidden") + '><h3>Tali3as</h3>' + (TAL.length ? TAL.map(t => { const ls = TL.filter(x => x.tali3a_id === t.id).map(x => (K.find(k => k.profile_id === x.profile_id) || {}).name).filter(Boolean);
+    '<div class="panel"' + (PANEL === "tal" ? "" : " hidden") + '><h3>Tali3as</h3>' + (TAL.length ? talSorted().map(t => { const ls = TL.filter(x => x.tali3a_id === t.id).map(x => (K.find(k => k.profile_id === x.profile_id) || {}).name).filter(Boolean);
       const ar = ROSTER.find(p => p.id === t.arif_id);
-      return '<div class="person prow" data-tal-open="' + t.id + '"><div><b>' + esc(t.name) + '</b><div class="meta">' + A.filter(p => p.tali3a_id === t.id).length + " " + esc(T("awlad")) + " · " + (ls.length ? esc(ls.join("، ")) : esc(T("no leaders yet"))) + (ar ? " · ⭐ " + esc(ar.name) : "") + '</div></div><button class="btn line sm" data-tal-open-b="' + t.id + '">' + esc(T("Open")) + "</button></div>"; }).join("") : '<div class="empty">No tali3as yet.</div>') +
+      return '<div class="person prow" data-tal-open="' + t.id + '"><div><b>' + esc(t.name) + '</b><div class="meta">' + A.filter(p => p.tali3a_id === t.id).length + " " + esc(T("scouts")) + " · " + (ls.length ? esc(ls.join("، ")) : esc(T("no leaders yet"))) + (ar ? " · ⭐ " + esc(ar.name) : "") + '</div></div><button class="btn line sm" data-tal-open-b="' + t.id + '">' + esc(T("Open")) + "</button></div>"; }).join("") : '<div class="empty">No tali3as yet.</div>') +
+    (A.some(p => !p.tali3a_id) ? '<div class="person prow" id="tNone"><div><b>' + esc(T("No tali3a")) + '</b><div class="meta">' + A.filter(p => !p.tali3a_id).length + " " + esc(T("scouts without a tali3a")) + '</div></div><button class="btn line sm">' + esc(T("Open")) + "</button></div>" : "") +
     '<button class="btn line" id="tNew">+ New tali3a</button></div></div>' +
-    '<div><div class="actions" style="margin:0 0 8px"><input type="search" class="psearch" id="pq" placeholder="Search a name…" autocomplete="off" style="flex:1;margin:0"><button class="btn line sm" id="pMove">⇪ ' + esc(T("Move to another stage")) + '</button></div><div class="group-title">Kada (' + K.length + ")</div>" + (K.length ? K.map(row).join("") : '<div class="empty">—</div>') +
-    '<div class="group-title">Awlad (' + A.length + ")</div>" + (A.length ? A.map(row).join("") : '<div class="empty">No awlad yet. Add them on the left.</div>') + "</div></div>";
+    '<div><div class="actions" style="margin:0 0 8px"><input type="search" class="psearch" id="pq" placeholder="Search a name…" autocomplete="off" style="flex:1;margin:0">' + sortSel() + "</div>" +
+    (ROSTER.length ? ordered().map(g => '<div class="group-title">' + esc(T(g.title)) + " (" + g.list.length + ")</div>" + g.list.map(row).join("")).join("") : '<div class="empty">No scouts yet. Add them on the left.</div>') + "</div></div>";
   $("view").innerHTML = h;
   document.querySelectorAll("[data-panel]").forEach(b => b.onclick = () => { PANEL = PANEL === b.dataset.panel ? "" : b.dataset.panel; peopleView(); });
   $("pq").oninput = () => { const q = BAS.norm($("pq").value); document.querySelectorAll(".person[data-p]").forEach(el => { el.hidden = !!q && !BAS.norm(el.querySelector("b").textContent).includes(q); }); };
   document.querySelectorAll(".person[data-p]").forEach(el => { el.onclick = () => personSheet(ROSTER.find(x => x.id === Number(el.dataset.p))); });
   $("pRole").onchange = () => { $("pTal").disabled = $("pRole").value === "kada"; };
   document.querySelectorAll("[data-tal-open]").forEach(el => el.onclick = () => tali3aSheet(TAL.find(t => t.id === Number(el.dataset.talOpen))));
-  $("pMove").onclick = () => moveSheet();
+  if ($("tNone")) $("tNone").onclick = () => noTali3aSheet();
+  bindSort(peopleView);
   $("pAdd").onclick = async () => {
     const names = $("pNames").value.trim(); if (!names) return BAS.toast("Write the names", "err");
     const { data, error } = await supabaseClient.rpc("add_names", { p_section: SECID, p_names: names, p_gender: $("pGen").value, p_role: $("pRole").value, p_tali3a: $("pTal").value ? Number($("pTal").value) : null });
@@ -328,14 +343,14 @@ function peopleView() {
       o.hidden = true; BAS.toast("Saved"); load();
     };
     $("tGo").onclick = () => go(true);
-    if ($("tDel")) $("tDel").onclick = () => { if (confirm("Delete this tali3a? Its awlad stay in the list without a tali3a.")) go(false); };
+    if ($("tDel")) $("tDel").onclick = () => { if (confirm("Delete this tali3a? Its scouts stay in the list without a tali3a.")) go(false); };
   };
   $("tNew").onclick = () => talSheet(null);
   TALEDIT = talSheet;
 }
 let TALEDIT = null;
 
-// ---------- one tali3a: its awlad (add / remove), عريف and مساعد ----------
+// ---------- one tali3a: its scouts (add / remove), عريف and مساعد ----------
 async function tali3aSheet(t) {
   const o = $("sheet"), A = ROSTER.filter(p => p.role !== "kada"), mem = A.filter(p => p.tali3a_id === t.id).sort((a, b) => a.name.localeCompare(b.name)), others = A.filter(p => p.tali3a_id !== t.id).sort((a, b) => a.name.localeCompare(b.name));
   const K = ROSTER.filter(p => p.role === "kada"), ls = TL.filter(x => x.tali3a_id === t.id).map(x => (K.find(k => k.profile_id === x.profile_id) || {}).name).filter(Boolean);
@@ -345,7 +360,7 @@ async function tali3aSheet(t) {
   const opt = (sel, ex) => '<option value="">—</option>' + mem.filter(p => p.id !== ex).map(p => '<option value="' + p.id + '"' + (p.id === sel ? " selected" : "") + ">" + esc(p.name) + (wasA.has(p.id) && wasM.has(p.id) ? " ✓✓" : "") + "</option>").join("");
   const every = (SEC.arif_every || 4) + " " + T(SEC.arif_unit === "meetings" ? "meetings" : "weeks");
   o.innerHTML = '<div class="sheet" style="max-width:560px"><div class="req-top"><h2 style="margin:0">' + esc(t.name) + '</h2><button class="btn line sm" id="tEd">✏️ ' + esc(T("Name & leaders")) + "</button></div>" +
-    '<p class="meta">' + mem.length + " " + esc(T("awlad")) + " · " + (ls.length ? esc(ls.join("، ")) : esc(T("no leaders yet"))) + "</p>" +
+    '<p class="meta">' + mem.length + " " + esc(T("scouts")) + " · " + (ls.length ? esc(ls.join("، ")) : esc(T("no leaders yet"))) + "</p>" +
     '<div class="panel"><h3>⭐ ' + esc(T("3arif & mosa3ed")) + "</h3>" +
     '<div class="arif-now"><div><small>' + esc(T("3arif")) + '</small><b>' + (ar ? esc(ar.name) : "—") + '</b></div><div><small>' + esc(T("Mosa3ed 3arif")) + '</small><b>' + (mo ? esc(mo.name) : "—") + "</b></div></div>" +
     (t.arif_since ? '<p class="meta">' + esc(T("Since")) + " " + esc(BAS.fmtDate(t.arif_since, true)) + (auto ? " · " + esc(T("changes every")) + " " + esc(every) : "") + " · " + esc(T("this round")) + ": " + wasA.size + "/" + mem.length + " " + esc(T("were 3arif")) + ", " + wasM.size + "/" + mem.length + " " + esc(T("were mosa3ed")) + "</p>" : "") +
@@ -354,9 +369,9 @@ async function tali3aSheet(t) {
       : '<div class="grid2"><div class="field"><label>' + esc(T("3arif")) + '</label><select id="aA">' + opt(t.arif_id) + '</select></div><div class="field"><label>' + esc(T("Mosa3ed 3arif")) + '</label><select id="aM">' + opt(t.mosa3ed_id) + "</select></div></div>" +
         '<p class="meta">' + esc(T("✓✓ = already was both this round.")) + '</p><button class="btn gold sm" id="aSet">' + esc(T("Save")) + "</button>") +
     "</div>" +
-    '<div class="panel"><h3>' + esc(T("Awlad in this tali3a")) + " (" + mem.length + ")</h3>" +
+    '<div class="panel"><h3>' + esc(T("Scouts in this tali3a")) + " (" + mem.length + ")</h3>" +
     (mem.length ? mem.map(p => '<div class="person prow" data-tp="' + p.id + '"><div><b>' + gTag(p.gender) + " " + esc(p.name) + "</b>" + star(p) + cake(p) + '</div><button class="btn line sm" data-trm="' + p.id + '" title="' + esc(T("Take out of the tali3a")) + '">✕</button></div>').join("") : '<div class="empty">—</div>') +
-    (others.length ? '<div class="actions"><div class="field" style="flex:1;margin:0"><select id="tAddSel"><option value="">' + esc(T("Add a walad…")) + "</option>" + others.map(p => '<option value="' + p.id + '">' + esc(p.name) + (p.tali3a_id ? " · " + esc(tName(p.tali3a_id)) : "") + "</option>").join("") + '</select></div><button class="btn gold sm" id="tAddGo">+ ' + esc(T("Add")) + "</button></div>" : "") +
+    (others.length ? '<div class="actions"><div class="field" style="flex:1;margin:0"><select id="tAddSel"><option value="">' + esc(T("Add a scout…")) + "</option>" + others.map(p => '<option value="' + p.id + '">' + esc(p.name) + (p.tali3a_id ? " · " + esc(tName(p.tali3a_id)) : "") + "</option>").join("") + '</select></div><button class="btn gold sm" id="tAddGo">+ ' + esc(T("Add")) + "</button></div>" : "") +
     '</div><div class="actions"><button class="btn line" id="tBk">Back</button></div></div>';
   o.hidden = false;
   o.onclick = e => { if (e.target === o) o.hidden = true; };
@@ -379,6 +394,22 @@ async function tali3aSheet(t) {
     const { error } = await supabaseClient.from("roster").update({ tali3a_id: t.id }).eq("id", id);
     if (error) return BAS.toast(BAS.errText(error), "err"); BAS.toast("Saved"); again();
   };
+}
+
+// ---------- scouts with no tali3a: put each one in a tali3a ----------
+function noTali3aSheet() {
+  const o = $("sheet"), L = sortList(ROSTER.filter(p => p.role !== "kada" && !p.tali3a_id));
+  const opts = '<option value="">' + esc(T("No tali3a")) + "</option>" + talSorted().map(t => '<option value="' + t.id + '">' + esc(t.name) + "</option>").join("");
+  o.innerHTML = '<div class="sheet" style="max-width:520px"><h2>' + esc(T("No tali3a")) + " (" + L.length + ")</h2>" +
+    (L.length ? L.map(p => '<div class="person"><div><b>' + gTag(p.gender) + " " + esc(p.name) + "</b>" + (p.school_year ? ' <small class="mut">' + esc(p.school_year) + "</small>" : "") + '</div><select data-nt="' + p.id + '">' + opts + "</select></div>").join("") : '<div class="empty">👌</div>') +
+    '<div class="actions"><button class="btn line" id="ntBk">Back</button></div></div>';
+  o.hidden = false; $("ntBk").onclick = () => { o.hidden = true; load(CUR && CUR.id); };
+  o.querySelectorAll("[data-nt]").forEach(x => x.onchange = async () => {
+    const { error } = await supabaseClient.from("roster").update({ tali3a_id: x.value ? Number(x.value) : null }).eq("id", Number(x.dataset.nt));
+    if (error) return BAS.toast(BAS.errText(error), "err");
+    BAS.toast("Saved"); const r = ROSTER.find(p => p.id === Number(x.dataset.nt)); if (r) r.tali3a_id = x.value ? Number(x.value) : null;
+    x.closest(".person").classList.add("gone-row");
+  });
 }
 
 // ---------- moving up: many people to another stage (their details and attendance go with them) ----------
@@ -415,7 +446,7 @@ async function personSheet(p) {
   const tel = n => n ? ' <a class="btn line sm" href="tel:' + esc(n.replace(/[^\d+]/g, "")) + '">📞</a><a class="btn line sm" target="_blank" rel="noopener" href="https://wa.me/' + esc(waNum(n)) + '">💬 WhatsApp</a>' : "";
   const ph = (id, label, v) => '<div class="field"><label>' + label + '</label><div class="phrow"><input id="' + id + '" type="tel" inputmode="tel" value="' + esc(v || "") + '" placeholder="01xxxxxxxxx">' + tel(v) + "</div></div>";
   o.innerHTML = '<div class="sheet" style="max-width:520px"><div class="pd-top"><div class="pd-photo" id="dPh">' + (p.photo_path ? "" : "<span>" + esc((p.name || "?").trim().charAt(0)) + "</span>") + "</div>" +
-    "<div><h2 style=\"margin:0\">" + esc(p.name) + cake(p) + '</h2><div class="meta">' + esc(T(kada ? "Kada" : "Walad")) + (p.profile_id ? " · " + esc(T("has an account")) : "") + "</div>" +
+    "<div><h2 style=\"margin:0\">" + esc(p.name) + cake(p) + '</h2><div class="meta">' + esc(T(kada ? "Kada" : "Scout")) + (p.profile_id ? " · " + esc(T("has an account")) : "") + "</div>" +
     '<label class="btn line sm" style="margin-top:6px">📷 ' + esc(T(p.photo_path ? "Change photo" : "Add a photo")) + '<input type="file" id="dPf" accept="image/*" hidden></label>' + (p.photo_path ? ' <button class="btn line sm" id="dPx">' + esc(T("Remove photo")) + "</button>" : "") + "</div></div>" +
     '<div class="panel"><div class="grid2"><div class="field"><label>Name</label><input id="dN" value="' + esc(p.name) + '"' + (p.profile_id ? " readonly" : "") + "></div>" +
     '<div class="field"><label>Boy / girl</label><select id="dG">' + (p.gender ? "" : '<option value="" selected disabled>' + esc(T("Choose boy / girl")) + "</option>") + '<option value="M"' + (p.gender === "M" ? " selected" : "") + '>♂ Boy</option><option value="F"' + (p.gender === "F" ? " selected" : "") + ">♀ Girl</option></select></div></div>" +
@@ -432,11 +463,10 @@ async function personSheet(p) {
     "</div>" +
     (amt > 0 ? '<div class="panel"><b>💳 ' + esc(T("Yearly subscription")) + "</b> · " + (paid >= amt ? '<span class="pill ok">' + esc(T("PAID")) + "</span>" : paid > 0 ? BAS.money(paid) + " / " + BAS.money(amt) : '<span class="pill warn">' + esc(T("NOT PAID")) + "</span>") +
       ' <a class="lnk" href="#subs" data-gosubs>' + esc(T("Open")) + "</a></div>" : "") +
-    '<div id="dErr" class="msg err" hidden></div><div class="actions"><button class="btn gold" id="dGo">Save</button>' + (p.profile_id ? "" : '<button class="btn line" id="dMv">⇪ ' + esc(T("Move to another stage")) + '</button><button class="btn danger" id="dRm">Remove from the list</button>') + '<button class="btn line" id="dBack">Back</button></div></div>';
+    '<div id="dErr" class="msg err" hidden></div><div class="actions"><button class="btn gold" id="dGo">Save</button>' + (p.profile_id ? "" : '<button class="btn danger" id="dRm">Remove from the list</button>') + '<button class="btn line" id="dBack">Back</button></div></div>';
   o.hidden = false;
   $("dBack").onclick = () => { o.hidden = true; };
   o.onclick = e => { if (e.target === o) o.hidden = true; };
-  if ($("dMv")) $("dMv").onclick = () => moveSheet(p.id);
   $("dOF").onchange = () => $("dOF").closest(".pick").classList.toggle("on", $("dOF").checked);
   const gs = o.querySelector("[data-gosubs]"); if (gs) gs.onclick = e => { e.preventDefault(); o.hidden = true; TAB = "subs"; history.replaceState(null, "", location.search + "#subs"); render(); };
   if (p.photo_path) { const u = await supabaseClient.storage.from("people").createSignedUrl(p.photo_path, 600); if (!u.error) $("dPh").innerHTML = '<img src="' + esc(u.data.signedUrl) + '" alt="">'; }
@@ -513,32 +543,34 @@ function subsView() {
 // ---------- settings for this stage ----------
 function setView() {
   const roles = PROF.filter(p => p.stage_role && p.stage_role !== "leader");
-  $("view").innerHTML = '<div class="panel" style="max-width:600px"><h3>Late</h3><p class="meta">Every stage can have its own rule.</p>' +
-    '<div class="grid2"><div class="field"><label>Late after (minutes from the start)</label><input type="number" min="0" max="180" id="sMin" value="' + (SEC.att_late_min == null ? 15 : SEC.att_late_min) + '"></div>' +
-    '<div class="field"><label>Does late count as absent?</label><select id="sAbs"><option value="0"' + (SEC.att_late_absent ? "" : " selected") + '>No</option><option value="1"' + (SEC.att_late_absent ? " selected" : "") + ">Yes</option></select></div></div>" +
-    '<div class="grid2"><div class="field"><label>Half absent after (minutes from the start)</label><input type="number" min="1" max="240" id="sHalf" value="' + (SEC.att_half_min == null ? "" : SEC.att_half_min) + '" placeholder="' + esc(T("Empty = off")) + '"></div><div></div></div>' +
-    '<p class="meta">' + esc(T("Half absent counts as half a meeting. Leaders can also mark someone ½ by hand.")) + "</p>" +
-    '<div class="grid2"><div class="field"><label>' + esc(T("Alert when a walad's attendance is (%) or less")) + '</label><input type="number" min="1" max="99" id="sAl" value="' + (SEC.att_alert_pct == null ? 25 : SEC.att_alert_pct) + '"></div><div></div></div>' +
+  const w = (k, d) => num(SEC["att_w_" + k], d);
+  $("view").innerHTML = '<div class="panel" style="max-width:600px"><h3>' + esc(T("How attendance is counted")) + '</h3><p class="meta">' + esc(T("Every stage decides. Each mark is worth a number from 0 to 1 in the Final %.")) + "</p>" +
+    '<div class="grid3">' + [["present", "✓ Present", 1], ["late", "Late", 0], ["half", "½ Half", 0.5], ["excused", "Excused", 0.25], ["absent", "Absent", 0]].map(x => '<div class="field"><label>' + esc(T(x[1])) + '</label><input type="number" step="0.05" min="0" max="1" data-w="' + x[0] + '" value="' + w(x[0], x[2]) + '"></div>').join("") + "</div>" +
+    '<div class="grid2"><div class="field"><label>' + esc(T("Does Excused count as \"came\" in the Attended %?")) + '</label><select id="sExc"><option value="0"' + (SEC.att_excused_came ? "" : " selected") + ">" + esc(T("No")) + '</option><option value="1"' + (SEC.att_excused_came ? " selected" : "") + ">" + esc(T("Yes")) + "</option></select></div>" +
+    '<div class="field"><label>' + esc(T("Alert when a scout's Final % is (%) or less")) + '</label><input type="number" min="1" max="99" id="sAl" value="' + (SEC.att_alert_pct == null ? 25 : SEC.att_alert_pct) + '"></div></div>' +
     '<button class="btn ok" id="sSave">Save</button></div>' +
     '<div class="panel" style="max-width:600px"><h3>⭐ ' + esc(T("3arif & mosa3ed")) + '</h3><p class="meta">' + esc(T("In automatic tali3as, a new 3arif and mosa3ed are picked every:")) + "</p>" +
     '<div class="grid2"><div class="field"><input type="number" min="1" max="52" id="sAe" value="' + (SEC.arif_every || 4) + '"></div><div class="field"><select id="sAu"><option value="weeks"' + (SEC.arif_unit === "meetings" ? "" : " selected") + ">" + esc(T("weeks")) + '</option><option value="meetings"' + (SEC.arif_unit === "meetings" ? " selected" : "") + ">" + esc(T("finished meetings")) + "</option></select></div></div>" +
     '<p class="meta">' + esc(T("Each tali3a chooses automatic or by hand: open it from People & tali3as.")) + '</p><button class="btn ok" id="sArif">Save</button></div>' +
     '<div class="panel" style="max-width:600px"><h3>Alerts</h3><ul class="meta" style="padding-inline-start:18px;line-height:1.8">' +
     "<li>" + esc(T("30 minutes after a meeting starts, if attendance isn't finished: every leader of the stage.")) + "</li>" +
-    "<li>" + esc(T("A leader absent without an excuse 2 times this year (and every time after): قائد المرحلة and نائب قائد المرحلة.")) + " " + esc(T("Two half absences make one.")) + "</li>" +
-    "<li>" + esc(T("A walad whose attendance is the % above or less (after 4 meetings): the leaders of his tali3a.")) + "</li>" +
+    "<li>" + esc(T("A leader who misses 2 meetings without an excuse this year, counted by your values (and every time after): قائد المرحلة and نائب قائد المرحلة.")) + "</li>" +
+    "<li>" + esc(T("A scout whose Final % is the alert level or less (after 4 meetings): the leaders of his tali3a.")) + "</li>" +
     "<li>" + esc(T("Anyone without the foulard 2 times this year (and every time after): the 4 kada and the leaders of their tali3a.")) + "</li>" +
     "<li>" + esc(T("A reminder before each meeting: every leader chooses how many minutes before in their profile.")) + "</li>" +
     "<li>" + esc(T("Birthdays: every leader of the stage at 9 AM on the day.")) + "</li>" +
     "<li>" + esc(T("Yearly subscription: a month after the scout year starts, and every month after, the stage's leaders and the warehouse team get how many haven't paid.")) + "</li></ul>" +
     '<p class="meta">' + esc(T("The stage roles (قائد المرحلة, نائب, مساعدين) are set by the warehouse team.")) + (BAS.isAdmin() ? ' <a class="lnk" href="team.html#people">' + esc(T("Set them in Accounts")) + "</a>" : "") + "</p>" +
-    (roles.length ? '<div class="meta">' + roles.map(p => esc(p.full_name) + ": " + esc({ head: "قائد المرحلة", deputy: "نائب قائد المرحلة", assistant: "مساعد قائد المرحلة" }[p.stage_role])).join(" · ") + "</div>" : "") + "</div>";
+    (roles.length ? '<div class="meta">' + roles.map(p => esc(p.full_name) + ": " + esc({ head: "قائد المرحلة", deputy: "نائب قائد المرحلة", assistant: "مساعد قائد المرحلة" }[p.stage_role])).join(" · ") + "</div>" : "") + "</div>" +
+    '<div class="panel" style="max-width:600px"><h3>' + esc(T("Once a year")) + '</h3><p class="meta">' + esc(T("Move scouts or kada to another stage. Their details, subscription and this year's attendance go with them.")) + '</p><button class="btn line" id="sMove">⇪ ' + esc(T("Move to another stage")) + "</button></div>";
   $("sSave").onclick = async () => {
-    const n = Number($("sMin").value), hv = $("sHalf").value.trim(), hm = hv === "" ? null : Number(hv), al = Number($("sAl").value);
-    const { error } = await supabaseClient.rpc("save_att_settings", { p_section: SECID, p_late_min: n, p_late_absent: $("sAbs").value === "1", p_half_min: hm, p_alert_pct: al });
+    const W = {}; document.querySelectorAll("[data-w]").forEach(x => { W[x.dataset.w] = Number(x.value); });
+    const al = Number($("sAl").value), ex = $("sExc").value === "1";
+    const { error } = await supabaseClient.rpc("save_att_rules", { p_section: SECID, p_alert_pct: al, p_w: W, p_excused_came: ex });
     if (error) return BAS.toast(BAS.errText(error), "err");
-    SEC.att_late_min = n; SEC.att_late_absent = $("sAbs").value === "1"; SEC.att_half_min = hm; SEC.att_alert_pct = al; BAS.toast("Saved");
+    Object.keys(W).forEach(k => { SEC["att_w_" + k] = W[k]; }); SEC.att_alert_pct = al; SEC.att_excused_came = ex; BAS.toast("Saved");
   };
+  $("sMove").onclick = () => moveSheet();
   $("sArif").onclick = async () => {
     const e = Number($("sAe").value), u = $("sAu").value;
     const { error } = await supabaseClient.rpc("save_arif_settings", { p_section: SECID, p_every: e, p_unit: u });
