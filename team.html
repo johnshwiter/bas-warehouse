@@ -818,7 +818,7 @@ function settingsView() {
     '<p class="meta">A full backup file is downloaded first. Keep it.</p><div class="field"><label>Reset code</label><input id="rsIn" type="password" autocomplete="off" placeholder="Reset code"></div>' +
     '<div id="rsMsg" class="msg warn" hidden></div><button class="btn danger" id="rsGo">Download backup and reset</button></div>';
   $("nyGo").onclick = () => { const d = $("nyDate").value; if (!d) return BAS.toast("Choose the date", "err");
-    if (confirm("Start the new scout year on " + BAS.fmtDate(d, true) + "? Attendance before this day stops counting (it stays saved).")) rpc("new_scout_year", { p_start: d }, "New scout year started").then(() => location.reload()); };
+    if (confirm("Start the new scout year on " + BAS.fmtDate(d, true) + "? Attendance before this day stops counting (it stays saved). Everyone's school year goes up by one, and the yearly subscription starts again.")) rpc("new_scout_year", { p_start: d }, "New scout year started").then(() => location.reload()); };
   $("rsGo").onclick = resetAll;
   $("sSave").onclick = async () => {
     const days = Number($("sDays").value), ret = Number($("sRet").value), low = Number($("sLow").value), times = $("sTimes").value.split(",").map(x => x.trim()).filter(Boolean);

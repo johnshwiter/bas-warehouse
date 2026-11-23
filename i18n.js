@@ -13,6 +13,31 @@
 
   // ---------- exact texts: "English": ["العربي", "Français"] ----------
   const D = {
+    // v14
+    "The 3arif must be in this tali3a.": ["العريف لازم يكون من الطليعة دي.", "Le chef doit être dans cette patrouille."], "The mosa3ed must be in this tali3a.": ["المساعد لازم يكون من الطليعة دي.", "Le second doit être dans cette patrouille."],
+    "The 3arif and the mosa3ed must be two different people.": ["العريف والمساعد لازم يكونوا اتنين مختلفين.", "Le chef et le second doivent être deux personnes différentes."],
+    "The attendance alert must be between 1% and 99%.": ["تنبيه الحضور لازم يكون بين 1% و99%.", "L'alerte doit être entre 1 % et 99 %."], "You can only move people from your own stage.": ["تقدر تنقل ناس من مرحلتك بس.", "Vous ne pouvez déplacer que des personnes de votre unité."],
+    "3arif": ["عريف", "Chef de patrouille"], "Mosa3ed": ["مساعد", "Second"], "Mosa3ed 3arif": ["مساعد عريف", "Second de patrouille"],
+    "Doesn't have a foulard yet": ["لسه معندوش فولار", "N'a pas encore de foulard"], "no foulard yet": ["لسه معندوش فولار", "pas encore de foulard"], "Not marked": ["لسه ما اتعلّمش", "Non coché"],
+    "They will count as absent.": ["هيتحسبوا غياب.", "Ils compteront comme absents."], "came 75% or more": ["حضر 75% أو أكتر", "présent 75% ou plus"], "came 50–75%": ["حضر 50–75%", "présent 50–75%"],
+    "came less than 50%": ["حضر أقل من 50%", "présent moins de 50%"], "came": ["حضر", "présent"], "or less (alert)": ["أو أقل (تنبيه)", "ou moins (alerte)"],
+    "Attendance % = how much they came. Excused counts as not coming; half absent counts as half.": ["نسبة الحضور = حضر قد إيه. الغياب بعذر بيتحسب مش حاضر، ونص الغياب بنص.", "% de présence = combien il est venu. Excusé compte comme absent ; demi-absence = moitié."],
+    "People who moved up bring their attendance with them.": ["اللي اترقوا جايبين حضورهم معاهم.", "Ceux qui sont montés gardent leurs présences."], "Attendance %": ["نسبة الحضور", "% de présence"],
+    "Move to another stage": ["نقل لمرحلة تانية", "Passer à une autre unité"], "Name & leaders": ["الاسم والقادة", "Nom et chefs"], "3arif & mosa3ed": ["العريف والمساعد", "Chef et second de patrouille"],
+    "Since": ["من", "Depuis"], "changes every": ["بيتغير كل", "change tous les"], "weeks": ["أسابيع", "semaines"], "meetings": ["اجتماعات", "réunions"], "this round": ["الدورة دي", "ce tour"],
+    "were 3arif": ["كانوا عريف", "ont été chef"], "were mosa3ed": ["كانوا مساعد", "ont été second"], "Automatic": ["أوتوماتيك", "Automatique"], "Chosen by hand": ["بالاختيار", "Choisi à la main"],
+    "Picked at random. Everyone is 3arif once and mosa3ed once before anyone repeats.": ["بيتختار عشوائي. كل واحد بياخد دوره عريف مرة ومساعد مرة قبل ما حد يتكرر.", "Tiré au sort. Chacun est chef une fois et second une fois avant qu'on recommence."],
+    "Pick now": ["اختار دلوقتي", "Tirer maintenant"], "✓✓ = already was both this round.": ["✓✓ = خد الدورين في الدورة دي.", "✓✓ = a déjà eu les deux rôles ce tour."], "Awlad in this tali3a": ["أولاد الطليعة", "Enfants de la patrouille"],
+    "Take out of the tali3a": ["طلّعه من الطليعة", "Retirer de la patrouille"], "Add a walad…": ["ضيف ولد…", "Ajouter un enfant…"], "Pick a new 3arif and mosa3ed now?": ["تختار عريف ومساعد جداد دلوقتي؟", "Tirer un nouveau chef et second maintenant ?"],
+    "Take": ["تطلّع", "Retirer"], "out of": ["من", "de"], "Choose the 3arif.": ["اختار العريف.", "Choisissez le chef."],
+    "Their details, subscription and this year's attendance go with them. Their tali3a and 3arif role stay here.": ["بياناتهم واشتراكهم وحضور السنة دي بيتنقلوا معاهم. الطليعة ودور العريف بيفضلوا هنا.", "Leurs détails, cotisation et présences de l'année partent avec eux. Patrouille et rôle restent ici."],
+    "New stage": ["المرحلة الجديدة", "Nouvelle unité"], "Tick a group…": ["علّم مجموعة…", "Cocher un groupe…"], "Nobody": ["ولا حد", "Personne"], "Move": ["انقل", "Déplacer"],
+    "Choose the new stage.": ["اختار المرحلة الجديدة.", "Choisissez la nouvelle unité."], "Tick who moves.": ["علّم مين اللي هيتنقل.", "Cochez qui part."], "Moved": ["اتنقلوا", "Déplacés"],
+    "Has a foulard": ["عنده فولار", "A un foulard"], "(untick = not counted as \"no foulard\" until they get one)": ["(شيل العلامة = مش هيتحسب عليه «من غير فولار» لحد ما يجيب واحد)", "(décoché = « sans foulard » ne compte pas jusqu'à ce qu'il en ait un)"],
+    "Joined the scouts on": ["دخل الكشافة يوم", "Entré aux scouts le"], "Alert when a walad's attendance is (%) or less": ["تنبيه لما حضور الولد يبقى (%) أو أقل", "Alerte si la présence d'un enfant est de (%) ou moins"],
+    "A walad whose attendance is the % above or less (after 4 meetings): the leaders of his tali3a.": ["ولد حضوره النسبة اللي فوق أو أقل (بعد 4 اجتماعات): قادة طليعته.", "Un enfant dont la présence est au % ci-dessus ou moins (après 4 réunions) : les chefs de sa patrouille."],
+    "In automatic tali3as, a new 3arif and mosa3ed are picked every:": ["في الطلائع الأوتوماتيك، بيتختار عريف ومساعد جداد كل:", "Dans les patrouilles automatiques, nouveau chef et second tous les :"], "finished meetings": ["اجتماعات خلصت", "réunions terminées"],
+    "Each tali3a chooses automatic or by hand: open it from People & tali3as.": ["كل طليعة تختار أوتوماتيك ولا بالاختيار: افتحها من الأسامي والطلائع.", "Chaque patrouille choisit auto ou à la main : ouvrez-la depuis Personnes et patrouilles."],
     // v13
     "Group money": ["فلوس المجموعة", "Argent du groupe"], "Scout group ": ["فلوس ", "Argent du "], "The group's own money: yearly subscriptions, donations, fundraising. Separate from the warehouse Mizania. Only the warehouse team sees it.": ["فلوس المجموعة نفسها: الاشتراك السنوي والتبرعات وجمع الفلوس. منفصلة عن ميزانية المخزن. فريق المخزن بس اللي بيشوفها.", "L'argent du groupe : cotisations, dons, collectes. Séparé de la caisse de l'entrepôt. Visible par l'équipe seulement."],
     "Yearly subscription": ["الاشتراك السنوي", "Cotisation annuelle"], "Subscription": ["الاشتراك", "Cotisation"], "Fundraising": ["جمع فلوس", "Collecte"], "Trips and camps": ["رحلات ومعسكرات", "Sorties et camps"], "Supplies": ["مستلزمات", "Fournitures"],
@@ -425,6 +450,7 @@
 
   // ---------- texts with numbers or names inside ----------
   const R = [
+    [/^(.+) has an account: change their stage from Accounts\.$/, "$1 عنده حساب: غيّر مرحلته من الحسابات.", "$1 a un compte : changez son unité dans Comptes."],
     [/^Empty Deleted \((\d+)\)$/, "امسح الكل نهائي ($1)", "Tout supprimer ($1)"], [/^Delete everything in Deleted \((\d+)\) forever\? This can't be undone\.$/, "تمسح كل اللي في الممسوح ($1) نهائي؟ مفيش رجوع.", "Tout supprimer définitivement ($1) ? Irréversible."],
     [/^Deleted forever: (\d+)$/, "اتمسح نهائي: $1", "Supprimés : $1"], [/^Deleted ✓ #(\d+)$/, "اتمسح ✓ #$1", "Supprimée ✓ #$1"], [/^Scout group$/, "فلوس", "Argent du"],
     [/^Available (\d+)$/, "متاح $1", "Disponible $1"],
@@ -438,6 +464,7 @@
     [/^Finish attendance for (.+)\? Alerts are sent now \(absences, uniform\)\.$/, "تخلّص حضور $1؟ التنبيهات هتتبعت دلوقتي (الغياب والزي).", "Terminer l'appel du $1 ? Les alertes partent maintenant."],
     [/^Remove (.+) from the stage's list\? Past attendance keeps the name\.$/, "تشيل $1 من قايمة المرحلة؟ الحضور القديم هيفضل بالاسم.", "Retirer $1 de la liste ? L'historique garde le nom."],
     [/^Meeting · (.+)$/, "اجتماع · $1", "Réunion · $1"], [/^(Camp|Trip) sent ✓$/, (m, a) => (a === "Camp" ? "المعسكر" : "الرحلة") + " اتبعت ✓", "Envoyé ✓"],
+    [/^Start the new scout year on (.+)\? Attendance before this day stops counting \(it stays saved\)\. Everyone's school year goes up by one, and the yearly subscription starts again\.$/, "تبدأ السنة الكشفية الجديدة يوم $1؟ الحضور اللي قبلها مش هيتحسب (بس هيفضل محفوظ). سنة الدراسة لكل واحد هتزيد سنة، والاشتراك السنوي هيبدأ من الأول.", "Commencer la nouvelle année scoute le $1 ? Les présences d'avant ne comptent plus (elles restent). L'année scolaire de chacun augmente d'un an et la cotisation recommence."],
     [/^Start the new scout year on (.+)\? Attendance before this day stops counting \(it stays saved\)\.$/, "تبدأ السنة الكشفية الجديدة يوم $1؟ الحضور اللي قبله مش هيتحسب (بس هيفضل محفوظ).", "Nouvelle année le $1 ? Les présences d'avant ne comptent plus."],
     [/^The scout year started on (.+)\. Percentages and absence counts start from this day\.$/, "السنة الكشفية بدأت $1. النسب وعدد الغياب بيتحسبوا من اليوم ده.", "L'année a commencé le $1. Les pourcentages comptent depuis ce jour."],
     [/^(\d+) requests?$/, "$1 طلب", "$1 demande(s)"],

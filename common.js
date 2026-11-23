@@ -75,7 +75,8 @@ const BAS = {
   async init(active) {
     const { data: { session } } = await supabaseClient.auth.getSession();
     this.user = session ? session.user : null;
-    let sec = await supabaseClient.from("sections").select("id, name_en, name_ar, has_3eyal, is_active, att_late_min, att_late_absent, att_half_min").order("id");
+    let sec = await supabaseClient.from("sections").select("id, name_en, name_ar, has_3eyal, is_active, att_late_min, att_late_absent, att_half_min, att_alert_pct, arif_every, arif_unit").order("id");
+    if (sec.error) sec = await supabaseClient.from("sections").select("id, name_en, name_ar, has_3eyal, is_active, att_late_min, att_late_absent, att_half_min").order("id");
     if (sec.error) sec = await supabaseClient.from("sections").select("id, name_en, name_ar, has_3eyal, is_active, att_late_min, att_late_absent").order("id");
     if (sec.error) sec = await supabaseClient.from("sections").select("id, name_en, name_ar").order("id");
     if (!sec.error) { this.allSections = sec.data || []; this.sections = this.allSections.filter(x => x.is_active !== false); }

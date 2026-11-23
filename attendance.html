@@ -33,7 +33,7 @@ const esc = s => BAS.esc(s);
 const T = x => BAS.tr ? BAS.tr(x) : x;
 const QS = new URLSearchParams(location.search);
 let SECID = null, SEC = null, TAB = (location.hash || "#take").slice(1), MEET = [], ROSTER = [], TAL = [], TL = [], RECS = [], PROF = [], ROLES = {}, PANEL = "";
-let CUR = null, STATE = {}, DIRTY = false, Q = "", GROUP = "tali3a", SUBS = [];
+let CUR = null, STATE = {}, DIRTY = false, Q = "", GROUP = "tali3a", SUBS = [], HIST = null;
 const YEARS = ["KG1", "KG2"].concat([1, 2, 3, 4, 5, 6].map(n => n + " ابتدائي"), [1, 2, 3].map(n => n + " إعدادي"), [1, 2, 3].map(n => n + " ثانوي"), [1, 2, 3, 4, 5].map(n => "جامعة " + n), ["خريج / بيشتغل"]);
 
 (async function () {
@@ -59,6 +59,8 @@ const paidOf = id => SUBS.filter(x => x.roster_id === id).reduce((t, x) => t + N
 // 🎂 on the day (Cairo date)
 const isBday = p => { if (!p.birthday) return false; const t = BAS.todayISO(); return p.birthday.slice(5) === t.slice(5); };
 const cake = p => isBday(p) ? ' <span title="Birthday today">🎂</span>' : "";
+// ⭐ 3arif · ☆ mosa3ed 3arif
+const star = p => { const t = TAL.find(x => x.arif_id === p.id || x.mosa3ed_id === p.id); return !t ? "" : t.arif_id === p.id ? ' <span class="pill gold">⭐ ' + esc(T("3arif")) + '</span>' : ' <span class="pill mut">☆ ' + esc(T("Mosa3ed")) + '</span>'; };
 async function load(meetId) {
   try {
     SEC = BAS.allSections.find(s => s.id === SECID) || {};
@@ -70,6 +72,7 @@ async function load(meetId) {
     const ids = MEET.map(m => m.id);
     RECS = ids.length ? await BAS.q(supabaseClient.from("att_records").select("*").in("meeting_id", ids)) : [];
     const rl = await supabaseClient.rpc("stage_roles", { p_section: SECID }); ROLES = {}; (rl.data || []).forEach(x => { ROLES[x.profile_id] = x.stage_role; });
+    const hr = await supabaseClient.rpc("att_year_records", { p_section: SECID }); HIST = hr.error ? null : (hr.data || []);
     const ys = subYear();
     SUBS = ROSTER.length && ys ? (await supabaseClient.from("sub_payments").select("*").eq("year_start", ys).in("roster_id", ROSTER.map(p => p.id))).data || [] : [];
     if (BAS.isAdmin()) PROF = await BAS.q(supabaseClient.from("profiles").select("id, full_name, stage_role").eq("section_id", SECID).eq("approval_status", "approved"));
@@ -83,7 +86,8 @@ function pickMeeting(id) {
   STATE = {}; DIRTY = false;
   if (!CUR) return;
   const R = RECS.filter(r => r.meeting_id === CUR.id);
-  ROSTER.forEach(p => { const r = R.find(x => x.roster_id === p.id); STATE[p.id] = r ? { status: r.status, arrived: (r.arrived || "").slice(0, 5), uniform: r.uniform, foulard: r.foulard !== false } : { status: "present", arrived: "", uniform: true, foulard: true }; });
+  // nobody is marked at the start: tap ✓ for the people in front of you
+  ROSTER.forEach(p => { const r = R.find(x => x.roster_id === p.id); STATE[p.id] = r ? { status: r.status, arrived: (r.arrived || "").slice(0, 5), uniform: r.uniform, foulard: r.foulard !== false } : { status: "", arrived: "", uniform: true, foulard: p.owns_foulard !== false }; });
 }
 
 function render() {
@@ -145,11 +149,13 @@ function takeView() {
 const isHere = s => s.status === "present" || s.status === "late" || s.status === "half";
 function rowHTML(p) {
   const s = STATE[p.id], half = s.status === "half", late = !half && (s.status === "late" || ((s.status === "present") && lateOf(s.arrived))), here = isHere(s), off = here ? "" : " disabled";
-  return '<div class="att-row ' + (half ? "half" : late ? "late" : s.status) + '" data-row="' + p.id + '" data-nm="' + esc(BAS.norm(p.name)) + '"><div class="att-name">' + gTag(p.gender) + " " + esc(p.name) + cake(p) +
+  const noF = p.owns_foulard === false;
+  return '<div class="att-row ' + (half ? "half" : late ? "late" : s.status || "unmarked") + '" data-row="' + p.id + '" data-nm="' + esc(BAS.norm(p.name)) + '"><div class="att-name">' + gTag(p.gender) + " " + esc(p.name) + star(p) + cake(p) +
     (half ? ' <span class="pill warn">½ ' + esc(T("HALF ABSENT")) + "</span>" : late ? ' <span class="pill warn">' + esc(T("LATE")) + "</span>" : "") + "</div>" +
     '<div class="att-ctl"><span class="seg">' + [["present", "✓"], ["half", "½"], ["absent", "Absent"], ["excused", "Excused"]].map(x => '<button type="button" data-st="' + x[0] + '"' + (x[0] === "half" ? ' title="' + esc(T("Half absent")) + '"' : "") + ' class="' + (s.status === x[0] || (x[0] === "present" && s.status === "late") ? "on" : "") + '">' + esc(T(x[1])) + "</button>").join("") + "</span>" +
     '<input type="time" data-arr="' + p.id + '" value="' + esc(here ? s.arrived : "") + '" title="' + esc(T("Arrived at")) + '" aria-label="' + esc(T("Arrived at")) + '"' + off + '><label class="uni' + (here ? "" : " off") + '"><input type="checkbox" data-uni="' + p.id + '"' + (here && s.uniform ? " checked" : "") + off + "> 👕 " + esc(T("Uniform")) + "</label>" +
-      '<label class="uni' + (here ? "" : " off") + '"><input type="checkbox" data-foul="' + p.id + '"' + (here && s.foulard ? " checked" : "") + off + "> 🧣 " + esc(T("Foulard")) + "</label></div></div>";
+      (noF ? '<span class="uni off nof" title="' + esc(T("Doesn't have a foulard yet")) + '">🧣 ' + esc(T("no foulard yet")) + "</span>"
+        : '<label class="uni' + (here ? "" : " off") + '"><input type="checkbox" data-foul="' + p.id + '"' + (here && s.foulard ? " checked" : "") + off + "> 🧣 " + esc(T("Foulard")) + "</label>") + "</div></div>";
 }
 function redrawRow(id) {
   const el = document.querySelector('[data-row="' + id + '"]'); if (!el) return;
@@ -157,14 +163,17 @@ function redrawRow(id) {
   bindRows(); counts(); filter();
 }
 function counts() {
-  const L = ROSTER.map(p => STATE[p.id]), n = x => L.filter(x).length;
-  if ($("aCount")) $("aCount").textContent = T("Present") + " " + n(s => s.status === "present" || s.status === "late") + " · " + T("Half absent") + " " + n(s => s.status === "half") + " · " + T("Absent") + " " + n(s => s.status === "absent") + " · " + T("Excused") + " " + n(s => s.status === "excused") + " · " + T("No uniform") + " " + n(s => isHere(s) && !s.uniform) + " · " + T("No foulard") + " " + n(s => isHere(s) && !s.foulard);
+  const L = ROSTER.map(p => STATE[p.id]), n = x => L.filter((s, i) => x(s, i)).length;
+  if ($("aCount")) $("aCount").textContent = (n(s => !s.status) ? T("Not marked") + " " + n(s => !s.status) + " · " : "") + T("Present") + " " + n(s => s.status === "present" || s.status === "late") + " · " + T("Half absent") + " " + n(s => s.status === "half") + " · " + T("Absent") + " " + n(s => s.status === "absent") + " · " + T("Excused") + " " + n(s => s.status === "excused") + " · " + T("No uniform") + " " + n(s => isHere(s) && !s.uniform) + " · " + T("No foulard") + " " + n((s, i) => isHere(s) && !s.foulard && ROSTER[i].owns_foulard !== false);
 }
 function filter() { const q = BAS.norm(Q); document.querySelectorAll(".att-row[data-nm]").forEach(r => { r.hidden = !!q && !r.dataset.nm.includes(q); }); }
 function bindRows() {
   document.querySelectorAll(".att-row").forEach(r => {
     const id = Number(r.dataset.row);
-    r.querySelectorAll("[data-st]").forEach(b => b.onclick = () => { const s = STATE[id]; s.status = b.dataset.st; if (!isHere(s)) s.arrived = ""; DIRTY = true; redrawRow(id); });
+    r.querySelectorAll("[data-st]").forEach(b => b.onclick = () => { const s = STATE[id], p = ROSTER.find(x => x.id === id);
+      // tapping it again clears it; marking someone here ticks uniform and foulard
+      if (s.status === b.dataset.st || (b.dataset.st === "present" && s.status === "late")) s.status = ""; else { if (!isHere(s)) { s.uniform = true; s.foulard = p.owns_foulard !== false; } s.status = b.dataset.st; }
+      if (!isHere(s)) s.arrived = ""; DIRTY = true; redrawRow(id); });
     const a = r.querySelector("[data-arr]"); if (a) a.onchange = () => { STATE[id].arrived = a.value; STATE[id].status = halfOf(a.value) ? "half" : "present"; DIRTY = true; redrawRow(id); };
     const u = r.querySelector("[data-uni]"); if (u) u.onchange = () => { STATE[id].uniform = u.checked; DIRTY = true; counts(); };
     const f = r.querySelector("[data-foul]"); if (f) f.onchange = () => { STATE[id].foulard = f.checked; DIRTY = true; counts(); };
@@ -192,8 +201,10 @@ function bindTake() {
   bindRows();
 }
 async function save(finish) {
-  if (finish && !confirm("Finish attendance for " + BAS.fmtDate(CUR.meet_date, true) + "? Alerts are sent now (absences, uniform).")) return;
-  const rows = ROSTER.map(p => ({ roster_id: p.id, status: STATE[p.id].status, arrived: STATE[p.id].arrived || null, uniform: STATE[p.id].uniform, foulard: STATE[p.id].foulard }));
+  const un = ROSTER.filter(p => !STATE[p.id].status).length;
+  if (finish && !confirm((un ? T("Not marked") + ": " + un + ". " + T("They will count as absent.") + "\n\n" : "") + "Finish attendance for " + BAS.fmtDate(CUR.meet_date, true) + "? Alerts are sent now (absences, uniform).")) return;
+  // a draft keeps only the people you marked; Finish saves the rest as absent
+  const rows = ROSTER.filter(p => finish || STATE[p.id].status).map(p => ({ roster_id: p.id, status: STATE[p.id].status || "absent", arrived: STATE[p.id].arrived || null, uniform: STATE[p.id].uniform, foulard: STATE[p.id].foulard }));
   const bs = [$("aFin"), $("aDraft")]; bs.forEach(b => { b.disabled = true; });
   const { error } = await supabaseClient.rpc("save_attendance", { p_meeting: CUR.id, p_rows: rows, p_finish: finish });
   bs.forEach(b => { b.disabled = false; });
@@ -219,22 +230,25 @@ function meetingSheet(m) {
 
 // ---------- summary ----------
 function stats(p) {
+  // this year's records follow the person, even from a stage they were in before
   const done = MEET.filter(m => m.status === "done").map(m => m.id);
-  const R = RECS.filter(r => r.roster_id === p.id && done.indexOf(r.meeting_id) >= 0);
+  const R = HIST ? HIST.filter(r => r.roster_id === p.id && r.meet_status === "done") : RECS.filter(r => r.roster_id === p.id && done.indexOf(r.meeting_id) >= 0);
   const c = x => R.filter(r => r.status === x).length;
   const lateAbs = !!SEC.att_late_absent;
   const here = r => r.status === "present" || r.status === "late" || r.status === "half";
-  const o = { total: R.length, present: c("present"), absent: c("absent"), excused: c("excused"), late: c("late"), half: c("half"), noUni: R.filter(r => here(r) && !r.uniform).length, noFoul: R.filter(r => here(r) && r.foulard === false).length };
+  const o = { total: R.length, present: c("present"), absent: c("absent"), excused: c("excused"), late: c("late"), half: c("half"), noUni: R.filter(r => here(r) && !r.uniform).length, noFoul: p.owns_foulard === false ? 0 : R.filter(r => here(r) && r.foulard === false).length };
   // half absent = half a meeting
   o.missed = o.absent + o.excused + (lateAbs ? o.late : 0) + o.half / 2;
   o.unexcused = o.absent + (lateAbs ? o.late : 0) + o.half / 2;
-  o.pct = o.total ? Math.round(o.missed * 100 / o.total) : 0;
-  o.band = !o.total ? "" : o.pct >= 75 ? "rr" : o.pct >= 50 ? "r" : o.pct >= 25 ? "y" : "g";
+  // attendance %: how much they came
+  o.pct = o.total ? Math.round((o.total - o.missed) * 100 / o.total) : 0;
+  const al = SEC.att_alert_pct == null ? 25 : SEC.att_alert_pct;
+  o.band = !o.total ? "" : o.pct <= al ? "rr" : o.pct >= 75 ? "g" : o.pct >= 50 ? "y" : "r";
   return o;
 }
 function sumView() {
   const done = MEET.filter(m => m.status === "done").length;
-  let h = '<p class="meta" style="margin-bottom:8px">' + done + " " + esc(T(done === 1 ? "finished meeting since" : "finished meetings since")) + " " + esc(BAS.fmtDate(yearStart(), true)) + ". " + esc(T("Excused absences count in the percentage.")) + " " + esc(T("Half absent counts as half a meeting.")) + "</p>";
+  let h = '<p class="meta" style="margin-bottom:8px">' + done + " " + esc(T(done === 1 ? "finished meeting since" : "finished meetings since")) + " " + esc(BAS.fmtDate(yearStart(), true)) + ". " + esc(T("Attendance % = how much they came. Excused counts as not coming; half absent counts as half.")) + (HIST && HIST.some(r => r.section_id !== SECID) ? " " + esc(T("People who moved up bring their attendance with them.")) : "") + "</p>";
   const K = kadaSorted(), A = ROSTER.filter(p => p.role !== "kada");
   const c = (v, bad) => '<td class="' + (bad ? "bad" : v ? "" : "z") + '">' + v + "</td>";
   const nm = (p, warn, extra) => "<td>" + gTag(p.gender) + " " + esc(p.name) + (warn ? " ⚠️" : "") + (extra || "") + "</td>";
@@ -242,15 +256,16 @@ function sumView() {
   const krow = p => { const s = stats(p); return "<tr>" + nm(p, s.unexcused >= 2) + pctCell(s) + c(s.total) + c(s.present) + c(s.late) + c(s.half) + c(s.unexcused, s.unexcused >= 2) + c(s.excused) + c(s.noUni) + c(s.noFoul, s.noFoul >= 2) + "</tr>"; };
   const th = x => "<th>" + esc(T(x)) + "</th>";
   h += '<div class="stab-legend">👕 = ' + esc(T("no uniform")) + " · 🧣 = " + esc(T("no foulard")) + "</div>";
-  h += '<div class="group-title">Kada</div><div class="panel tscroll stabw"><table class="stab"><tr>' + th("Name") + th("Absent %") + th("Meetings") + th("Present") + th("Late") + th("½ Half") + th("Absent") + th("Excused") + "<th>👕</th><th>🧣</th></tr>" +
+  h += '<div class="group-title">Kada</div><div class="panel tscroll stabw"><table class="stab"><tr>' + th("Name") + th("Attendance %") + th("Meetings") + th("Present") + th("Late") + th("½ Half") + th("Absent") + th("Excused") + "<th>👕</th><th>🧣</th></tr>" +
     (K.length ? K.map(krow).join("") : '<tr><td colspan="10" class="mut">—</td></tr>') + "</table></div>";
   const arow = p => { const s = stats(p); return "<tr>" + nm(p, s.band === "rr", p.tali3a_id && GROUP === "colour" ? ' <small class="mut">' + esc(tName(p.tali3a_id)) + "</small>" : "") +
     pctCell(s) + c(s.total) + c(s.present) + c(s.late) + c(s.half) + c(s.absent) + c(s.excused) + c(s.noUni) + c(s.noFoul, s.noFoul >= 2) + "</tr>"; };
-  const head = "<tr>" + th("Name") + th("Absent %") + th("Meetings") + th("Present") + th("Late") + th("½ Half") + th("Absent") + th("Excused") + "<th>👕</th><th>🧣</th></tr>";
+  const head = "<tr>" + th("Name") + th("Attendance %") + th("Meetings") + th("Present") + th("Late") + th("½ Half") + th("Absent") + th("Excused") + "<th>👕</th><th>🧣</th></tr>";
   h += '<div class="group-title">Awlad</div><div class="tabs" style="margin-bottom:8px"><button class="tab' + (GROUP === "tali3a" ? " on" : "") + '" data-g="tali3a">By tali3a</button><button class="tab' + (GROUP === "colour" ? " on" : "") + '" data-g="colour">By colour</button></div>';
   if (!A.length) h += '<div class="empty">No awlad in the list yet.</div>';
   else if (GROUP === "colour") {
-    [["rr", "🔴 ⚠️ 75–100% absent"], ["r", "🔴 50–75% absent"], ["y", "🟡 25–50% absent"], ["g", "🟢 0–25% absent"], ["", "No meetings yet"]].forEach(b => {
+    const al = SEC.att_alert_pct == null ? 25 : SEC.att_alert_pct;
+    [["g", "🟢 " + T("came 75% or more")], ["y", "🟡 " + T("came 50–75%")], ["r", "🔴 " + T("came less than 50%")], ["rr", "🔴 ⚠️ " + T("came") + " " + al + "% " + T("or less (alert)")], ["", T("No meetings yet")]].forEach(b => {
       const L = A.filter(p => stats(p).band === b[0]).sort((x, y) => stats(y).pct - stats(x).pct);
       if (L.length) h += '<div class="colgrp"><h3>' + esc(T(b[1])) + " (" + L.length + ')</h3><div class="panel tscroll stabw"><table class="stab">' + head + L.map(arow).join("") + "</table></div></div>";
     });
@@ -266,7 +281,7 @@ function peopleView() {
   const tOpts = sel => '<option value="">No tali3a</option>' + TAL.map(t => '<option value="' + t.id + '"' + (t.id === sel ? " selected" : "") + ">" + esc(t.name) + "</option>").join("");
   const role = p => { const r = p.profile_id && ROLES[p.profile_id]; return r ? ' <span class="pill info">' + esc({ head: "قائد المرحلة", deputy: "نائب قائد المرحلة", assistant: "مساعد قائد المرحلة" }[r]) + "</span>" : ""; };
   // just the name; tap it (or Details) for everything else
-  const row = p => '<div class="person prow" data-p="' + p.id + '"><div><b>' + gTag(p.gender) + " " + esc(p.name) + "</b>" + cake(p) + (p.profile_id ? ' <span class="pill mut">ACCOUNT</span>' : "") + role(p) +
+  const row = p => '<div class="person prow" data-p="' + p.id + '"><div><b>' + gTag(p.gender) + " " + esc(p.name) + "</b>" + star(p) + cake(p) + (p.profile_id ? ' <span class="pill mut">ACCOUNT</span>' : "") + role(p) +
     (p.role !== "kada" && p.tali3a_id ? ' <small class="mut">' + esc(tName(p.tali3a_id)) + "</small>" : "") + (p.gender ? "" : ' <span class="pill warn">' + esc(T("boy / girl?")) + "</span>") + "</div>" +
     '<button class="btn line sm" data-det>' + esc(T("Details")) + "</button></div>";
   const K = kadaSorted(), A = ROSTER.filter(p => p.role !== "kada");
@@ -279,15 +294,18 @@ function peopleView() {
     '<div class="field"><label>Tali3a</label><select id="pTal">' + tOpts(null) + "</select></div></div>" +
     '<button class="btn gold" id="pAdd">Add to the list</button><p class="meta mt">Leaders with an account are added by themselves once the warehouse team approves them.</p></div>' +
     '<div class="panel"' + (PANEL === "tal" ? "" : " hidden") + '><h3>Tali3as</h3>' + (TAL.length ? TAL.map(t => { const ls = TL.filter(x => x.tali3a_id === t.id).map(x => (K.find(k => k.profile_id === x.profile_id) || {}).name).filter(Boolean);
-      return '<div class="person"><div><b>' + esc(t.name) + '</b><div class="meta">' + A.filter(p => p.tali3a_id === t.id).length + " " + esc(T("awlad")) + " · " + (ls.length ? esc(ls.join("، ")) : esc(T("no leaders yet"))) + '</div></div><button class="btn line sm" data-tal-edit="' + t.id + '">Edit</button></div>'; }).join("") : '<div class="empty">No tali3as yet.</div>') +
+      const ar = ROSTER.find(p => p.id === t.arif_id);
+      return '<div class="person prow" data-tal-open="' + t.id + '"><div><b>' + esc(t.name) + '</b><div class="meta">' + A.filter(p => p.tali3a_id === t.id).length + " " + esc(T("awlad")) + " · " + (ls.length ? esc(ls.join("، ")) : esc(T("no leaders yet"))) + (ar ? " · ⭐ " + esc(ar.name) : "") + '</div></div><button class="btn line sm" data-tal-open-b="' + t.id + '">' + esc(T("Open")) + "</button></div>"; }).join("") : '<div class="empty">No tali3as yet.</div>') +
     '<button class="btn line" id="tNew">+ New tali3a</button></div></div>' +
-    '<div><input type="search" class="psearch" id="pq" placeholder="Search a name…" autocomplete="off"><div class="group-title">Kada (' + K.length + ")</div>" + (K.length ? K.map(row).join("") : '<div class="empty">—</div>') +
+    '<div><div class="actions" style="margin:0 0 8px"><input type="search" class="psearch" id="pq" placeholder="Search a name…" autocomplete="off" style="flex:1;margin:0"><button class="btn line sm" id="pMove">⇪ ' + esc(T("Move to another stage")) + '</button></div><div class="group-title">Kada (' + K.length + ")</div>" + (K.length ? K.map(row).join("") : '<div class="empty">—</div>') +
     '<div class="group-title">Awlad (' + A.length + ")</div>" + (A.length ? A.map(row).join("") : '<div class="empty">No awlad yet. Add them on the left.</div>') + "</div></div>";
   $("view").innerHTML = h;
   document.querySelectorAll("[data-panel]").forEach(b => b.onclick = () => { PANEL = PANEL === b.dataset.panel ? "" : b.dataset.panel; peopleView(); });
   $("pq").oninput = () => { const q = BAS.norm($("pq").value); document.querySelectorAll(".person[data-p]").forEach(el => { el.hidden = !!q && !BAS.norm(el.querySelector("b").textContent).includes(q); }); };
   document.querySelectorAll(".person[data-p]").forEach(el => { el.onclick = () => personSheet(ROSTER.find(x => x.id === Number(el.dataset.p))); });
   $("pRole").onchange = () => { $("pTal").disabled = $("pRole").value === "kada"; };
+  document.querySelectorAll("[data-tal-open]").forEach(el => el.onclick = () => tali3aSheet(TAL.find(t => t.id === Number(el.dataset.talOpen))));
+  $("pMove").onclick = () => moveSheet();
   $("pAdd").onclick = async () => {
     const names = $("pNames").value.trim(); if (!names) return BAS.toast("Write the names", "err");
     const { data, error } = await supabaseClient.rpc("add_names", { p_section: SECID, p_names: names, p_gender: $("pGen").value, p_role: $("pRole").value, p_tali3a: $("pTal").value ? Number($("pTal").value) : null });
@@ -313,7 +331,81 @@ function peopleView() {
     if ($("tDel")) $("tDel").onclick = () => { if (confirm("Delete this tali3a? Its awlad stay in the list without a tali3a.")) go(false); };
   };
   $("tNew").onclick = () => talSheet(null);
-  document.querySelectorAll("[data-tal-edit]").forEach(b => b.onclick = () => talSheet(TAL.find(t => t.id === Number(b.dataset.talEdit))));
+  TALEDIT = talSheet;
+}
+let TALEDIT = null;
+
+// ---------- one tali3a: its awlad (add / remove), عريف and مساعد ----------
+async function tali3aSheet(t) {
+  const o = $("sheet"), A = ROSTER.filter(p => p.role !== "kada"), mem = A.filter(p => p.tali3a_id === t.id).sort((a, b) => a.name.localeCompare(b.name)), others = A.filter(p => p.tali3a_id !== t.id).sort((a, b) => a.name.localeCompare(b.name));
+  const K = ROSTER.filter(p => p.role === "kada"), ls = TL.filter(x => x.tali3a_id === t.id).map(x => (K.find(k => k.profile_id === x.profile_id) || {}).name).filter(Boolean);
+  const tr = await supabaseClient.from("arif_turns").select("*").eq("tali3a_id", t.id).eq("cycle", t.arif_cycle || 1);
+  const turns = tr.data || [], wasA = new Set(turns.filter(x => x.role === "arif").map(x => x.roster_id)), wasM = new Set(turns.filter(x => x.role === "mosa3ed").map(x => x.roster_id));
+  const ar = ROSTER.find(p => p.id === t.arif_id), mo = ROSTER.find(p => p.id === t.mosa3ed_id), auto = t.arif_auto !== false;
+  const opt = (sel, ex) => '<option value="">—</option>' + mem.filter(p => p.id !== ex).map(p => '<option value="' + p.id + '"' + (p.id === sel ? " selected" : "") + ">" + esc(p.name) + (wasA.has(p.id) && wasM.has(p.id) ? " ✓✓" : "") + "</option>").join("");
+  const every = (SEC.arif_every || 4) + " " + T(SEC.arif_unit === "meetings" ? "meetings" : "weeks");
+  o.innerHTML = '<div class="sheet" style="max-width:560px"><div class="req-top"><h2 style="margin:0">' + esc(t.name) + '</h2><button class="btn line sm" id="tEd">✏️ ' + esc(T("Name & leaders")) + "</button></div>" +
+    '<p class="meta">' + mem.length + " " + esc(T("awlad")) + " · " + (ls.length ? esc(ls.join("، ")) : esc(T("no leaders yet"))) + "</p>" +
+    '<div class="panel"><h3>⭐ ' + esc(T("3arif & mosa3ed")) + "</h3>" +
+    '<div class="arif-now"><div><small>' + esc(T("3arif")) + '</small><b>' + (ar ? esc(ar.name) : "—") + '</b></div><div><small>' + esc(T("Mosa3ed 3arif")) + '</small><b>' + (mo ? esc(mo.name) : "—") + "</b></div></div>" +
+    (t.arif_since ? '<p class="meta">' + esc(T("Since")) + " " + esc(BAS.fmtDate(t.arif_since, true)) + (auto ? " · " + esc(T("changes every")) + " " + esc(every) : "") + " · " + esc(T("this round")) + ": " + wasA.size + "/" + mem.length + " " + esc(T("were 3arif")) + ", " + wasM.size + "/" + mem.length + " " + esc(T("were mosa3ed")) + "</p>" : "") +
+    '<div class="seg arif-mode"><button type="button" data-mode="1" class="' + (auto ? "on" : "") + '">🎲 ' + esc(T("Automatic")) + '</button><button type="button" data-mode="0" class="' + (auto ? "" : "on") + '">✋ ' + esc(T("Chosen by hand")) + "</button></div>" +
+    (auto ? '<p class="meta">' + esc(T("Picked at random. Everyone is 3arif once and mosa3ed once before anyone repeats.")) + '</p><button class="btn line sm" id="aNow">🎲 ' + esc(T("Pick now")) + "</button>"
+      : '<div class="grid2"><div class="field"><label>' + esc(T("3arif")) + '</label><select id="aA">' + opt(t.arif_id) + '</select></div><div class="field"><label>' + esc(T("Mosa3ed 3arif")) + '</label><select id="aM">' + opt(t.mosa3ed_id) + "</select></div></div>" +
+        '<p class="meta">' + esc(T("✓✓ = already was both this round.")) + '</p><button class="btn gold sm" id="aSet">' + esc(T("Save")) + "</button>") +
+    "</div>" +
+    '<div class="panel"><h3>' + esc(T("Awlad in this tali3a")) + " (" + mem.length + ")</h3>" +
+    (mem.length ? mem.map(p => '<div class="person prow" data-tp="' + p.id + '"><div><b>' + gTag(p.gender) + " " + esc(p.name) + "</b>" + star(p) + cake(p) + '</div><button class="btn line sm" data-trm="' + p.id + '" title="' + esc(T("Take out of the tali3a")) + '">✕</button></div>').join("") : '<div class="empty">—</div>') +
+    (others.length ? '<div class="actions"><div class="field" style="flex:1;margin:0"><select id="tAddSel"><option value="">' + esc(T("Add a walad…")) + "</option>" + others.map(p => '<option value="' + p.id + '">' + esc(p.name) + (p.tali3a_id ? " · " + esc(tName(p.tali3a_id)) : "") + "</option>").join("") + '</select></div><button class="btn gold sm" id="tAddGo">+ ' + esc(T("Add")) + "</button></div>" : "") +
+    '</div><div class="actions"><button class="btn line" id="tBk">Back</button></div></div>';
+  o.hidden = false;
+  o.onclick = e => { if (e.target === o) o.hidden = true; };
+  $("tBk").onclick = () => { o.hidden = true; };
+  $("tEd").onclick = () => { if (TALEDIT) TALEDIT(t); };
+  const again = async () => { await load(CUR && CUR.id); const nt = TAL.find(x => x.id === t.id); if (nt) tali3aSheet(nt); else o.hidden = true; };
+  const call = async (fn, args, ok) => { const { error } = await supabaseClient.rpc(fn, args); if (error) return BAS.toast(BAS.errText(error), "err"); if (ok) BAS.toast(ok); again(); };
+  o.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => call("set_arif_mode", { p_tali3a: t.id, p_auto: b.dataset.mode === "1" }, "Saved"));
+  if ($("aNow")) $("aNow").onclick = () => { if (confirm(T("Pick a new 3arif and mosa3ed now?"))) call("rotate_arif", { p_tali3a: t.id }, "Saved"); };
+  if ($("aSet")) $("aSet").onclick = () => { const a = $("aA").value, m = $("aM").value; if (!a) return BAS.toast("Choose the 3arif.", "err"); call("set_arif", { p_tali3a: t.id, p_arif: Number(a), p_mosa3ed: m ? Number(m) : null }, "Saved"); };
+  o.querySelectorAll("[data-tp]").forEach(el => el.onclick = e => { if (e.target.closest("[data-trm]")) return; personSheet(ROSTER.find(x => x.id === Number(el.dataset.tp))); });
+  o.querySelectorAll("[data-trm]").forEach(b => b.onclick = async () => {
+    const p = ROSTER.find(x => x.id === Number(b.dataset.trm));
+    if (!confirm(T("Take") + " " + p.name + " " + T("out of") + " " + t.name + "?")) return;
+    const { error } = await supabaseClient.from("roster").update({ tali3a_id: null }).eq("id", p.id);
+    if (error) return BAS.toast(BAS.errText(error), "err"); BAS.toast("Saved"); again();
+  });
+  if ($("tAddGo")) $("tAddGo").onclick = async () => {
+    const id = Number($("tAddSel").value); if (!id) return;
+    const { error } = await supabaseClient.from("roster").update({ tali3a_id: t.id }).eq("id", id);
+    if (error) return BAS.toast(BAS.errText(error), "err"); BAS.toast("Saved"); again();
+  };
+}
+
+// ---------- moving up: many people to another stage (their details and attendance go with them) ----------
+function moveSheet(only) {
+  const o = $("sheet"), others = BAS.sections.filter(x => x.id !== SECID);
+  const L = kadaSorted().concat(ROSTER.filter(p => p.role !== "kada").sort((a, b) => a.name.localeCompare(b.name))).filter(p => !p.profile_id);
+  const years = [...new Set(L.map(p => p.school_year).filter(Boolean))];
+  o.innerHTML = '<div class="sheet" style="max-width:560px"><h2>⇪ ' + esc(T("Move to another stage")) + '</h2><p class="meta">' + esc(T("Their details, subscription and this year's attendance go with them. Their tali3a and 3arif role stay here.")) + "</p>" +
+    '<div class="field"><label>' + esc(T("New stage")) + '</label><select id="mvTo"><option value="">—</option>' + others.map(x => '<option value="' + x.id + '">' + esc(x.name_ar) + "</option>").join("") + "</select></div>" +
+    '<div class="actions" style="margin:0 0 6px"><select id="mvPick"><option value="">' + esc(T("Tick a group…")) + '</option><option value="all">' + esc(T("Everyone")) + "</option>" +
+      TAL.map(t => '<option value="t' + t.id + '">' + esc(t.name) + "</option>").join("") + years.map(y => '<option value="y' + esc(y) + '">' + esc(y) + "</option>").join("") + '<option value="none">' + esc(T("Nobody")) + "</option></select></div>" +
+    '<div class="mvlist">' + L.map(p => '<label class="pick' + (only === p.id ? " on" : "") + '"><input type="checkbox" data-mv="' + p.id + '"' + (only === p.id ? " checked" : "") + "> " + esc(p.name) + ' <small class="mut">' + esc(p.role === "kada" ? T("Kada") : [p.tali3a_id ? tName(p.tali3a_id) : "", p.school_year || ""].filter(Boolean).join(" · ")) + "</small></label>").join("") + "</div>" +
+    '<div id="mvErr" class="msg err" hidden></div><div class="actions"><button class="btn gold" id="mvGo">' + esc(T("Move")) + ' <span id="mvN"></span></button><button class="btn line" id="mvBk">Back</button></div></div>';
+  o.hidden = false; $("mvBk").onclick = () => { o.hidden = true; };
+  const cnt = () => { const n = o.querySelectorAll("[data-mv]:checked").length; $("mvN").textContent = n ? "(" + n + ")" : ""; o.querySelectorAll("[data-mv]").forEach(c => c.closest(".pick").classList.toggle("on", c.checked)); };
+  o.querySelectorAll("[data-mv]").forEach(c => c.onchange = cnt); cnt();
+  $("mvPick").onchange = () => { const v = $("mvPick").value; o.querySelectorAll("[data-mv]").forEach(c => { const p = ROSTER.find(x => x.id === Number(c.dataset.mv));
+    if (v === "all") c.checked = true; else if (v === "none") c.checked = false; else if (v[0] === "t" && p.tali3a_id === Number(v.slice(1))) c.checked = true; else if (v[0] === "y" && p.school_year === v.slice(1)) c.checked = true; }); cnt(); };
+  $("mvGo").onclick = async () => {
+    const ids = [...o.querySelectorAll("[data-mv]:checked")].map(c => Number(c.dataset.mv)), to = Number($("mvTo").value);
+    if (!to) { $("mvErr").textContent = T("Choose the new stage."); $("mvErr").hidden = false; return; }
+    if (!ids.length) { $("mvErr").textContent = T("Tick who moves."); $("mvErr").hidden = false; return; }
+    if (!confirm(T("Move") + " " + ids.length + " → " + BAS.sectionName(to) + "?")) return;
+    const { data, error } = await supabaseClient.rpc("move_people", { p_ids: ids, p_section: to });
+    if (error) { $("mvErr").textContent = BAS.errText(error); $("mvErr").hidden = false; return; }
+    o.hidden = true; BAS.toast(T("Moved") + ": " + data); load(CUR && CUR.id);
+  };
 }
 
 // ---------- one person: photo, birthday, year, phones; rename / remove ----------
@@ -329,23 +421,29 @@ async function personSheet(p) {
     '<div class="field"><label>Boy / girl</label><select id="dG">' + (p.gender ? "" : '<option value="" selected disabled>' + esc(T("Choose boy / girl")) + "</option>") + '<option value="M"' + (p.gender === "M" ? " selected" : "") + '>♂ Boy</option><option value="F"' + (p.gender === "F" ? " selected" : "") + ">♀ Girl</option></select></div></div>" +
     '<div class="grid2"><div class="field"><label>Birthday</label><input type="date" id="dB" value="' + esc(p.birthday || "") + '"></div>' +
     '<div class="field"><label>' + (kada ? "What they do now" : "School year") + '</label><select id="dY">' + yOpts(p.school_year) + "</select></div></div>" +
+    '<label class="pick' + (p.owns_foulard !== false ? " on" : "") + '" style="margin:0 0 10px"><input type="checkbox" id="dOF"' + (p.owns_foulard !== false ? " checked" : "") + "> 🧣 " + esc(T("Has a foulard")) + ' <small class="mut">' + esc(T("(untick = not counted as \"no foulard\" until they get one)")) + "</small></label>" +
+    (kada ? "" : '<div class="field"><label>' + esc(T("Joined the scouts on")) + '</label><input type="date" id="dJ" value="' + esc(p.joined_on || "") + '"></div>') +
     (kada ? "" : '<div class="field"><label>Tali3a</label><select id="dT"><option value="">No tali3a</option>' + TAL.map(t => '<option value="' + t.id + '"' + (t.id === p.tali3a_id ? " selected" : "") + ">" + esc(t.name) + "</option>").join("") + "</select></div>") +
     (kada ? ph("dPhone", "Phone", p.phone)
       : '<div class="grid2"><div class="field"><label>Father\'s name</label><input id="dFn" value="' + esc(p.father_name || "") + '"></div>' + ph("dFp", "Father\'s phone", p.father_phone) + "</div>" +
         '<div class="grid2"><div class="field"><label>Mother\'s name</label><input id="dMn" value="' + esc(p.mother_name || "") + '"></div>' + ph("dMp", "Mother\'s phone", p.mother_phone) + "</div>" +
         '<p class="meta">' + esc(T("All optional. Only the stage's leaders and the warehouse team see these.")) + "</p>") +
+    '<div class="field"><label>' + esc(T("Notes")) + '</label><textarea id="dNo" rows="3">' + esc(p.notes || "") + "</textarea></div>" +
     "</div>" +
     (amt > 0 ? '<div class="panel"><b>💳 ' + esc(T("Yearly subscription")) + "</b> · " + (paid >= amt ? '<span class="pill ok">' + esc(T("PAID")) + "</span>" : paid > 0 ? BAS.money(paid) + " / " + BAS.money(amt) : '<span class="pill warn">' + esc(T("NOT PAID")) + "</span>") +
       ' <a class="lnk" href="#subs" data-gosubs>' + esc(T("Open")) + "</a></div>" : "") +
-    '<div id="dErr" class="msg err" hidden></div><div class="actions"><button class="btn gold" id="dGo">Save</button>' + (p.profile_id ? "" : '<button class="btn danger" id="dRm">Remove from the list</button>') + '<button class="btn line" id="dBack">Back</button></div></div>';
+    '<div id="dErr" class="msg err" hidden></div><div class="actions"><button class="btn gold" id="dGo">Save</button>' + (p.profile_id ? "" : '<button class="btn line" id="dMv">⇪ ' + esc(T("Move to another stage")) + '</button><button class="btn danger" id="dRm">Remove from the list</button>') + '<button class="btn line" id="dBack">Back</button></div></div>';
   o.hidden = false;
   $("dBack").onclick = () => { o.hidden = true; };
   o.onclick = e => { if (e.target === o) o.hidden = true; };
+  if ($("dMv")) $("dMv").onclick = () => moveSheet(p.id);
+  $("dOF").onchange = () => $("dOF").closest(".pick").classList.toggle("on", $("dOF").checked);
   const gs = o.querySelector("[data-gosubs]"); if (gs) gs.onclick = e => { e.preventDefault(); o.hidden = true; TAB = "subs"; history.replaceState(null, "", location.search + "#subs"); render(); };
   if (p.photo_path) { const u = await supabaseClient.storage.from("people").createSignedUrl(p.photo_path, 600); if (!u.error) $("dPh").innerHTML = '<img src="' + esc(u.data.signedUrl) + '" alt="">'; }
   const save = async extra => {
     const g = id => $(id) ? $(id).value : undefined;
-    const d = { name: g("dN"), gender: g("dG"), birthday: g("dB"), school_year: g("dY"), phone: g("dPhone"), father_name: g("dFn"), father_phone: g("dFp"), mother_name: g("dMn"), mother_phone: g("dMp") };
+    const d = { name: g("dN"), gender: g("dG"), birthday: g("dB"), school_year: g("dY"), phone: g("dPhone"), father_name: g("dFn"), father_phone: g("dFp"), mother_name: g("dMn"), mother_phone: g("dMp"), notes: g("dNo"), owns_foulard: $("dOF").checked };
+    if ($("dJ")) d.joined_on = g("dJ");
     if ($("dT")) d.tali3a_id = g("dT");
     Object.assign(d, extra || {});
     const { error } = await supabaseClient.rpc("save_person", { p_id: p.id, p: d });
@@ -401,7 +499,7 @@ function subsView() {
       '<div class="meta">' + (left ? (pd ? BAS.money(pd) + " " + esc(T("paid")) + " · " + BAS.money(left) + " " + esc(T("left")) : esc(T("Not paid"))) : "✅ " + esc(T("Paid")) + " " + BAS.money(pd)) +
       mine.map(x => ' · <span class="nowrap">' + esc(BAS.fmtDate(x.paid_on)) + " " + BAS.money(x.amount) + ' <button class="linkbtn sm" data-sdel="' + x.id + '" aria-label="Remove">✕</button></span>').join("") + "</div></div>" +
       (left ? '<div class="actions" style="margin:0"><button class="btn ok sm" data-spay="' + p.id + '" data-amt="' + left + '">' + esc(T("Paid")) + " " + BAS.money(left) + '</button><button class="btn line sm" data-spart="' + p.id + '">' + esc(T("Part…")) + "</button></div>" : "") + "</div>"; };
-  $("view").innerHTML = '<div class="kpis"><div class="kpi"><p>' + esc(T("Subscription this year")) + "</p><h3>" + BAS.money(amt) + '</h3></div><div class="kpi ok"><p>' + esc(T("Paid")) + "</p><h3>" + done + " / " + all.length + '</h3></div><div class="kpi gold"><p>' + esc(T("Collected")) + "</p><h3>" + BAS.money(total) + "</h3></div></div>" +
+  $("view").innerHTML = '<div class="kpis"><div class="kpi"><p>' + esc(T("Subscription this year")) + "</p><h3>" + BAS.money(amt) + '</h3></div><div class="kpi ok"><p>' + esc(T("Paid")) + "</p><h3>" + done + " / " + all.length + '</h3></div><div class="kpi gold"><p>' + esc(T("Collected")) + "</p><h3>" + BAS.money(total) + ' <small class="mut">/ ' + BAS.money(amt * all.length) + "</small></h3></div></div>" +
     '<input type="search" class="psearch" id="sq" placeholder="Search a name…" autocomplete="off">' +
     '<div class="group-title">' + esc(T("Not paid yet")) + " (" + (all.length - done) + ")</div>" + (all.filter(p => paidOf(p.id) < amt).map(row).join("") || '<div class="empty">👌</div>') +
     '<div class="group-title">' + esc(T("Paid")) + " (" + done + ")</div>" + (all.filter(p => paidOf(p.id) >= amt).map(row).join("") || '<div class="empty">—</div>');
@@ -420,11 +518,15 @@ function setView() {
     '<div class="field"><label>Does late count as absent?</label><select id="sAbs"><option value="0"' + (SEC.att_late_absent ? "" : " selected") + '>No</option><option value="1"' + (SEC.att_late_absent ? " selected" : "") + ">Yes</option></select></div></div>" +
     '<div class="grid2"><div class="field"><label>Half absent after (minutes from the start)</label><input type="number" min="1" max="240" id="sHalf" value="' + (SEC.att_half_min == null ? "" : SEC.att_half_min) + '" placeholder="' + esc(T("Empty = off")) + '"></div><div></div></div>' +
     '<p class="meta">' + esc(T("Half absent counts as half a meeting. Leaders can also mark someone ½ by hand.")) + "</p>" +
+    '<div class="grid2"><div class="field"><label>' + esc(T("Alert when a walad's attendance is (%) or less")) + '</label><input type="number" min="1" max="99" id="sAl" value="' + (SEC.att_alert_pct == null ? 25 : SEC.att_alert_pct) + '"></div><div></div></div>' +
     '<button class="btn ok" id="sSave">Save</button></div>' +
+    '<div class="panel" style="max-width:600px"><h3>⭐ ' + esc(T("3arif & mosa3ed")) + '</h3><p class="meta">' + esc(T("In automatic tali3as, a new 3arif and mosa3ed are picked every:")) + "</p>" +
+    '<div class="grid2"><div class="field"><input type="number" min="1" max="52" id="sAe" value="' + (SEC.arif_every || 4) + '"></div><div class="field"><select id="sAu"><option value="weeks"' + (SEC.arif_unit === "meetings" ? "" : " selected") + ">" + esc(T("weeks")) + '</option><option value="meetings"' + (SEC.arif_unit === "meetings" ? " selected" : "") + ">" + esc(T("finished meetings")) + "</option></select></div></div>" +
+    '<p class="meta">' + esc(T("Each tali3a chooses automatic or by hand: open it from People & tali3as.")) + '</p><button class="btn ok" id="sArif">Save</button></div>' +
     '<div class="panel" style="max-width:600px"><h3>Alerts</h3><ul class="meta" style="padding-inline-start:18px;line-height:1.8">' +
     "<li>" + esc(T("30 minutes after a meeting starts, if attendance isn't finished: every leader of the stage.")) + "</li>" +
     "<li>" + esc(T("A leader absent without an excuse 2 times this year (and every time after): قائد المرحلة and نائب قائد المرحلة.")) + " " + esc(T("Two half absences make one.")) + "</li>" +
-    "<li>" + esc(T("A walad absent 75% or more (after 4 meetings): the leaders of his tali3a.")) + "</li>" +
+    "<li>" + esc(T("A walad whose attendance is the % above or less (after 4 meetings): the leaders of his tali3a.")) + "</li>" +
     "<li>" + esc(T("Anyone without the foulard 2 times this year (and every time after): the 4 kada and the leaders of their tali3a.")) + "</li>" +
     "<li>" + esc(T("A reminder before each meeting: every leader chooses how many minutes before in their profile.")) + "</li>" +
     "<li>" + esc(T("Birthdays: every leader of the stage at 9 AM on the day.")) + "</li>" +
@@ -432,10 +534,16 @@ function setView() {
     '<p class="meta">' + esc(T("The stage roles (قائد المرحلة, نائب, مساعدين) are set by the warehouse team.")) + (BAS.isAdmin() ? ' <a class="lnk" href="team.html#people">' + esc(T("Set them in Accounts")) + "</a>" : "") + "</p>" +
     (roles.length ? '<div class="meta">' + roles.map(p => esc(p.full_name) + ": " + esc({ head: "قائد المرحلة", deputy: "نائب قائد المرحلة", assistant: "مساعد قائد المرحلة" }[p.stage_role])).join(" · ") + "</div>" : "") + "</div>";
   $("sSave").onclick = async () => {
-    const n = Number($("sMin").value), hv = $("sHalf").value.trim(), hm = hv === "" ? null : Number(hv);
-    const { error } = await supabaseClient.rpc("save_att_settings", { p_section: SECID, p_late_min: n, p_late_absent: $("sAbs").value === "1", p_half_min: hm });
+    const n = Number($("sMin").value), hv = $("sHalf").value.trim(), hm = hv === "" ? null : Number(hv), al = Number($("sAl").value);
+    const { error } = await supabaseClient.rpc("save_att_settings", { p_section: SECID, p_late_min: n, p_late_absent: $("sAbs").value === "1", p_half_min: hm, p_alert_pct: al });
     if (error) return BAS.toast(BAS.errText(error), "err");
-    SEC.att_late_min = n; SEC.att_late_absent = $("sAbs").value === "1"; SEC.att_half_min = hm; BAS.toast("Saved");
+    SEC.att_late_min = n; SEC.att_late_absent = $("sAbs").value === "1"; SEC.att_half_min = hm; SEC.att_alert_pct = al; BAS.toast("Saved");
+  };
+  $("sArif").onclick = async () => {
+    const e = Number($("sAe").value), u = $("sAu").value;
+    const { error } = await supabaseClient.rpc("save_arif_settings", { p_section: SECID, p_every: e, p_unit: u });
+    if (error) return BAS.toast(BAS.errText(error), "err");
+    SEC.arif_every = e; SEC.arif_unit = u; BAS.toast("Saved");
   };
 }
 </script>

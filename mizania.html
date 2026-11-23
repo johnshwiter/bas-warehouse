@@ -34,6 +34,7 @@ const FUND = new URLSearchParams(location.search).get("fund") === "group" ? "gro
 const CATS = FUND === "group"
   ? { income: ["Subscription", "Donation", "Fundraising", "Other income"], expense: ["Trips and camps", "Supplies", "Events", "Other expense"] }
   : { income: ["Church / group money", "Donation", "Other income"], expense: ["Equipment purchase", "Repairs", "Transport", "Cleaning", "Other expense"] };
+let PPL = [], SUBP = [];
 let BY = {}, MONEY = [], PAY = [], MAINT = [], LOSSES = [], ROWS = [], FM = "all", FK = "all", FC = "all";
 
 (async function () {
@@ -59,6 +60,12 @@ async function load() {
     PAY = FUND === "group" ? [] : await BAS.q(supabaseClient.from("payments").select("*"));
     MAINT = FUND === "group" ? [] : (await BAS.q(supabaseClient.from("maintenance").select("*"))).filter(m => m.cost != null);
     LOSSES = FUND === "group" ? [] : await BAS.q(supabaseClient.from("loss_status").select("*"));
+    if (FUND === "group") {
+      // the yearly subscription, stage by stage
+      const ys = (BAS.settings && BAS.settings.att_year_start) || (new Date().getFullYear() + "-01-01");
+      PPL = await BAS.q(supabaseClient.from("roster").select("id, section_id").eq("is_active", true));
+      SUBP = await BAS.q(supabaseClient.from("sub_payments").select("roster_id, amount").eq("year_start", ys));
+    }
     const s = await supabaseClient.from("settings").select("*").eq("id", 1).single();
     if (!s.error) BAS.settings = s.data;
     ROWS = MONEY.map(m => ({ src: m.sub_payment_id ? "sub" : "manual", id: m.id, date: m.entry_date, kind: m.kind, cat: m.category, amount: Number(m.amount), note: m.note, item: m.item_id, sec: m.section_id, receipt: m.receipt_path, raw: m }))
@@ -83,6 +90,15 @@ function draw() {
     '</h3></div><div class="kpi bad"><p>Money out</p><h3>' + BAS.money(outAll) + '</h3></div>' + (FUND === "group" ? '<div class="kpi"><p>Yearly subscription</p><h3>' + BAS.money(BAS.settings.sub_amount || 0) + ' <button class="linkbtn sm" id="subEdit">edit</button></h3></div>'
       : '<div class="kpi warn" data-go="team.html#money"><p>Compensation still owed</p><h3>' + BAS.money(owed) + "</h3></div>") +
     '<div class="kpi"><p>Opening balance</p><h3>' + BAS.money(opening) + ' <button class="linkbtn sm" id="obEdit">edit</button></h3></div></div>';
+  if (FUND === "group" && Number(BAS.settings.sub_amount || 0) > 0) {
+    const amt = Number(BAS.settings.sub_amount), paid = {}; SUBP.forEach(x => { paid[x.roster_id] = (paid[x.roster_id] || 0) + Number(x.amount); });
+    let tp = 0, tn = 0, tc = 0;
+    const rows = BAS.sections.map(sc => { const L2 = PPL.filter(x => x.section_id === sc.id), n = L2.length, done = L2.filter(x => (paid[x.id] || 0) >= amt).length, col = L2.reduce((t, x) => t + (paid[x.id] || 0), 0);
+      tp += n; tn += done; tc += col;
+      return '<tr><td><a class="lnk" href="attendance.html?s=' + sc.id + '#subs"><bdi>' + esc(sc.name_ar) + "</bdi></a></td><td class=\"num\">" + done + " / " + n + '</td><td class="num nowrap">' + BAS.money(col) + ' <small class="mut">/ ' + BAS.money(amt * n) + "</small></td></tr>"; }).join("");
+    h += '<div class="group-title">' + esc(tr("Yearly subscription")) + '</div><div class="panel tscroll" style="margin-bottom:14px"><table class="ltable"><tr><th>' + esc(tr("Stage")) + '</th><th class="num">' + esc(tr("Paid")) + '</th><th class="num">' + esc(tr("Collected")) + "</th></tr>" + rows +
+      '<tr><td><b>' + esc(tr("All stages")) + '</b></td><td class="num"><b>' + tn + " / " + tp + '</b></td><td class="num nowrap"><b>' + BAS.money(tc) + '</b> <small class="mut">/ ' + BAS.money(amt * tp) + "</small></td></tr></table></div>";
+  }
   h += '<div class="toolbar"><select id="fM"><option value="all">All months</option>' + months.map(m => '<option value="' + m + '"' + (m === FM ? " selected" : "") + ">" + esc(new Date(m + "-01T00:00:00").toLocaleDateString(BAS.loc(), { month: "long", year: "numeric" })) + "</option>").join("") + "</select>" +
     '<select id="fK"><option value="all">In and out</option><option value="income"' + (FK === "income" ? " selected" : "") + '>Money in</option><option value="expense"' + (FK === "expense" ? " selected" : "") + ">Money out</option></select>" +
     '<select id="fC"><option value="all">All categories</option>' + cats.map(c => '<option value="' + esc(c) + '"' + (c === FC ? " selected" : "") + ">" + esc(tr(c)) + "</option>").join("") + "</select></div>";
