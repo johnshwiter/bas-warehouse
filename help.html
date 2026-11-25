@@ -295,7 +295,7 @@ async function ask(q) {
   if (!BAS.requireApproved()) return;
   const ex = BAS.lang === "ar" ? ["إزاي أحجز حاجات؟", "مين ما دفعش الاشتراك؟", "أعياد ميلاد الأسبوع ده", "رقم بابا مينا"] : ["How do I book items?", "Who hasn't paid the subscription?", "Birthdays this week", "How many tents are available?"];
   $("aiEx").innerHTML = ex.map(x => '<button type="button" class="chipbtn" data-noi18n>' + esc(x) + "</button>").join("");
-  $("aiEx").querySelectorAll(".chip").forEach(b => b.onclick = () => ask(b.textContent));
+  $("aiEx").querySelectorAll(".chipbtn").forEach(b => b.onclick = () => ask(b.textContent));
   $("aiForm").onsubmit = e => { e.preventDefault(); ask($("aiQ").value); };
   $("aiQ").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask($("aiQ").value); } });
   const u = await supabaseClient.from("ai_usage").select("n").eq("day", BAS.todayISO()).maybeSingle();
