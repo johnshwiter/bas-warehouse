@@ -80,7 +80,7 @@ const BAS = {
   async init(active) {
     const { data: { session } } = await supabaseClient.auth.getSession();
     this.user = session ? session.user : null;
-    let sec = await supabaseClient.from("sections").select("id, name_en, name_ar, has_3eyal, is_active, att_late_min, att_late_absent, att_half_min, att_alert_pct, arif_every, arif_unit, att_w_present, att_w_late, att_w_half, att_w_excused, att_w_absent, att_excused_came").order("id");
+    let sec = await supabaseClient.from("sections").select("*").order("id");
     if (sec.error) sec = await supabaseClient.from("sections").select("id, name_en, name_ar, has_3eyal, is_active, att_late_min, att_late_absent, att_half_min, att_alert_pct, arif_every, arif_unit").order("id");
     if (sec.error) sec = await supabaseClient.from("sections").select("id, name_en, name_ar, has_3eyal, is_active, att_late_min, att_late_absent, att_half_min").order("id");
     if (sec.error) sec = await supabaseClient.from("sections").select("id, name_en, name_ar, has_3eyal, is_active, att_late_min, att_late_absent").order("id");
@@ -98,6 +98,7 @@ const BAS = {
         if (!sv.error) this.setServices(sv.data);
       }
     }
+    await this.loadUI();
     this._active = active;
     if (document.body.hasAttribute("data-team") && this.isAdmin()) document.body.classList.add("team-ok");
     this.header(active);
@@ -117,7 +118,7 @@ const BAS = {
   menuGroups() {
     const mine = this.profile && this.profile.section_id, G = [];
     if (this.isAdmin()) {
-      G.push({ t: "", items: [["overview", "team.html#overview", "Overview"], ["requests", "team.html#requests", "Requests"], ["book", "book.html", "Book items"], ["calendar", "calendar.html", "Calendar"],
+      G.push({ t: "", items: [["overview", "team.html#overview", "Overview"], ["requests", "team.html#requests", "Requests"], ["book", "book.html", "Book items"], ["calendar", "calendar.html", "Calendar"], ["plan", "plan.html", "Meeting plans"],
         ["stock", "team.html#stock", "Stock"], ["ohda", "ohda.html", "Camps & 3ohda"], ["attendance", "attendance.html", "Attendance"], ["history", "history.html", "History"]] });
       G.push({ t: "Money", items: [["mizania", "mizania.html", "Mizania"], ["group", "mizania.html?fund=group", "Group money"], ["money", "team.html#money", "Compensation"]] });
       G.push({ t: "Warehouse", items: [["maint", "team.html#maint", "Maintenance"], ["wait", "team.html#wait", "Waitlist"]] });
@@ -128,14 +129,16 @@ const BAS = {
     } else if (this.isApproved()) {
       const grp = [];
       if (this.allStages()) grp.push(["attendance", "attendance.html", "Attendance"]);
+      if (this.allStages() || this.can("plans_all")) grp.push(["plan", "plan.html", "Meeting plans"]);
       grp.push(["records", "records.html", "Group records"]);
       if (this.can("group_money")) grp.push(["group", "mizania.html?fund=group", "Group money"]);
       if (this.can("announce")) grp.push(["news", "news.html", "Announcements"]);
-      if (this.groupRole() || this.allStages()) G.push({ t: this.groupRole() === "kada_3am" ? "القائد العام" : this.groupRole() === "mosa3ed_3am" ? "مساعد القائد العام" : "Group", items: grp });
+      if (this.can("plans_all") && !this.groupRole() && !this.allStages()) grp.push(["plan", "plan.html", "Meeting plans"]);
+      if (this.groupRole() || this.allStages() || this.can("plans_all")) G.push({ t: this.groupRole() === "kada_3am" ? "القائد العام" : this.groupRole() === "mosa3ed_3am" ? "مساعد القائد العام" : "Group", items: grp });
       if (!mine) { G.push({ t: "More", items: [["profile", "profile.html", "Profile"], ["help", "help.html", "Help"]].concat(this.groupRole() || this.allStages() ? [] : [["records", "records.html", "Group records"]]) }); return G; }
       G.push({ t: "My stage", items: [["s-dash", "section.html#dash", "Dashboard"], ["s-requests", "section.html#requests", "Requests"], ["s-history", "section.html#history", "History & search"],
         ["s-equipment", "section.html#equipment", "Equipment out / back"], ["s-money", "section.html#money", "Missing & compensation"], ["s-chat", "section.html#chat", "Messages"], ["s-wait", "section.html#wait", "Waitlist"]] });
-      G.push({ t: "", items: [["ohda", "ohda.html", "Camps & 3ohda"]].concat(this.allStages() ? [] : [["attendance", "attendance.html", "Attendance"]]).concat(this.groupRole() || this.allStages() ? [] : [["records", "records.html", "Group records"]]) });
+      G.push({ t: "", items: [["plan", "plan.html", "Meeting plans"], ["ohda", "ohda.html", "Camps & 3ohda"]].concat(this.allStages() ? [] : [["attendance", "attendance.html", "Attendance"]]).concat(this.groupRole() || this.allStages() ? [] : [["records", "records.html", "Group records"]]) });
       G.push({ t: "More", items: [["s-news", "section.html#news", "Announcements"], ["profile", "profile.html", "Profile"], ["help", "help.html", "Help"]] });
     }
     return G;
@@ -164,6 +167,7 @@ const BAS = {
     try { let L = JSON.parse(localStorage.getItem("basRecent") || "[]").filter(x => x.h !== h); L.unshift({ t, h }); localStorage.setItem("basRecent", JSON.stringify(L.slice(0, 6))); } catch (e) {}
   },
   ICON_MORE: {
+    plan: '<path d="M8 3h8v3H8z"/><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 11h8M8 15h5"/>',
     records: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11M13 13h5M13 16.5h5"/>',
     history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>', money: '<path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
     maint: '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>', wait: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/>',
@@ -208,10 +212,12 @@ const BAS = {
           '<div class="dr-new"><a class="btn gold" href="book.html">+ ' + T("New booking") + '</a><a class="btn line" href="camp.html?new=Camp">⛺ ' + T("New camp / trip") + "</a></div>" : "") +
         '<nav class="dr-list">' + this.menuGroups().map(g => '<div class="dr-g">' + (g.t ? "<h5>" + T(g.t) + "</h5>" : "") + g.items.map(item).join("") + "</div>").join("") +
         (recent.length ? '<div class="dr-g dr-recent"><h5>' + T("Recent") + "</h5>" + recent.map(r => '<a href="' + this.esc(r.h) + '" data-k="' + this.esc(this.norm(r.t)) + '"><span dir="auto">' + this.esc(r.t) + "</span></a>").join("") + "</div>" : "") + "</nav>" +
-        '<div class="dr-foot"><button id="themeBtn" class="dr-btn">' + (this.theme() === "dark" ? "☀️ " + T("Light mode") : "🌙 " + T("Dark mode")) + '</button><button id="logoutBtn" class="dr-btn">↪ ' + T("Logout") + "</button></div>";
+        '<div class="dr-foot">' + (this.isAdmin() ? '<button id="editBtn" class="dr-btn">✏️ ' + T(this.editMode() ? "Leave edit mode" : "Edit mode") + "</button>" : "") + '<button id="themeBtn" class="dr-btn">' + (this.theme() === "dark" ? "☀️ " + T("Light mode") : "🌙 " + T("Dark mode")) + '</button><button id="logoutBtn" class="dr-btn">↪ ' + T("Logout") + "</button></div>";
       document.body.appendChild(dr);
       const open = v => { document.body.classList.toggle("menu-open", v); if (v) { const q = document.getElementById("drQ"); if (q && window.innerWidth > 860) q.focus(); } };
       document.getElementById("menuBtn").onclick = () => open(!document.body.classList.contains("menu-open"));
+      const eb = document.getElementById("editBtn");
+      if (eb) eb.onclick = () => { try { if (this.editMode()) sessionStorage.removeItem("basEdit"); else sessionStorage.setItem("basEdit", "1"); } catch (e) {} location.reload(); };
       bg.onclick = () => open(false); document.getElementById("drX").onclick = () => open(false);
       document.addEventListener("keydown", e => { if (e.key === "Escape") open(false); });
       dr.querySelectorAll("a").forEach(a => a.addEventListener("click", () => open(false)));
@@ -403,6 +409,7 @@ const BAS = {
   statusBadge(s) { return '<span class="status status-' + this.statusSlug(s) + '">' + this.esc(this.STATUS_LABEL[s] || s) + "</span>"; },
 
   lineName(l) { return l.name + (l.variant ? " (" + l.variant + ")" : ""); },
+  linkify(t) { return this.esc(t).replace(/https?:\/\/[^\s<]+/g, u => '<a class="lnk" href="' + u + '" target="_blank" rel="noopener">' + u + "</a>"); },
   itemLabel(stockBy, itemId, varId) {
     const it = stockBy[itemId]; if (!it) return "Item #" + itemId;
     const v = varId ? (it.variants || []).find(x => x.id === varId) : null;
@@ -921,6 +928,158 @@ const BAS = {
       reload();
     });
   },
+  // =================== edit mode (warehouse team): texts, hidden things, order ===================
+  ui: (function () { try { return JSON.parse(localStorage.getItem("basUI") || "{}"); } catch (e) { return {}; } })(),
+  page() { return (location.pathname.split("/").pop() || "index.html").replace(/\.html$/, "") || "index"; },
+  editMode() { try { return this.isAdmin() && sessionStorage.getItem("basEdit") === "1"; } catch (e) { return false; } },
+  async loadUI() {
+    const r = await supabaseClient.from("site_ui").select("key, value");
+    if (r.error) return;
+    const u = {}; (r.data || []).forEach(x => { u[x.key] = x.value; });
+    const js = JSON.stringify(u);
+    if (js !== JSON.stringify(this.ui)) { this.ui = u; try { localStorage.setItem("basUI", js); } catch (e) {} if (this.retr) this.retr(); }
+    this.applyUI();
+  },
+  async saveUI(key, val) {
+    this.ui[key] = val;
+    try { localStorage.setItem("basUI", JSON.stringify(this.ui)); } catch (e) {}
+    const { error } = await supabaseClient.rpc("save_ui", { p_key: key, p_value: val });
+    if (error) { this.toast(this.errText(error), "err"); return false; }
+    return true;
+  },
+  // the English text a node was written with (before translation)
+  srcText(el) {
+    let out = "";
+    el.childNodes.forEach(n => { if (n.nodeType === 3) out += (n.__o != null && n.nodeValue === n.__t ? n.__o : n.nodeValue); else if (n.nodeType === 1 && !/^(svg|img|input|select|textarea|button)$/i.test(n.tagName)) out += this.srcText(n); });
+    return out.replace(/\s+/g, " ").trim();
+  },
+  hideKey(el) {
+    if (el.dataset && el.dataset.mk) return { p: "*", k: "mk:" + el.dataset.mk };
+    if (el.id && !/^(view|sheet|main|top|drawer)$/.test(el.id)) return { p: this.page(), k: "id:" + el.id };
+    const t = this.srcText(el);
+    return t ? { p: this.page(), k: "tx:" + el.tagName.toLowerCase() + ":" + t } : null;
+  },
+  HIDE_SEL: "a, button, label, .kpi, .tab, h3, .panel, .person, .group-title, details",
+  applyUI() {
+    const H = (this.ui.hide || []).filter(h => h.p === "*" || h.p === this.page());
+    const sel = [];
+    H.forEach(h => {
+      if (h.k.startsWith("mk:")) sel.push('[data-mk="' + h.k.slice(3).replace(/"/g, "") + '"]');
+      else if (h.k.startsWith("id:")) sel.push("#" + CSS.escape(h.k.slice(3)));
+    });
+    const css = sel.map(x => "body:not(.ui-edit) " + x + "{display:none!important} body.ui-edit " + x + "{opacity:.35;outline:2px dashed var(--bad)}").join("\n");
+    let st = document.getElementById("uiCss");
+    if (!st) { st = document.createElement("style"); st.id = "uiCss"; document.head.appendChild(st); }
+    st.textContent = css;
+    const TX = H.filter(h => h.k.startsWith("tx:"));
+    document.querySelectorAll(".ui-hid").forEach(e => e.classList.remove("ui-hid"));
+    if (TX.length) document.querySelectorAll(this.HIDE_SEL).forEach(e => { const k = this.hideKey(e); if (k && TX.some(h => h.k === k.k)) e.classList.add("ui-hid"); });
+    document.body.classList.toggle("ui-edit", this.editMode());
+    this.applyOrder(document.body);
+  },
+  contKey(c) {
+    if (c.classList.contains("dr-g")) { const h = c.querySelector("h5"); return "*|menu:" + (h ? this.srcText(h) : "top"); }
+    const ch = c.firstElementChild, a = ch && [...ch.attributes].find(x => /^data-/.test(x.name));
+    return this.page() + "|" + (c.id || "tabs:" + (a ? a.name : "x"));
+  },
+  childKey(e) { const a = [...e.attributes].find(x => /^data-/.test(x.name) && !/^data-(k|mk-n)$/.test(x.name)); return a ? a.name + "=" + a.value : "t:" + this.srcText(e); },
+  applyOrder(root) {
+    const O = this.ui.order || {};
+    if (!Object.keys(O).length || !root.querySelectorAll) return;
+    root.querySelectorAll(".tabs, .dr-g").forEach(c => {
+      const want = O[this.contKey(c)]; if (!want) return;
+      const kids = [...c.children].filter(e => e.tagName !== "H5");
+      const pos = e => { const i = want.indexOf(this.childKey(e)); return i < 0 ? 999 : i; };
+      const sorted = kids.slice().sort((a, b) => pos(a) - pos(b));
+      if (sorted.some((e, i) => e !== kids[i])) sorted.forEach(e => c.appendChild(e));
+    });
+  },
+  // the bar at the bottom while editing
+  TOOL: "rename",
+  editBar() {
+    let b = document.getElementById("uiBar");
+    if (!this.editMode()) { if (b) b.remove(); return; }
+    if (!b) { b = document.createElement("div"); b.id = "uiBar"; b.className = "ui-bar"; document.body.appendChild(b); }
+    const t = x => this.esc(this.tr ? this.tr(x) : x);
+    b.innerHTML = "<b>✏️ " + t("Edit mode") + "</b>" + [["use", "👆 Use the page"], ["rename", "✏️ Rename"], ["hide", "👁 Hide / show"], ["order", "↕ Move"]].map(x => '<button class="tab' + (this.TOOL === x[0] ? " on" : "") + '" data-tool="' + x[0] + '">' + t(x[1]) + "</button>").join("") +
+      '<button class="btn line sm" id="uiReset">' + t("Reset this page") + '</button><button class="btn gold sm" id="uiDone">' + t("Done") + "</button>";
+    b.querySelectorAll("[data-tool]").forEach(x => x.onclick = () => { this.TOOL = x.dataset.tool; this.editBar(); });
+    b.querySelector("#uiDone").onclick = () => { try { sessionStorage.removeItem("basEdit"); } catch (e) {} location.reload(); };
+    b.querySelector("#uiReset").onclick = () => this.resetPage();
+  },
+  async resetPage() {
+    if (!confirm("Reset this page? Renamed texts on it go back to normal, hidden things come back and the order returns to normal.")) return;
+    const pg = this.page();
+    const onPage = new Set(); document.querySelectorAll("body *").forEach(e => { if (!e.closest("#uiBar")) e.childNodes.forEach(n => { if (n.nodeType === 3 && n.__o) onPage.add(n.__o.trim()); else if (n.nodeType === 3) onPage.add(n.nodeValue.trim()); }); });
+    const text = Object.assign({}, this.ui.text || {}); Object.keys(text).forEach(k => { if (onPage.has(k)) delete text[k]; });
+    const hide = (this.ui.hide || []).filter(h => h.p !== pg);
+    const order = Object.assign({}, this.ui.order || {}); Object.keys(order).forEach(k => { if (k.split("|")[0] === pg) delete order[k]; });
+    await this.saveUI("text", text); await this.saveUI("hide", hide); await this.saveUI("order", order);
+    location.reload();
+  },
+  editClick(e) {
+    if (!this.editMode() || e.target.closest("#uiBar, .ui-dlg, .ui-ord")) return;
+    if (e.target.closest("[data-uiok]") || this.TOOL === "use") return;   // the page's own editors, or just using the page
+    e.preventDefault(); e.stopPropagation();
+    if (this.TOOL === "hide") {
+      const el = e.target.closest("[data-mk]") || e.target.closest(this.HIDE_SEL); if (!el) return;
+      const k = this.hideKey(el); if (!k) return;
+      const L = (this.ui.hide || []).slice(), i = L.findIndex(h => h.k === k.k && h.p === k.p);
+      if (i >= 0) L.splice(i, 1); else L.push(k);
+      this.saveUI("hide", L).then(() => this.applyUI());
+      return;
+    }
+    if (this.TOOL === "order") {
+      const c = e.target.closest(".tabs, .dr-g"); if (!c) { this.toast("Only tabs and menu items can be moved.", "err"); return; }
+      const el = [...c.children].find(x => x.contains(e.target) && x.tagName !== "H5"); if (!el) return;
+      this.orderPop(c, el);
+      return;
+    }
+    // rename: the smallest element with its own text
+    let el = e.target;
+    while (el && el !== document.body && ![...el.childNodes].some(n => n.nodeType === 3 && n.nodeValue.trim())) el = el.parentElement;
+    if (!el || el === document.body) return;
+    const n = [...el.childNodes].find(x => x.nodeType === 3 && x.nodeValue.trim());
+    const key = (n.__o != null && n.nodeValue === n.__t ? n.__o : n.nodeValue).trim();
+    if (!/[A-Za-z]/.test(key)) { this.toast("This text comes from the data, not the website. Change it where it's saved.", "err"); return; }
+    this.renameDlg(key);
+  },
+  renameDlg(key) {
+    const cur = (this.ui.text || {})[key] || {}, t = x => this.esc(this.tr ? this.tr(x) : x);
+    const d = document.createElement("div"); d.className = "overlay ui-dlg";
+    d.innerHTML = '<div class="sheet" style="max-width:460px"><h2>✏️ ' + t("Rename") + '</h2><p class="meta" dir="ltr">' + this.esc(key) + "</p>" +
+      '<div class="field"><label>English</label><input id="uiEn" dir="ltr" value="' + this.esc(cur.en || "") + '" placeholder="' + this.esc(key) + '"></div>' +
+      '<div class="field"><label>العربي</label><input id="uiAr" dir="rtl" value="' + this.esc(cur.ar || "") + '"></div>' +
+      '<div class="field"><label>Français</label><input id="uiFr" dir="ltr" value="' + this.esc(cur.fr || "") + '"></div>' +
+      '<p class="meta">' + t("Leave a box empty to keep the normal text in that language. This changes the text everywhere it appears.") + "</p>" +
+      '<div class="actions"><button class="btn gold" id="uiGo">' + t("Save") + '</button><button class="btn line" id="uiBk">' + t("Back") + "</button></div></div>";
+    document.body.appendChild(d);
+    d.querySelector("#uiBk").onclick = () => d.remove();
+    d.querySelector("#uiGo").onclick = async () => {
+      const v = { en: d.querySelector("#uiEn").value.trim(), ar: d.querySelector("#uiAr").value.trim(), fr: d.querySelector("#uiFr").value.trim() };
+      Object.keys(v).forEach(k => { if (!v[k]) delete v[k]; });
+      const text = Object.assign({}, this.ui.text || {});
+      if (Object.keys(v).length) text[key] = v; else delete text[key];
+      if (await this.saveUI("text", text)) { d.remove(); if (this.retr) this.retr(); this.toast("Saved"); }
+    };
+  },
+  orderPop(c, el) {
+    document.querySelectorAll(".ui-ord").forEach(x => x.remove());
+    const pop = document.createElement("div"); pop.className = "ui-ord";
+    pop.innerHTML = '<button data-mv="-1">↑ ←</button><button data-mv="1">↓ →</button><button data-mv="0">✕</button>';
+    const r = el.getBoundingClientRect(); pop.style.top = (window.scrollY + r.bottom + 4) + "px"; pop.style.left = (window.scrollX + r.left) + "px";
+    document.body.appendChild(pop);
+    pop.querySelectorAll("[data-mv]").forEach(b => b.onclick = async () => {
+      const mv = Number(b.dataset.mv); if (!mv) { pop.remove(); return; }
+      const kids = [...c.children].filter(e => e.tagName !== "H5"), i = kids.indexOf(el), j = i + mv;
+      if (j < 0 || j >= kids.length) return;
+      if (mv < 0) c.insertBefore(el, kids[j]); else c.insertBefore(el, kids[j].nextSibling);
+      const order = Object.assign({}, this.ui.order || {}); order[this.contKey(c)] = [...c.children].filter(e => e.tagName !== "H5").map(e => this.childKey(e));
+      await this.saveUI("order", order);
+      const r2 = el.getBoundingClientRect(); pop.style.top = (window.scrollY + r2.bottom + 4) + "px"; pop.style.left = (window.scrollX + r2.left) + "px";
+    });
+  },
+
   // comments under a request card: a toggle + thread
   OPENC: {},
   commentsHTML(resId, msgs) {
@@ -933,3 +1092,14 @@ const BAS = {
     Object.keys(this.OPENC).filter(k => this.OPENC[k]).forEach(k => this.bindChat("cm" + k, { reservation: Number(k) }, () => reload(true)));
   },
 };
+
+// edit mode: watch the page for new content (hidden things, order) and catch taps while editing
+(function () {
+  if (typeof document === "undefined") return;
+  document.addEventListener("click", e => BAS.editClick(e), true);
+  let q = false;
+  new MutationObserver(() => {
+    if (q) return; q = true;
+    requestAnimationFrame(() => { q = false; const H = (BAS.ui.hide || []).some(h => h.k.startsWith("tx:")); if (H) BAS.applyUI(); else BAS.applyOrder(document.body); if (BAS.editMode() && !document.getElementById("uiBar")) BAS.editBar(); });
+  }).observe(document.body, { childList: true, subtree: true });
+})();

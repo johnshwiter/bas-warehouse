@@ -736,18 +736,19 @@ const ACCESS = [
   ["records_edit", "Change the details in Group records"],
   ["group_money", "See Group money (read only)"],
   ["announce", "Send announcements"],
-  ["book_any", "Book items for any stage"]];
+  ["book_any", "Book items for any stage"],
+  ["plans_all", "Meeting plans: see every stage, change any plan, set the plan settings"]];
 function accessSheet(p) {
   const o = $("sheet"), A = p.access || {};
   o.innerHTML = '<div class="sheet" style="max-width:520px"><h2>🔑 ' + esc(p.full_name) + '</h2><p class="meta">What this account can do beyond its own stage. Only the warehouse team changes this.</p>' +
     '<div class="field"><label>Group role</label><select id="acR"><option value="">None</option><option value="kada_3am"' + (p.group_role === "kada_3am" ? " selected" : "") + '>القائد العام</option><option value="mosa3ed_3am"' + (p.group_role === "mosa3ed_3am" ? " selected" : "") + ">مساعد القائد العام</option></select></div>" +
     '<div class="acc-ticks">' + ACCESS.map(a => '<label class="pick' + (A[a[0]] ? " on" : "") + '"><input type="checkbox" data-ak="' + a[0] + '"' + (A[a[0]] ? " checked" : "") + "> " + esc(BAS.tr ? BAS.tr(a[1]) : a[1]) + "</label>").join("") + "</div>" +
-    '<p class="meta">Choosing a group role ticks everything except Group records. You can untick any of them.</p>' +
+    '<p class="meta">Choosing a group role ticks everything except Group records and Meeting plans. You can untick any of them.</p>' +
     '<div class="actions"><button class="btn gold" id="acGo">Save</button><button class="btn line" id="acBk">Back</button></div></div>';
   o.hidden = false;
   const sync = () => o.querySelectorAll("[data-ak]").forEach(c => c.closest(".pick").classList.toggle("on", c.checked));
   o.querySelectorAll("[data-ak]").forEach(c => c.onchange = sync);
-  $("acR").onchange = () => { if ($("acR").value) o.querySelectorAll("[data-ak]").forEach(c => { if (c.dataset.ak !== "records_edit") c.checked = true; }); sync(); };
+  $("acR").onchange = () => { if ($("acR").value) o.querySelectorAll("[data-ak]").forEach(c => { if (c.dataset.ak !== "records_edit" && c.dataset.ak !== "plans_all") c.checked = true; }); sync(); };
   $("acBk").onclick = () => { o.hidden = true; };
   $("acGo").onclick = async () => {
     const acc = {}; o.querySelectorAll("[data-ak]").forEach(c => { if (c.checked) acc[c.dataset.ak] = true; });

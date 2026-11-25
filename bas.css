@@ -794,3 +794,25 @@ body.ro #addBtn, body.ro #subEdit, body.ro #obEdit, body.ro [data-ed], body.ro [
 .rec-grid .rec-v .btn { align-self: flex-start; margin-top: 4px; }
 ul.rec-h { list-style: none; padding: 0; margin: 0; } ul.rec-h li { padding: 7px 0; border-bottom: 1px solid var(--line-2); color: var(--ink, inherit); }
 .acc-ticks label.pick { display: flex; margin: 0 0 6px; }
+/* v18: edit mode */
+body:not(.ui-edit) .ui-hid { display: none !important; }
+body.ui-edit .ui-hid { opacity: .35; outline: 2px dashed var(--bad); }
+body.ui-edit main, body.ui-edit .drawer, body.ui-edit .topbar { cursor: crosshair; }
+body.ui-edit { padding-bottom: 70px; }
+.ui-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 9999; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center;
+  padding: 10px 12px; background: var(--navy, #17196A); color: #fff; box-shadow: 0 -4px 18px rgba(0,0,0,.25); }
+.ui-bar .tab { background: rgba(255,255,255,.12); color: #fff; border-color: transparent; }
+.ui-bar .tab.on { background: var(--gold, #F2C200); color: #17196A; }
+.ui-ord { position: absolute; z-index: 10000; display: flex; gap: 4px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 4px; box-shadow: 0 6px 20px rgba(0,0,0,.2); }
+.ui-ord button { border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 6px 10px; font-weight: 700; cursor: pointer; }
+.ui-dlg { z-index: 10001; }
+/* v18: meeting plans */
+.plan-row { cursor: pointer; }
+.pick-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
+.pick-wrap .pick { margin: 0; }
+.para-h { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.para-v { margin-bottom: 8px; }
+.files .pill { margin: 2px 4px 2px 0; }
+label.busy { opacity: .6; pointer-events: none; }
+.cm { border-bottom: 1px solid var(--line-2); padding: 6px 0; } .cm p { margin: 4px 0 0; }
+.qed-row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 6px; align-items: center; margin-bottom: 6px; }

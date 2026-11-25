@@ -82,7 +82,8 @@ let MOST = { stage: [], all: [] }, STOCK = [], CART = {}, CAT = "All", EDIT = nu
       if (AIFILL) {
         Object.keys(AIFILL.cart || {}).forEach(k => { const n = Math.min(Number(AIFILL.cart[k]) || 0, availFor(k)); if (n > 0) CART[k] = n; });
         history.replaceState(null, "", "book.html");
-        $("editNote").innerHTML = '<div class="msg info">🤖 ' + esc(BAS.tr ? BAS.tr("Filled in by the assistant. Check everything, then press Send request.") : "Filled in by the assistant. Check everything, then press Send request.") + "</div>";
+        const nt = AIFILL.from === "plan" ? "📝 For the meeting plan of " + BAS.fmtDate(AIFILL.date, true) + ". Add the items, then press Review: the date, time and place are filled in." : "Filled in by the assistant. Check everything, then press Send request.";
+        $("editNote").innerHTML = '<div class="msg info">' + (AIFILL.from === "plan" ? "" : "🤖 ") + esc(BAS.tr ? BAS.tr(nt) : nt) + "</div>";
       }
     }
     chips(); draw(); waitAlerts();
@@ -338,7 +339,8 @@ function openCheckout() {
   }
   if (AIFILL && !r) {
     const d = AIFILL, set = (id, v) => { if ($(id) && v != null && v !== "") $(id).value = v; };
-    set("coWho", d.who); set("coDate", d.date && d.date >= BAS.todayISO() ? d.date : ""); set("coTime", d.time); set("coUntil", d.until); set("coPlace", d.place); set("coNotes", d.notes);
+    set("coWho", d.who); set("coDate", d.date && d.date >= BAS.todayISO() ? d.date : ""); set("coTime", d.time); set("coUntil", d.until); set("coPlace", d.place); set("coNotes", d.notes); set("coKind", d.kind);
+    if ($("coKind") && $("coKind").onchange) $("coKind").onchange();
     if ($("coWho")) $("coWho").onchange(); lateCheck();
   }
   if (EVENT && !r) {

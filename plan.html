@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meeting plans | BAS Warehouse</title>
+<link rel="icon" href="logo.png">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#17196A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="BAS Warehouse">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<meta name="color-scheme" content="only light">
+<link rel="stylesheet" href="bas.css">
+<script>(function(){var t="light";try{t=localStorage.getItem("basTheme")==="dark"?"dark":"light"}catch(e){}document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content="only "+t})()</script>
+</head>
+<body>
+<main class="page narrow">
+  <div class="head"><div><p class="eyebrow" id="eyebrow">تحضير</p><h1 id="ttl">Meeting <em>plans</em></h1></div>
+    <div class="actions" style="margin:0"><button class="btn gold" id="newBtn" hidden>+ New plan</button></div></div>
+  <div id="view"><div class="empty">Loading…</div></div>
+</main>
+<div class="overlay" id="sheet" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="common.js"></script>
+<script src="i18n.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id), esc = s => BAS.esc(s), T = x => BAS.tr ? BAS.tr(x) : x;
+const QS = new URLSearchParams(location.search);
+const KINDS = [["Meeting", "👥 Meeting"], ["Trip", "🚌 Trip"], ["Camp", "⛺ Camp"]];
+const MAX = 20 * 1024 * 1024;
+let PLANS = [], SEC = null, SHOW = "next", KADA = [], ROLES = {};
+const S = () => BAS.settings || {};
+const FORM = () => (BAS.ui && Array.isArray(BAS.ui.plan_form)) ? BAS.ui.plan_form : [{ id: "goal", label: "هدف الاجتماع", type: "text", required: false }];
+const seeAll = () => BAS.isAdmin() || BAS.allStages() || BAS.can("plans_all");
+const canNew = () => BAS.isAdmin() || !!BAS.profile.section_id;
+const canComment = () => BAS.isAdmin() || BAS.can("plans_all") || !!BAS.groupRole();
+const kindLabel = k => T((KINDS.find(x => x[0] === k) || KINDS[0])[1]);
+const hm = t => String(t || "").slice(0, 5);
+const fmtD = d => BAS.fmtDate(d, true);
+// can this plan still be changed? (until the meeting starts, minus the hours set)
+function locked(p) {
+  const start = new Date(p.meet_date + "T" + hm(p.meet_time) + ":00+02:00").getTime() - (Number(S().plan_edit_hours) || 0) * 3600000;
+  return Date.now() >= start;
+}
+const canEdit = p => BAS.isAdmin() || BAS.can("plans_all") || (p.section_id === BAS.profile.section_id && !locked(p));
+const nm = (p, id) => (p.names || {})[String(id)] || "#" + id;
+
+async function loadList() {
+  let q = supabaseClient.from("meeting_plans").select("*").order("meet_date", { ascending: SHOW === "next" }).limit(200);
+  const today = BAS.todayISO();
+  q = SHOW === "next" ? q.gte("meet_date", today) : q.lt("meet_date", today);
+  if (SEC) q = q.eq("section_id", SEC);
+  const r = await q;
+  if (r.error) { $("view").innerHTML = '<div class="msg err">' + esc(BAS.errText(r.error)) + "</div>"; return; }
+  PLANS = r.data || [];
+  // which have items booked
+  const ds = [...new Set(PLANS.map(p => p.meet_date))];
+  let RES = [];
+  if (ds.length) { const rr = await supabaseClient.from("reservations").select("id, section_id, meeting_date, kind, status").in("meeting_date", ds); if (!rr.error) RES = rr.data; }
+  PLANS.forEach(p => { p._res = RES.filter(x => x.section_id === p.section_id && x.meeting_date === p.meet_date && (x.kind || "Meeting") === p.kind && ["Cancelled", "Rejected"].indexOf(x.status) < 0); });
+  drawList();
+}
+
+function drawList() {
+  const secs = BAS.sections.filter(s => seeAll() || s.id === BAS.profile.section_id);
+  let h = '<div class="toolbar"><div class="tabs" style="margin:0"><button class="tab' + (SHOW === "next" ? " on" : "") + '" data-show="next">' + esc(T("Coming")) + '</button><button class="tab' + (SHOW === "past" ? " on" : "") + '" data-show="past">' + esc(T("Past")) + "</button></div>" +
+    (seeAll() ? '<select id="fSec"><option value="">' + esc(T("All stages")) + "</option>" + secs.map(s => '<option value="' + s.id + '"' + (s.id === SEC ? " selected" : "") + ">" + esc(s.name_ar) + "</option>").join("") + "</select>" : "") + "</div>";
+  if (BAS.isAdmin() || BAS.can("plans_all")) h += settingsPanel();
+  if (BAS.editMode()) h += '<div class="panel" data-uiok><b>✏️ ' + esc(T("The form's extra questions")) + '</b> <button class="btn line sm" id="qEd" data-uiok>' + esc(T("Edit the questions")) + "</button></div>";
+  h += PLANS.length ? PLANS.map(p => '<div class="person plan-row" data-id="' + p.id + '"><div><h4>' + esc(kindLabel(p.kind)) + " · " + esc(fmtD(p.meet_date)) + " · " + esc(hm(p.meet_time)) + "</h4>" +
+      '<div class="meta"><bdi>' + esc(BAS.sectionName(p.section_id)) + "</bdi> · " + esc(p.place) + " · " + esc(T("Leader")) + ": " + esc(nm(p, p.leader_id)) + "</div></div>" +
+      '<div class="actions" style="margin:0">' + (p._res.length ? '<span class="pill ok">📦 ' + esc(T("Items booked")) + "</span>" : '<span class="pill warn">' + esc(T("No items booked")) + "</span>") + "</div></div>").join("")
+    : '<div class="empty">' + esc(T(SHOW === "next" ? "No plans coming up." : "No past plans.")) + "</div>";
+  $("view").innerHTML = h;
+  $("view").querySelectorAll("[data-show]").forEach(b => b.onclick = () => { SHOW = b.dataset.show; loadList(); });
+  if ($("fSec")) $("fSec").onchange = () => { SEC = Number($("fSec").value) || null; loadList(); };
+  $("view").querySelectorAll(".plan-row").forEach(el => el.onclick = () => openPlan(Number(el.dataset.id)));
+  bindSettings();
+  if ($("qEd")) $("qEd").onclick = qEditor;
+}
+
+// edit mode: the plan's extra questions (the fixed ones: kind, date, time, place, leader, kada, paragraphs)
+function qEditor() {
+  const o = $("sheet"), Q = JSON.parse(JSON.stringify(FORM()));
+  const draw = () => {
+    o.innerHTML = '<div class="sheet ui-dlg-in" data-uiok style="max-width:560px"><h2>✏️ ' + esc(T("The form's extra questions")) + '</h2><p class="meta">' + esc(T("Date, time, place, the leader, the kada coming and the paragraphs are always there. These come after them.")) + "</p>" +
+      Q.map((q, i) => '<div class="qed-row"><input data-ql="' + i + '" dir="auto" value="' + esc(q.label) + '"><select data-qt="' + i + '"><option value="text"' + (q.type !== "long" ? " selected" : "") + ">" + esc(T("Short")) + '</option><option value="long"' + (q.type === "long" ? " selected" : "") + ">" + esc(T("Long")) + "</option></select>" +
+        '<label class="pick' + (q.required ? " on" : "") + '" style="margin:0"><input type="checkbox" data-qr="' + i + '"' + (q.required ? " checked" : "") + "> *</label>" +
+        '<span><button class="btn line sm" data-qu="' + i + '">↑</button><button class="btn line sm" data-qx="' + i + '">✕</button></span></div>').join("") +
+      '<button class="btn line sm" id="qAdd">+ ' + esc(T("Add a question")) + '</button><p class="meta">* = ' + esc(T("required")) + "</p>" +
+      '<div class="actions"><button class="btn gold" id="qGo">' + esc(T("Save")) + '</button><button class="btn line" id="qBk">' + esc(T("Back")) + "</button></div></div>";
+    o.hidden = false;
+    const grab = () => Q.forEach((q, i) => { q.label = o.querySelector('[data-ql="' + i + '"]').value.trim(); q.type = o.querySelector('[data-qt="' + i + '"]').value; q.required = o.querySelector('[data-qr="' + i + '"]').checked; });
+    o.querySelectorAll("[data-qu]").forEach(b => b.onclick = () => { grab(); const i = Number(b.dataset.qu); if (i > 0) { const x = Q.splice(i, 1)[0]; Q.splice(i - 1, 0, x); } draw(); });
+    o.querySelectorAll("[data-qx]").forEach(b => b.onclick = () => { grab(); if (confirm(T("Remove this question? Old plans keep their answers."))) { Q.splice(Number(b.dataset.qx), 1); draw(); } });
+    $("qAdd").onclick = () => { grab(); Q.push({ id: "q" + Date.now().toString(36), label: "", type: "text", required: false }); draw(); };
+    $("qBk").onclick = () => { o.hidden = true; };
+    $("qGo").onclick = async () => {
+      grab(); if (Q.some(q => !q.label)) return BAS.toast(T("Write every question."), "err");
+      if (await BAS.saveUI("plan_form", Q)) { o.hidden = true; BAS.toast(T("Saved")); }
+    };
+  };
+  draw();
+}
+
+// ---------- plan settings (warehouse team and the chosen account) ----------
+function settingsPanel() {
+  const s = S();
+  return '<details class="panel plan-set"><summary>⚙️ ' + esc(T("Plan settings")) + "</summary>" +
+    '<div class="grid2"><div class="field"><label>' + esc(T("Due this many days before")) + '</label><input type="number" min="0" max="14" id="psD" value="' + (s.plan_days == null ? 2 : s.plan_days) + '"></div>' +
+    '<div class="field"><label>' + esc(T("Can be changed until (hours before it starts, 0 = until it starts)")) + '</label><input type="number" min="0" max="168" id="psH" value="' + (s.plan_edit_hours || 0) + '"></div>' +
+    '<div class="field"><label>' + esc(T("At least this many paragraphs")) + '</label><input type="number" min="0" max="10" id="psP" value="' + (s.plan_min_paras == null ? 3 : s.plan_min_paras) + '"></div><div></div></div>' +
+    '<label class="pick' + (s.plan_remind_noplan !== false ? " on" : "") + '"><input type="checkbox" id="psR"' + (s.plan_remind_noplan !== false ? " checked" : "") + "> " + esc(T("Remind when a meeting has no plan yet")) + "</label>" +
+    '<label class="pick' + (s.plan_comments ? " on" : "") + '"><input type="checkbox" id="psC"' + (s.plan_comments ? " checked" : "") + "> " + esc(T("Comments on plans")) + "</label>" +
+    '<div class="actions"><button class="btn ok" id="psGo">' + esc(T("Save")) + "</button></div></details>";
+}
+function bindSettings() {
+  if (!$("psGo")) return;
+  ["psR", "psC"].forEach(id => $(id).onchange = () => $(id).closest(".pick").classList.toggle("on", $(id).checked));
+  $("psGo").onclick = async () => {
+    const v = { plan_days: Number($("psD").value), plan_edit_hours: Number($("psH").value), plan_min_paras: Number($("psP").value), plan_remind_noplan: $("psR").checked, plan_comments: $("psC").checked };
+    const { error } = await supabaseClient.rpc("save_plan_settings", { p: v });
+    if (error) return BAS.toast(BAS.errText(error), "err");
+    Object.assign(BAS.settings, v); BAS.toast(T("Saved"));
+  };
+}
+
+// ---------- one plan ----------
+async function openPlan(id) {
+  const r = await supabaseClient.from("meeting_plans").select("*").eq("id", id).maybeSingle();
+  if (r.error || !r.data) { BAS.toast(T("Plan not found."), "err"); return; }
+  const p = r.data;
+  const rr = await supabaseClient.from("reservations").select("id, status, kind, meeting_date, section_id").eq("section_id", p.section_id).eq("meeting_date", p.meet_date);
+  const res = (rr.error ? [] : rr.data).filter(x => (x.kind || "Meeting") === p.kind && ["Cancelled", "Rejected"].indexOf(x.status) < 0);
+  let lines = [];
+  if (res.length) { const li = await supabaseClient.from("reservation_items").select("reservation_id, item_id, variant_id, quantity").in("reservation_id", res.map(x => x.id)); lines = li.error ? [] : li.data; }
+  let BY = {}; if (lines.length) { try { BY = (await BAS.loadStock()).byId; } catch (e) {} }
+  let com = [];
+  if (S().plan_comments) { const c = await supabaseClient.from("plan_comments").select("*").eq("plan_id", id).order("created_at"); com = c.error ? [] : c.data; }
+  const ans = FORM().filter(q => p.answers && p.answers[q.id]).map(q => '<div class="rec-v"><span class="mut">' + esc(q.label) + '</span><b dir="auto">' + esc(p.answers[q.id]) + "</b></div>").join("");
+  const people = ids => (ids || []).map(i => esc(nm(p, i))).join("، ") || "—";
+  const files = fs => (fs || []).map(f => '<a class="pill" href="' + esc(f.url) + '" target="_blank" rel="noopener">📎 ' + esc(f.name) + "</a>").join(" ");
+  const sq = BAS.allStages() ? "s=" + p.section_id + "&" : "";
+  const o = $("sheet");
+  o.innerHTML = '<div class="sheet" style="max-width:640px"><h2>' + esc(kindLabel(p.kind)) + " · " + esc(fmtD(p.meet_date)) + " · " + esc(hm(p.meet_time)) + '</h2><p class="meta"><bdi>' + esc(BAS.sectionName(p.section_id)) + "</bdi> · " + esc(p.place) +
+    " · " + esc(T("Sent by")) + " " + esc(p.created_by_name || "") + (p.updated_by_name && p.updated_at !== p.created_at ? " · " + esc(T("changed by")) + " " + esc(p.updated_by_name) + " " + esc(BAS.fmtDateTime(p.updated_at)) : "") + "</p>" +
+    '<div class="panel"><div class="grid2 rec-grid"><div class="rec-v"><span class="mut">' + esc(T("Meeting leader")) + "</span><b>" + esc(nm(p, p.leader_id)) + "</b></div>" + ans +
+    '<div class="rec-v"><span class="mut">' + esc(T("Leaders and assistants coming")) + "</span><b>" + people(p.kada_ids) + '</b></div><div class="rec-v"><span class="mut">' + esc(T("Gawala coming")) + "</span><b>" + people(p.gawala_ids) + "</b></div></div></div>" +
+    '<div class="group-title">' + esc(T("Paragraphs")) + "</div>" + (p.paras || []).map((x, i) => '<div class="panel para-v"><b>' + (i + 1) + ". " + esc(x.type) + '</b> <small class="mut">· ' + people(x.people) + "</small>" +
+      (x.prep ? '<p dir="auto" style="white-space:pre-wrap;margin:6px 0">' + BAS.linkify(x.prep) + "</p>" : "") + (x.files && x.files.length ? "<div>" + files(x.files) + "</div>" : "") + "</div>").join("") +
+    '<div class="group-title">📦 ' + esc(T("Items")) + "</div><div class=\"panel\">" + (res.length ? res.map(x => '<div><a class="lnk" href="' + (x.kind && x.kind !== "Meeting" ? "camp.html?id=" + x.id : BAS.isAdmin() ? "team.html#requests" : "section.html#requests") + '">#' + x.id + "</a> · " + esc(T(x.status)) + "<br>" +
+        lines.filter(l => l.reservation_id === x.id).map(l => esc(BAS.itemLabel(BY, l.item_id, l.variant_id)) + " ×" + l.quantity).join("، ") + "</div>").join("")
+      : '<p class="meta">' + esc(T("No items booked")) + "</p>") +
+      (p.section_id === BAS.profile.section_id || BAS.isAdmin() || BAS.can("book_any") ? '<button class="btn line sm" id="pBook">📦 ' + esc(T("Book items for this meeting")) + "</button>" : "") + "</div>" +
+    (S().plan_comments ? '<div class="group-title">💬 ' + esc(T("Comments")) + '</div><div class="panel">' + (com.length ? com.map(c => '<div class="cm"><b>' + esc(c.by_name || "") + '</b> <small class="mut">' + esc(BAS.fmtDateTime(c.created_at)) + '</small><p dir="auto">' + esc(c.body) + "</p></div>").join("") : '<p class="meta">' + esc(T("No comments yet.")) + "</p>") +
+      (canComment() ? '<div class="field"><textarea id="cB" rows="2" dir="auto" placeholder="' + esc(T("Write a comment…")) + '"></textarea></div><button class="btn line sm" id="cGo">' + esc(T("Comment")) + "</button>" : "") + "</div>" : "") +
+    '<div class="actions">' + (canEdit(p) ? '<button class="btn gold" id="pEdit">✏️ ' + esc(T("Edit")) + "</button>" : '<span class="meta">🔒 ' + esc(T("This plan can't be changed any more.")) + "</span>") +
+      (p.att_meeting_id ? '<a class="btn line" href="attendance.html?' + sq + "m=" + p.att_meeting_id + '#take">' + esc(T("Attendance")) + "</a>" : "") +
+      (BAS.isAdmin() ? '<button class="btn danger" id="pDel">' + esc(T("Delete")) + "</button>" : "") + '<button class="btn line" id="pClose">' + esc(T("Close")) + "</button></div></div>";
+  o.hidden = false;
+  o.onclick = e => { if (e.target === o) o.hidden = true; };
+  $("pClose").onclick = () => { o.hidden = true; };
+  if ($("pEdit")) $("pEdit").onclick = () => form(p);
+  if ($("pBook")) $("pBook").onclick = () => {
+    try { sessionStorage.setItem("basAiFill", JSON.stringify({ from: "plan", cart: {}, date: p.meet_date, time: hm(p.meet_time), place: p.place, kind: p.kind, who: "s" + p.section_id })); } catch (e) {}
+    location.href = "book.html?ai=1";
+  };
+  if ($("pDel")) $("pDel").onclick = async () => {
+    if (!confirm(T("Delete this plan? The attendance meeting stays."))) return;
+    const { error } = await supabaseClient.rpc("delete_plan", { p_id: p.id });
+    if (error) return BAS.toast(BAS.errText(error), "err");
+    o.hidden = true; BAS.toast(T("Deleted")); loadList();
+  };
+  if ($("cGo")) $("cGo").onclick = async () => {
+    const { error } = await supabaseClient.rpc("add_plan_comment", { p_plan: p.id, p_body: $("cB").value });
+    if (error) return BAS.toast(BAS.errText(error), "err");
+    openPlan(p.id);
+  };
+}
+
+// ---------- the form (new or edit) ----------
+async function stageKada(sec) {
+  const r = await supabaseClient.from("roster").select("id, name, profile_id").eq("section_id", sec).eq("role", "kada").eq("is_active", true).order("name");
+  KADA = r.error ? [] : r.data;
+  const sr = await supabaseClient.rpc("stage_roles", { p_section: sec });
+  ROLES = {}; (sr.error ? [] : sr.data || []).forEach(x => { ROLES[x.profile_id] = x.stage_role; });
+}
+const isHead = k => k.profile_id && ["head", "deputy", "assistant"].indexOf(ROLES[k.profile_id]) >= 0;
+
+async function form(p) {
+  const o = $("sheet"), editing = !!p;
+  let sec = p ? p.section_id : (BAS.isAdmin() ? (Number(QS.get("s")) || BAS.profile.section_id || (BAS.sections[0] || {}).id) : BAS.profile.section_id);
+  await stageKada(sec);
+  const paras = p ? JSON.parse(JSON.stringify(p.paras || [])) : [];
+  const minP = S().plan_min_paras == null ? 3 : Number(S().plan_min_paras);
+  while (paras.length < Math.max(minP, 1)) paras.push({ type: "", people: [], prep: "", files: [] });
+  const chk = (name, ids) => '<div class="pick-wrap">' + KADA.filter(k => name === "kada" ? isHead(k) : !isHead(k)).map(k => '<label class="pick' + (ids.indexOf(k.id) >= 0 ? " on" : "") + '"><input type="checkbox" data-' + name + '="' + k.id + '"' + (ids.indexOf(k.id) >= 0 ? " checked" : "") + "> " + esc(k.name) + "</label>").join("") + "</div>";
+  const P0 = p;
+  const head = () => KADA.filter(isHead), gaw = () => KADA.filter(k => !isHead(k));
+  const draw = () => {
+    const p = P0;   // the saved plan (null for a new one); what was typed is put back by restore()
+    o.innerHTML = '<div class="sheet" style="max-width:640px"><h2>📝 ' + esc(T(editing ? "Change the plan" : "New meeting plan")) + "</h2>" +
+      (BAS.isAdmin() && !editing ? '<div class="field"><label>' + esc(T("Stage")) + '</label><select id="fS">' + BAS.sections.map(s => '<option value="' + s.id + '"' + (s.id === sec ? " selected" : "") + ">" + esc(s.name_ar) + "</option>").join("") + "</select></div>" : '<p class="meta"><bdi>' + esc(BAS.sectionName(sec)) + "</bdi></p>") +
+      '<div class="tabs" id="fK" style="margin:0 0 10px">' + KINDS.map(k => '<button type="button" class="tab' + ((p ? p.kind : (QS.get("k") || "Meeting")) === k[0] ? " on" : "") + '" data-k="' + k[0] + '">' + esc(T(k[1])) + "</button>").join("") + "</div>" +
+      '<div class="grid2"><div class="field"><label>' + esc(T("Date")) + ' *</label><input type="date" id="fD" value="' + esc(p ? p.meet_date : (QS.get("d") || "")) + '"></div>' +
+      '<div class="field"><label>' + esc(T("Time")) + ' *</label><input type="time" id="fT" value="' + esc(p ? hm(p.meet_time) : "") + '"></div></div>' +
+      '<div class="field"><label>' + esc(T("Place")) + ' *</label><input id="fP" dir="auto" value="' + esc(p ? p.place : "") + '"></div>' +
+      '<div class="field"><label>' + esc(T("Meeting leader")) + ' *</label><select id="fL"><option value="">—</option>' + KADA.map(k => '<option value="' + k.id + '"' + (p && p.leader_id === k.id ? " selected" : "") + ">" + esc(k.name) + "</option>").join("") + "</select></div>" +
+      FORM().map(q => '<div class="field" data-q="' + esc(q.id) + '"><label>' + esc(q.label) + (q.required ? " *" : "") + "</label>" + (q.type === "long" ? '<textarea id="q_' + esc(q.id) + '" rows="3" dir="auto">' + esc((p && p.answers && p.answers[q.id]) || "") + "</textarea>" : '<input id="q_' + esc(q.id) + '" dir="auto" value="' + esc((p && p.answers && p.answers[q.id]) || "") + '">') + "</div>").join("") +
+      '<div class="field"><label>' + esc(T("Leaders and assistants coming")) + "</label>" + (head().length ? chk("kada", p ? p.kada_ids : []) : '<p class="meta">—</p>') + "</div>" +
+      '<div class="field"><label>' + esc(T("Gawala coming")) + "</label>" + (gaw().length ? chk("gaw", p ? p.gawala_ids : []) : '<p class="meta">—</p>') + "</div>" +
+      '<div class="group-title">' + esc(T("Paragraphs")) + "</div>" + paras.map((x, i) => '<div class="panel para" data-i="' + i + '"><div class="para-h"><b>' + esc(T("Paragraph")) + " " + (i + 1) + "</b>" + (i >= minP ? ' <button type="button" class="linkbtn" data-rmp="' + i + '">✕ ' + esc(T("Remove")) + "</button>" : "") + "</div>" +
+        '<div class="field"><label>' + esc(T("Type (cultural, game, speaker…)")) + ' *</label><input data-pt dir="auto" value="' + esc(x.type || "") + '"></div>' +
+        '<div class="field"><label>' + esc(T("Responsible")) + ' *</label><div class="pick-wrap">' + KADA.map(k => '<label class="pick' + ((x.people || []).indexOf(k.id) >= 0 ? " on" : "") + '"><input type="checkbox" data-pp="' + k.id + '"' + ((x.people || []).indexOf(k.id) >= 0 ? " checked" : "") + "> " + esc(k.name) + "</label>").join("") + "</div></div>" +
+        '<div class="field"><label>' + esc(T("Preparation (text, links…)")) + '</label><textarea data-pr rows="3" dir="auto">' + esc(x.prep || "") + "</textarea></div>" +
+        '<div class="files">' + (x.files || []).map((f, j) => '<span class="pill">📎 <a href="' + esc(f.url) + '" target="_blank" rel="noopener">' + esc(f.name) + '</a> <button type="button" class="linkbtn" data-rmf="' + j + '">✕</button></span>').join(" ") + "</div>" +
+        '<label class="btn line sm" style="margin-top:6px">📎 ' + esc(T("Add a file")) + '<input type="file" data-up hidden multiple></label> <small class="mut">' + esc(T("Up to 20 MB each, no videos.")) + "</small></div>").join("") +
+      '<button type="button" class="btn line sm" id="addP">+ ' + esc(T("Add a paragraph")) + "</button>" +
+      '<div id="fErr" class="msg err" hidden></div><div class="actions"><button class="btn gold" id="fGo">' + esc(T(editing ? "Save changes" : "Send the plan")) + '</button><button class="btn line" id="fBack">' + esc(T("Back")) + "</button></div></div>";
+    o.hidden = false;
+    bind();
+  };
+  // keep what was typed before redrawing
+  const grab = () => {
+    o.querySelectorAll(".para").forEach(el => { const x = paras[Number(el.dataset.i)];
+      x.type = el.querySelector("[data-pt]").value; x.prep = el.querySelector("[data-pr]").value;
+      x.people = [...el.querySelectorAll("[data-pp]:checked")].map(c => Number(c.dataset.pp)); });
+    if (!p) p = { _new: true };
+    p._kind = (o.querySelector("#fK .tab.on") || {}).dataset ? o.querySelector("#fK .tab.on").dataset.k : "Meeting";
+    p._v = { d: $("fD").value, t: $("fT").value, pl: $("fP").value, l: $("fL").value, k: [...o.querySelectorAll("[data-kada]:checked")].map(c => Number(c.dataset.kada)), g: [...o.querySelectorAll("[data-gaw]:checked")].map(c => Number(c.dataset.gaw)),
+      a: Object.fromEntries(FORM().map(q => [q.id, ($("q_" + q.id) || {}).value || ""])) };
+  };
+  const restore = () => { if (!p || !p._v) return; $("fD").value = p._v.d; $("fT").value = p._v.t; $("fP").value = p._v.pl; $("fL").value = p._v.l;
+    o.querySelectorAll("[data-kada]").forEach(c => { c.checked = p._v.k.indexOf(Number(c.dataset.kada)) >= 0; }); o.querySelectorAll("[data-gaw]").forEach(c => { c.checked = p._v.g.indexOf(Number(c.dataset.gaw)) >= 0; });
+    FORM().forEach(q => { if ($("q_" + q.id)) $("q_" + q.id).value = p._v.a[q.id] || ""; });
+    o.querySelectorAll("#fK .tab").forEach(b => b.classList.toggle("on", b.dataset.k === p._kind));
+    o.querySelectorAll(".pick input").forEach(c => c.closest(".pick").classList.toggle("on", c.checked)); };
+  const redraw = () => { grab(); draw(); restore(); };
+  const bind = () => {
+    $("fBack").onclick = () => { o.hidden = true; };
+    o.querySelectorAll(".pick input").forEach(c => c.onchange = () => c.closest(".pick").classList.toggle("on", c.checked));
+    o.querySelectorAll("#fK .tab").forEach(b => b.onclick = () => { o.querySelectorAll("#fK .tab").forEach(x => x.classList.toggle("on", x === b)); });
+    if ($("fS")) $("fS").onchange = async () => { grab(); sec = Number($("fS").value); await stageKada(sec); p._v.l = ""; p._v.k = []; p._v.g = []; paras.forEach(x => { x.people = []; }); draw(); restore(); };
+    $("addP").onclick = () => { grab(); paras.push({ type: "", people: [], prep: "", files: [] }); draw(); restore(); };
+    o.querySelectorAll("[data-rmp]").forEach(b => b.onclick = () => { grab(); paras.splice(Number(b.dataset.rmp), 1); draw(); restore(); });
+    o.querySelectorAll("[data-rmf]").forEach(b => b.onclick = async () => {
+      const i = Number(b.closest(".para").dataset.i), j = Number(b.dataset.rmf), f = paras[i].files[j];
+      if (!confirm(T("Remove this file?"))) return;
+      grab(); paras[i].files.splice(j, 1); draw(); restore();
+      if (f && f.id) api({ action: "trash", id: f.id, section_id: sec }).catch(() => {});
+    });
+    o.querySelectorAll("[data-up]").forEach(inp => inp.onchange = async () => {
+      const i = Number(inp.closest(".para").dataset.i), fs = [...inp.files];
+      const lab = inp.closest("label"); lab.classList.add("busy");
+      for (const f of fs) {
+        if (/^video\//.test(f.type)) { BAS.toast(T("Videos can't be uploaded. Put them in Drive and paste the link."), "err"); continue; }
+        if (f.size > MAX) { BAS.toast(f.name + ": " + T("bigger than 20 MB"), "err"); continue; }
+        try {
+          lab.firstChild.nodeValue = "⏳ " + f.name + "… ";
+          const b64 = await new Promise((ok, bad) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1]); r.onerror = bad; r.readAsDataURL(f); });
+          const out = await api({ section_id: sec, date: $("fD").value, name: f.name, mime: f.type || "application/octet-stream", b64 });
+          grab(); paras[i].files = (paras[i].files || []).concat([{ id: out.id, url: out.url, name: out.name }]);
+        } catch (e) { BAS.toast(f.name + ": " + BAS.errText(e), "err"); }
+      }
+      draw(); restore();
+    });
+    $("fGo").onclick = async () => {
+      grab();
+      const v = p._v, d = { section_id: sec, kind: p._kind, meet_date: v.d, meet_time: v.t, place: v.pl, leader_id: v.l, kada_ids: v.k, gawala_ids: v.g, answers: v.a,
+        paras: paras.map(x => ({ type: x.type.trim(), people: x.people, prep: x.prep.trim(), files: x.files || [] })) };
+      $("fGo").disabled = true;
+      const { data, error } = await supabaseClient.rpc("save_plan", { p_id: editing ? p.id : null, p: d });
+      $("fGo").disabled = false;
+      if (error) { $("fErr").textContent = BAS.errText(error); $("fErr").hidden = false; $("fErr").scrollIntoView({ block: "center" }); return; }
+      o.hidden = true; BAS.toast(T(editing ? "Saved" : "Plan sent ✓")); await loadList(); openPlan(data);
+    };
+  };
+  draw();
+}
+
+async function api(body) {
+  const { data } = await supabaseClient.auth.getSession();
+  const r = await fetch("/api/upload", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + (data && data.session && data.session.access_token) }, body: JSON.stringify(body) });
+  let j = {}; try { j = await r.json(); } catch (e) {}
+  if (!r.ok) throw new Error(j.error || (r.status === 404 ? "File uploads aren't set up yet." : "Upload failed."));
+  return j;
+}
+
+(async function () {
+  await BAS.init("plan");
+  if (!BAS.requireApproved()) return;
+  if (canNew()) { $("newBtn").hidden = false; $("newBtn").onclick = () => form(null); }
+  if (!seeAll()) SEC = BAS.profile.section_id;
+  await loadList();
+  const id = Number(QS.get("id"));
+  if (id) openPlan(id);
+  else if (QS.get("new") && canNew()) form(null);
+  if (id || QS.get("new")) history.replaceState(null, "", "plan.html");
+})();
+</script>
+</body>
+</html>

@@ -6,13 +6,43 @@
 "use strict";
 (function () {
   const L = BAS.lang;
-  if (L === "en" || document.body.hasAttribute("data-noi18n")) return;
+  if (document.body.hasAttribute("data-noi18n")) return;
   const K = L === "ar" ? 0 : 1;
   document.documentElement.lang = L;
   if (L === "ar") document.documentElement.dir = "rtl";
 
   // ---------- exact texts: "English": ["العربي", "Français"] ----------
   const D = {
+    // v18
+    "Meeting plans": ["تحضير الاجتماعات", "Plans de réunion"], "+ New plan": ["+ تحضير جديد", "+ Nouveau plan"],
+    "👥 Meeting": ["👥 اجتماع", "👥 Réunion"], "🚌 Trip": ["🚌 رحلة", "🚌 Sortie"], "⛺ Camp": ["⛺ معسكر", "⛺ Camp"], "Coming": ["الجاية", "À venir"], "Past": ["اللي فاتت", "Passés"],
+    "Leader": ["القائد", "Chef"], "Items booked": ["الحاجات محجوزة", "Matériel réservé"], "No items booked": ["مفيش حاجات محجوزة", "Rien de réservé"], "No plans coming up.": ["مفيش تحضير جاي.", "Aucun plan à venir."], "No past plans.": ["مفيش تحضير قديم.", "Aucun plan passé."],
+    "Plan settings": ["إعدادات التحضير", "Réglages des plans"], "Due this many days before": ["لازم يتبعت قبلها بكام يوم", "À rendre combien de jours avant"],
+    "Can be changed until (hours before it starts, 0 = until it starts)": ["يتعدّل لحد (كام ساعة قبل ما يبدأ، 0 = لحد ما يبدأ)", "Modifiable jusqu'à (heures avant le début, 0 = jusqu'au début)"],
+    "At least this many paragraphs": ["أقل عدد فقرات", "Nombre minimum de paragraphes"], "Remind when a meeting has no plan yet": ["فكّر لما يكون فيه اجتماع من غير تحضير", "Rappeler quand une réunion n'a pas de plan"],
+    "Comments on plans": ["التعليقات على التحضير", "Commentaires sur les plans"], "Plan not found.": ["التحضير مش موجود.", "Plan introuvable."], "Sent by": ["بعته", "Envoyé par"], "changed by": ["عدّله", "modifié par"],
+    "Meeting leader": ["قائد الاجتماع", "Chef de la réunion"], "Leaders and assistants coming": ["القادة والمساعدين الحاضرين", "Chefs et assistants présents"], "Gawala coming": ["الجوالة الحاضرين", "Routiers présents"],
+    "Paragraphs": ["الفقرات", "Paragraphes"], "Paragraph": ["الفقرة", "Paragraphe"], "Items": ["الحاجات", "Matériel"], "Book items for this meeting": ["احجز حاجات للاجتماع ده", "Réserver pour cette réunion"],
+    "No comments yet.": ["مفيش تعليقات لسه.", "Pas encore de commentaires."], "Write a comment…": ["اكتب تعليق…", "Écrire un commentaire…"], "Comment": ["علّق", "Commenter"],
+    "This plan can't be changed any more.": ["التحضير ده ماينفعش يتعدّل خلاص.", "Ce plan ne peut plus être modifié."], "Delete this plan? The attendance meeting stays.": ["تمسح التحضير ده؟ اجتماع الحضور هيفضل.", "Supprimer ce plan ? La réunion de présence reste."],
+    "Change the plan": ["تعديل التحضير", "Modifier le plan"], "New meeting plan": ["تحضير جديد", "Nouveau plan de réunion"], "Date": ["التاريخ", "Date"], "Time": ["الوقت", "Heure"], "Place": ["المكان", "Lieu"],
+    "Type (cultural, game, speaker…)": ["نوع الفقرة (ثقافي، لعبة، متكلم…)", "Type (culturel, jeu, intervenant…)"], "Responsible": ["مسئولين الفقرة", "Responsables"],
+    "Preparation (text, links…)": ["تحضير الفقرة (كتابة، لينكات…)", "Préparation (texte, liens…)"], "Add a file": ["ضيف ملف", "Ajouter un fichier"], "Up to 20 MB each, no videos.": ["لحد ٢٠ ميجا للملف، من غير فيديوهات.", "Jusqu'à 20 Mo chacun, pas de vidéos."],
+    "Add a paragraph": ["ضيف فقرة", "Ajouter un paragraphe"], "Send the plan": ["إرسال التحضير", "Envoyer le plan"], "Plan sent ✓": ["التحضير اتبعت ✓", "Plan envoyé ✓"], "Remove this file?": ["تشيل الملف ده؟", "Retirer ce fichier ?"],
+    "Videos can't be uploaded. Put them in Drive and paste the link.": ["الفيديوهات ماينفعش تترفع. حطها على درايف وحط اللينك.", "Les vidéos ne peuvent pas être envoyées. Mettez-les sur Drive et collez le lien."],
+    "bigger than 20 MB": ["أكبر من ٢٠ ميجا", "plus de 20 Mo"], "File uploads aren't set up yet.": ["رفع الملفات لسه ما اتجهزش.", "L'envoi de fichiers n'est pas encore installé."], "Upload failed.": ["الرفع فشل.", "Échec de l'envoi."],
+    "The form's extra questions": ["أسئلة الفورم الزيادة", "Questions en plus du formulaire"], "Edit the questions": ["عدّل الأسئلة", "Modifier les questions"],
+    "Date, time, place, the leader, the kada coming and the paragraphs are always there. These come after them.": ["التاريخ والوقت والمكان والقائد والقادة الحاضرين والفقرات موجودين دايماً. دول بييجوا بعدهم.", "Date, heure, lieu, chef, chefs présents et paragraphes sont toujours là. Celles-ci viennent après."],
+    "Short": ["قصير", "Court"], "Long": ["طويل", "Long"], "Add a question": ["ضيف سؤال", "Ajouter une question"], "required": ["إجباري", "obligatoire"], "Write every question.": ["اكتب كل الأسئلة.", "Écrivez chaque question."],
+    "Remove this question? Old plans keep their answers.": ["تشيل السؤال ده؟ التحضير القديم هيفضل بإجاباته.", "Retirer cette question ? Les anciens plans gardent leurs réponses."],
+    "Meeting plans (تحضير)": ["تحضير الاجتماعات", "Plans de réunion (تحضير)"], "Meetings only come from the meeting plan": ["الاجتماعات تتعمل من التحضير بس", "Les réunions viennent seulement du plan"],
+    "When on, a meeting appears only when its plan is sent: no \"+ Meeting without items\", and bookings or calendar events don't make meetings. Only the warehouse team changes this.": ["لما يتشغّل، الاجتماع يظهر بس لما تحضيره يتبعت: مفيش «+ اجتماع من غير حاجات»، والحجز والنتيجة مش بيعملوا اجتماعات. فريق المخزن بس اللي يغيّره.", "Activé : une réunion n'apparaît que quand son plan est envoyé. Seule l'équipe le change."],
+    "Meeting plans: see every stage, change any plan, set the plan settings": ["التحضير: يشوف كل المراحل، يعدّل أي تحضير، ويغيّر إعداداته", "Plans : voir toutes les branches, modifier, régler"],
+    "Edit mode": ["وضع التعديل", "Mode édition"], "Leave edit mode": ["اقفل وضع التعديل", "Quitter le mode édition"], "👆 Use the page": ["👆 استخدم الصفحة", "👆 Utiliser la page"], "✏️ Rename": ["✏️ تغيير الاسم", "✏️ Renommer"],
+    "👁 Hide / show": ["👁 إخفاء / إظهار", "👁 Cacher / montrer"], "↕ Move": ["↕ تحريك", "↕ Déplacer"], "Reset this page": ["رجّع الصفحة زي ما كانت", "Réinitialiser la page"], "Done": ["خلصت", "Terminé"], "Rename": ["تغيير الاسم", "Renommer"],
+    "Leave a box empty to keep the normal text in that language. This changes the text everywhere it appears.": ["سيب الخانة فاضية عشان الكلام العادي يفضل في اللغة دي. ده بيغيّر الكلام في كل مكان بيظهر فيه.", "Laissez vide pour garder le texte normal. Le texte change partout."],
+    "Only tabs and menu items can be moved.": ["التابات وعناصر القايمة بس اللي بتتحرك.", "Seuls les onglets et le menu se déplacent."], "This text comes from the data, not the website. Change it where it's saved.": ["الكلام ده من البيانات مش من الموقع. غيّره من مكانه.", "Ce texte vient des données. Modifiez-le là où il est enregistré."],
+    "Reset this page? Renamed texts on it go back to normal, hidden things come back and the order returns to normal.": ["ترجّع الصفحة زي ما كانت؟ الأسامي هترجع، والحاجات المخفية هتظهر، والترتيب هيرجع.", "Réinitialiser la page ? Textes, éléments cachés et ordre reviennent à la normale."],
     // v17
     "Group records": ["سجلات الكشافة", "Registres du groupe"], "records": ["السجلات", "registres"], "Every scout's details, kept for good": ["بيانات كل ولد، محفوظة على طول", "Les informations de chaque scout, gardées pour toujours"],
     "⬇ Download (Excel)": ["⬇ تنزيل (إكسل)", "⬇ Télécharger (Excel)"], "Search a name, parent, phone, school, address…": ["دوّر على اسم، أب أو أم، رقم، مدرسة، عنوان…", "Chercher un nom, un parent, un numéro, une école, une adresse…"],
@@ -595,9 +625,14 @@
   ];
   const TRIG = /(· taken |^Sent |· sent |· issued |return by|^Available \d+ of|signed up|^Since |back by|· count |^back |^by |OK,|\(partly\)|· request #)/;
 
+  // texts renamed by the warehouse team in edit mode (all three languages)
+  const OV = () => (BAS.ui && BAS.ui.text) || {};
   function tr(t) {
     const s = t.trim();
     if (!s || !/[A-Za-z]/.test(s)) return null;
+    const o = OV()[s];
+    if (o && o[L]) return t.replace(s, o[L]);
+    if (L === "en") return null;
     if (Object.prototype.hasOwnProperty.call(D, s)) return t.replace(s, D[s][K]);
     for (const r of R) { if (r[0].test(s)) { const to = r[K + 1]; return t.replace(s, s.replace(r[0], to)); } }
     if (TRIG.test(s)) { let x = s; for (const f of F) x = x.replace(f[0], f[K + 1]); if (x !== s) return t.replace(s, x); }
@@ -619,12 +654,16 @@
       ATTRS.forEach(a => { const v = e.getAttribute(a); if (v) { const x = tr(v); if (x != null && x !== v) e.setAttribute(a, x); } });
     });
   }
+  // each text node keeps the English it was written with, so a renamed text can be translated again
   function fix(n) {
     const p = n.parentElement;
-    if (!p || p.closest("script,style,textarea,[data-noi18n],.bub-txt,.ann p,.ann h4,.bp-row div")) return;
-    const x = tr(n.nodeValue);
-    if (x != null && x !== n.nodeValue) n.nodeValue = x;
+    if (!p || p.closest("script,style,textarea,[data-noi18n],.bub-txt,.ann p,.ann h4,.bp-row div,#uiBar,.ui-dlg")) return;
+    const cur = n.nodeValue, src = (n.__t !== undefined && cur === n.__t) ? n.__o : cur;
+    const x = tr(src), out = x == null ? src : x;
+    n.__o = src; n.__t = out;
+    if (out !== cur) n.nodeValue = out;
   }
+  BAS.retr = () => run(document.body);
   run(document.body);
   document.title = BAS.tr(document.title.split(" | ")[0]) + " | " + BAS.tr("BAS Warehouse");
   new MutationObserver(ms => ms.forEach(m => {
