@@ -99,6 +99,8 @@ const BAS = {
       }
     }
     await this.loadUI();
+    // page titles written as one phrase in Arabic (the English one is split in two parts)
+    if (this.lang === "ar") document.querySelectorAll("h1[data-ar]").forEach(h => { h.innerHTML = h.dataset.ar; h.setAttribute("data-noi18n", ""); });
     this._active = active;
     if (document.body.hasAttribute("data-team") && this.isAdmin()) document.body.classList.add("team-ok");
     this.header(active);

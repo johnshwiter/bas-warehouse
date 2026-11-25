@@ -816,3 +816,6 @@ body.ui-edit { padding-bottom: 70px; }
 label.busy { opacity: .6; pointer-events: none; }
 .cm { border-bottom: 1px solid var(--line-2); padding: 6px 0; } .cm p { margin: 4px 0 0; }
 .qed-row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 6px; align-items: center; margin-bottom: 6px; }
+/* v19: ✱ = details need checking */
+.chk { color: #E07A00; font-weight: 900; margin-inline-start: 3px; cursor: help; }
+.chkbox { border-inline-start: 4px solid #E07A00; }

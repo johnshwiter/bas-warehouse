@@ -67,6 +67,7 @@ const paidOf = id => SUBS.filter(x => x.roster_id === id).reduce((t, x) => t + N
 const isBday = p => { if (!p.birthday) return false; const t = BAS.todayISO(); return p.birthday.slice(5) === t.slice(5); };
 const cake = p => isBday(p) ? ' <span title="Birthday today">🎂</span>' : "";
 // ⭐ 3arif · ☆ mosa3ed 3arif
+const chk = p => p.check_note ? ' <span class="chk" title="' + esc(T("Needs checking") + ": " + p.check_note) + '">✱</span>' : "";
 const star = p => { const t = TAL.find(x => x.arif_id === p.id || x.mosa3ed_id === p.id); return !t ? "" : t.arif_id === p.id ? ' <span class="pill gold">⭐ ' + esc(T("3arif")) + '</span>' : ' <span class="pill mut">☆ ' + esc(T("Mosa3ed")) + '</span>'; };
 async function load(meetId) {
   try {
@@ -172,7 +173,7 @@ const locked = () => !!CUR && CUR.status === "done" && EDITING !== CUR.id;
 function rowHTML(p) {
   const s = STATE[p.id], half = s.status === "half", late = s.status === "late", here = isHere(s), off = here ? "" : " disabled";
   const noF = p.owns_foulard === false, lk = locked() ? " disabled" : "";
-  return '<div class="att-row ' + (lk ? "locked " : "") + (half ? "half" : late ? "late" : s.status || "unmarked") + '" data-row="' + p.id + '" data-nm="' + esc(BAS.norm(p.name)) + '"><div class="att-name">' + gTag(p.gender) + " " + esc(p.name) + star(p) + cake(p) +
+  return '<div class="att-row ' + (lk ? "locked " : "") + (half ? "half" : late ? "late" : s.status || "unmarked") + '" data-row="' + p.id + '" data-nm="' + esc(BAS.norm(p.name)) + '"><div class="att-name">' + gTag(p.gender) + " " + esc(p.name) + chk(p) + star(p) + cake(p) +
     (half ? ' <span class="pill warn">½ ' + esc(T("HALF ABSENT")) + "</span>" : late ? ' <span class="pill warn">' + esc(T("LATE")) + "</span>" : "") + "</div>" +
     '<div class="att-ctl"><span class="seg">' + [["present", "✓"], ["late", "Late"], ["half", "½"], ["absent", "Absent"], ["excused", "Excused"]].map(x => '<button type="button" data-st="' + x[0] + '"' + (x[0] === "half" ? ' title="' + esc(T("Half absent")) + '"' : "") + ' class="' + (s.status === x[0] ? "on" : "") + '"' + lk + ">" + esc(T(x[1])) + "</button>").join("") + "</span>" +
     '<label class="uni' + (here ? "" : " off") + '"><input type="checkbox" data-uni="' + p.id + '"' + (here && s.uniform ? " checked" : "") + (off || lk) + "> 👕 " + esc(T("Uniform")) + "</label>" +
@@ -285,7 +286,7 @@ function sumView() {
   let h = '<p class="meta" style="margin-bottom:8px">' + done + " " + esc(T(done === 1 ? "finished meeting since" : "finished meetings since")) + " " + esc(BAS.fmtDate(yearStart(), true)) + ". " + esc(T("Attended % = meetings they came to. Final % = by your stage's values")) + " (✓ " + num(SEC.att_w_present, 1) + " · " + esc(T("Late")) + " " + num(SEC.att_w_late, 0) + " · ½ " + num(SEC.att_w_half, 0.5) + " · " + esc(T("Excused")) + " " + num(SEC.att_w_excused, 0.25) + " · " + esc(T("Absent")) + " " + num(SEC.att_w_absent, 0) + ")." + (HIST && HIST.some(r => r.section_id !== SECID) ? " " + esc(T("People who moved up bring their attendance with them.")) : "") + "</p>";
   const K = kadaSorted(), A = ROSTER.filter(p => p.role !== "kada");
   const c = (v, bad) => '<td class="' + (bad ? "bad" : v ? "" : "z") + '">' + v + "</td>";
-  const nm = (p, warn, extra) => "<td>" + gTag(p.gender) + " " + esc(p.name) + (warn ? " ⚠️" : "") + (extra || "") + "</td>";
+  const nm = (p, warn, extra) => "<td>" + gTag(p.gender) + " " + esc(p.name) + chk(p) + (warn ? " ⚠️" : "") + (extra || "") + "</td>";
   const pctCell = s => "<td>" + (s.total ? s.apct + "%" : '<span class="z">—</span>') + "</td><td>" + (s.total ? '<span class="band ' + s.band + '">' + s.pct + "%</span>" : '<span class="z">—</span>') + "</td>";
   const krow = p => { const s = stats(p); return "<tr>" + nm(p, s.unexcused >= 2) + pctCell(s) + c(s.total) + c(s.present) + c(s.late) + c(s.half) + c(s.unexcused, s.unexcused >= 2) + c(s.excused) + c(s.noUni) + c(s.noFoul, s.noFoul >= 2) + "</tr>"; };
   const th = x => "<th>" + esc(T(x)) + "</th>";
@@ -316,7 +317,7 @@ function peopleView() {
   const tOpts = sel => '<option value="">No tali3a</option>' + TAL.map(t => '<option value="' + t.id + '"' + (t.id === sel ? " selected" : "") + ">" + esc(t.name) + "</option>").join("");
   const role = p => { const r = p.profile_id && ROLES[p.profile_id]; return r ? ' <span class="pill info">' + esc({ head: "قائد المرحلة", deputy: "نائب قائد المرحلة", assistant: "مساعد قائد المرحلة" }[r]) + "</span>" : ""; };
   // just the name; tap it (or Details) for everything else
-  const row = p => '<div class="person prow" data-p="' + p.id + '"><div><b>' + gTag(p.gender) + " " + esc(p.name) + "</b>" + star(p) + cake(p) + (p.profile_id ? ' <span class="pill mut">ACCOUNT</span>' : "") + role(p) +
+  const row = p => '<div class="person prow" data-p="' + p.id + '"><div><b>' + gTag(p.gender) + " " + esc(p.name) + "</b>" + chk(p) + star(p) + cake(p) + (p.profile_id ? ' <span class="pill mut">ACCOUNT</span>' : "") + role(p) +
     (p.role !== "kada" && p.tali3a_id ? ' <small class="mut">' + esc(tName(p.tali3a_id)) + "</small>" : "") + (p.gender ? "" : ' <span class="pill warn">' + esc(T("boy / girl?")) + "</span>") + "</div>" +
     '<button class="btn line sm" data-det>' + esc(T("Details")) + "</button></div>";
   const K = kadaSorted(), A = ROSTER.filter(p => p.role !== "kada");
@@ -392,7 +393,7 @@ async function tali3aSheet(t) {
         '<p class="meta">' + esc(T("✓✓ = already was both this round.")) + " " + esc(T("When the time is up, the leaders of this tali3a get a reminder every week until you pick someone new.")) + '</p><button class="btn gold sm" id="aSet">' + esc(T("Save")) + "</button>") +
     "</div>" +
     '<div class="panel"><h3>' + esc(T("Scouts in this tali3a")) + " (" + mem.length + ")</h3>" +
-    (mem.length ? mem.map(p => '<div class="person prow" data-tp="' + p.id + '"><div><b>' + gTag(p.gender) + " " + esc(p.name) + "</b>" + star(p) + cake(p) + '</div><button class="btn line sm" data-trm="' + p.id + '" title="' + esc(T("Take out of the tali3a")) + '">✕</button></div>').join("") : '<div class="empty">—</div>') +
+    (mem.length ? mem.map(p => '<div class="person prow" data-tp="' + p.id + '"><div><b>' + gTag(p.gender) + " " + esc(p.name) + "</b>" + chk(p) + star(p) + cake(p) + '</div><button class="btn line sm" data-trm="' + p.id + '" title="' + esc(T("Take out of the tali3a")) + '">✕</button></div>').join("") : '<div class="empty">—</div>') +
     (others.length ? '<div class="actions"><div class="field" style="flex:1;margin:0"><select id="tAddSel"><option value="">' + esc(T("Add a scout…")) + "</option>" + others.map(p => '<option value="' + p.id + '">' + esc(p.name) + (p.tali3a_id ? " · " + esc(tName(p.tali3a_id)) : "") + "</option>").join("") + '</select></div><button class="btn gold sm" id="tAddGo">+ ' + esc(T("Add")) + "</button></div>" : "") +
     '</div><div class="actions"><button class="btn line" id="tBk">Back</button></div></div>';
   o.hidden = false;
@@ -423,7 +424,7 @@ function noTali3aSheet() {
   const o = $("sheet"), L = sortList(ROSTER.filter(p => p.role !== "kada" && !p.tali3a_id));
   const opts = '<option value="">' + esc(T("No tali3a")) + "</option>" + talSorted().map(t => '<option value="' + t.id + '">' + esc(t.name) + "</option>").join("");
   o.innerHTML = '<div class="sheet" style="max-width:520px"><h2>' + esc(T("No tali3a")) + " (" + L.length + ")</h2>" +
-    (L.length ? L.map(p => '<div class="person"><div><b>' + gTag(p.gender) + " " + esc(p.name) + "</b>" + (p.school_year ? ' <small class="mut">' + esc(p.school_year) + "</small>" : "") + '</div><select data-nt="' + p.id + '">' + opts + "</select></div>").join("") : '<div class="empty">👌</div>') +
+    (L.length ? L.map(p => '<div class="person"><div><b>' + gTag(p.gender) + " " + esc(p.name) + "</b>" + chk(p) + (p.school_year ? ' <small class="mut">' + esc(p.school_year) + "</small>" : "") + '</div><select data-nt="' + p.id + '">' + opts + "</select></div>").join("") : '<div class="empty">👌</div>') +
     '<div class="actions"><button class="btn line" id="ntBk">Back</button></div></div>';
   o.hidden = false; $("ntBk").onclick = () => { o.hidden = true; load(CUR && CUR.id); };
   o.querySelectorAll("[data-nt]").forEach(x => x.onchange = async () => {
@@ -468,8 +469,10 @@ async function personSheet(p) {
   const tel = n => n ? ' <a class="btn line sm" href="tel:' + esc(n.replace(/[^\d+]/g, "")) + '">📞</a><a class="btn line sm" target="_blank" rel="noopener" href="https://wa.me/' + esc(waNum(n)) + '">💬 WhatsApp</a>' : "";
   const ph = (id, label, v) => '<div class="field"><label>' + label + '</label><div class="phrow"><input id="' + id + '" type="tel" inputmode="tel" value="' + esc(v || "") + '" placeholder="01xxxxxxxxx">' + tel(v) + "</div></div>";
   o.innerHTML = '<div class="sheet" style="max-width:520px"><div class="pd-top"><div class="pd-photo" id="dPh">' + (p.photo_path ? "" : "<span>" + esc((p.name || "?").trim().charAt(0)) + "</span>") + "</div>" +
-    "<div><h2 style=\"margin:0\">" + esc(p.name) + cake(p) + '</h2><div class="meta">' + esc(T(kada ? "Kada" : "Scout")) + (p.profile_id ? " · " + esc(T("has an account")) : "") + "</div>" +
+    "<div><h2 style=\"margin:0\">" + esc(p.name) + chk(p) + cake(p) + '</h2><div class="meta">' + esc(T(kada ? "Kada" : "Scout")) + (p.profile_id ? " · " + esc(T("has an account")) : "") + "</div>" +
     '<label class="btn line sm" style="margin-top:6px">📷 ' + esc(T(p.photo_path ? "Change photo" : "Add a photo")) + '<input type="file" id="dPf" accept="image/*" hidden></label>' + (p.photo_path ? ' <button class="btn line sm" id="dPx">' + esc(T("Remove photo")) + "</button>" : "") + "</div></div>" +
+    (p.check_note ? '<div class="msg warn chkbox"><b>✱ ' + esc(T("Needs checking")) + '</b><br><span dir="auto">' + esc(p.check_note) + "</span>" +
+      (BAS.can("records_edit") ? '<br><button class="btn ok sm" id="dChk" style="margin-top:8px">✓ ' + esc(T("Checked, remove the ✱")) + "</button>" : '<br><small>' + esc(T("Tell the people who edit Group records when it's checked.")) + "</small>") + "</div>" : "") +
     '<div class="panel"><div class="grid2"><div class="field"><label>Name</label><input id="dN" value="' + esc(p.name) + '"' + (p.profile_id ? " readonly" : "") + "></div>" +
     '<div class="field"><label>Boy / girl</label><select id="dG">' + (p.gender ? "" : '<option value="" selected disabled>' + esc(T("Choose boy / girl")) + "</option>") + '<option value="M"' + (p.gender === "M" ? " selected" : "") + '>♂ Boy</option><option value="F"' + (p.gender === "F" ? " selected" : "") + ">♀ Girl</option></select></div></div>" +
     '<div class="grid2"><div class="field"><label>Birthday</label><input type="date" id="dB" value="' + esc(p.birthday || "") + '"></div>' +
@@ -497,6 +500,11 @@ async function personSheet(p) {
     const n = document.createElement("p"); n.className = "meta"; n.innerHTML = '<a class="lnk" href="records.html?p=' + p.id + '">' + esc(T("More details in Group records")) + " →</a>";
     o.querySelector(".sheet .panel").prepend(n);
   }
+  if ($("dChk")) $("dChk").onclick = async () => {
+    const { error } = await supabaseClient.rpc("save_person", { p_id: p.id, p: { name: p.name, check_note: "" } });
+    if (error) { $("dErr").textContent = BAS.errText(error); $("dErr").hidden = false; return; }
+    o.hidden = true; BAS.toast("Saved"); load(CUR && CUR.id);
+  };
   $("dBack").onclick = () => { o.hidden = true; };
   o.onclick = e => { if (e.target === o) o.hidden = true; };
   $("dOF").onchange = () => $("dOF").closest(".pick").classList.toggle("on", $("dOF").checked);

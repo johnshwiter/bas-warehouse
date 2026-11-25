@@ -18,12 +18,12 @@
 </head>
 <body>
 <main class="page">
-  <div class="head"><div><p class="eyebrow" id="eyebrow">Every scout's details, kept for good</p><h1>Group <em>records</em></h1></div>
+  <div class="head"><div><p class="eyebrow" id="eyebrow">Every scout's details, kept for good</p><h1 data-ar="سجلات <em>الكشافة</em>">Group <em>records</em></h1></div>
     <div class="actions" style="margin:0"><button class="btn line sm" id="dl" hidden>⬇ Download (Excel)</button></div></div>
   <div class="toolbar">
     <input id="q" type="search" placeholder="Search a name, parent, phone, school, address…" autocomplete="off" dir="auto">
     <select id="fSec" hidden aria-label="Stage"></select>
-    <select id="fState" aria-label="Show"><option value="now">Current scouts</option><option value="arch">Archived</option></select>
+    <select id="fState" aria-label="Show"><option value="now">Current scouts</option><option value="chk">✱ Needs checking</option><option value="arch">Archived</option></select>
   </div>
   <p class="meta" id="count"></p>
   <div id="view"><div class="empty">Loading…</div></div>
@@ -41,11 +41,11 @@ const QS = new URLSearchParams(location.search);
 const YEARS = ["KG1", "KG2"].concat([1, 2, 3, 4, 5, 6].map(n => n + " ابتدائي"), [1, 2, 3].map(n => n + " إعدادي"), [1, 2, 3].map(n => n + " ثانوي"), [1, 2, 3, 4, 5].map(n => "جامعة " + n), ["خريج / بيشتغل"]);
 let ALL = [], TAL = [], CAN_EDIT = false;
 const FIELDS = [
-  ["birthday", "Birthday", "date"], ["school_year", "School year", "year"], ["school", "School"], ["address", "Address", "area"],
+  ["national_id", "National ID", "nid"], ["birthday", "Birthday", "date"], ["school_year", "School year", "year"], ["school", "School"], ["address", "Address", "area"],
   ["phone", "Scout's phone", "tel"], ["father_name", "Father's name"], ["father_phone", "Father's phone", "tel"], ["father_job", "Father's job"],
   ["mother_name", "Mother's name"], ["mother_phone", "Mother's phone", "tel"], ["mother_job", "Mother's job"], ["mother_works", "Does the mother work?", "yn"],
   ["joined_on", "Joined the scouts on", "date"]];
-const LABEL = { name: "Name", photo_path: "Photo", is_active: "Archived / back", section_id: "Stage", tali3a_id: "Tali3a", added: "Added" };
+const LABEL = { check_note: "Needs checking", name: "Name", photo_path: "Photo", is_active: "Archived / back", section_id: "Stage", tali3a_id: "Tali3a", added: "Added" };
 FIELDS.forEach(f => LABEL[f[0]] = f[1]);
 
 const tName = id => (TAL.find(t => t.id === id) || {}).name || "";
@@ -53,7 +53,8 @@ const secName = id => BAS.sectionName(id);
 const waNum = n => { let d = String(n).replace(/\D/g, ""); if (d.startsWith("00")) d = d.slice(2); if (d.startsWith("0")) d = "2" + d; return d; };
 const yn = v => v === true ? T("Yes") : v === false ? T("No") : "";
 const show = (p, k) => k === "birthday" || k === "joined_on" ? (p[k] ? BAS.fmtDate(p[k]) : "") : k === "mother_works" ? yn(p[k]) : (p[k] || "");
-const hay = p => BAS.norm([p.name, p.father_name, p.mother_name, p.phone, p.father_phone, p.mother_phone, p.school, p.address, p.school_year, p.father_job, p.mother_job, tName(p.tali3a_id), secName(p.section_id)].join(" "));
+const chk = p => p.check_note ? ' <span class="chk" title="' + esc(T("Needs checking") + ": " + p.check_note) + '">✱</span>' : "";
+const hay = p => BAS.norm([p.name, p.national_id, p.check_note, p.father_name, p.mother_name, p.phone, p.father_phone, p.mother_phone, p.school, p.address, p.school_year, p.father_job, p.mother_job, tName(p.tali3a_id), secName(p.section_id)].join(" "));
 
 async function load() {
   let r = await supabaseClient.from("roster").select("*").eq("role", "3ayel").order("name");
@@ -66,19 +67,21 @@ async function load() {
 
 function list() {
   const q = BAS.norm($("q").value.trim()), sec = Number($("fSec").value) || 0, arch = $("fState").value === "arch";
-  return ALL.filter(p => (arch ? !p.is_active : p.is_active) && (!sec || p.section_id === sec) && (!q || q.split(" ").every(w => hay(p).includes(w))))
+  const onlyChk = $("fState").value === "chk";
+  return ALL.filter(p => (arch ? !p.is_active : p.is_active) && (!onlyChk || p.check_note) && (!sec || p.section_id === sec) && (!q || q.split(" ").every(w => hay(p).includes(w))))
     .sort((a, b) => a.section_id - b.section_id || a.name.localeCompare(b.name, "ar"));
 }
 
 function draw() {
   const L = list(), arch = $("fState").value === "arch";
-  $("count").textContent = L.length + " " + T(arch ? "archived" : "scouts");
+  const nChk = ALL.filter(p => p.is_active && p.check_note).length;
+  $("count").textContent = L.length + " " + T(arch ? "archived" : "scouts") + (nChk && !arch ? " · ✱ " + nChk + " " + T("need checking") : "");
   if (!L.length) { $("view").innerHTML = '<div class="empty">' + esc(T(ALL.length ? "Nobody matches." : "No scouts yet. Add them from Attendance › People.")) + "</div>"; return; }
   const groups = {};
   L.forEach(p => { (groups[p.section_id] = groups[p.section_id] || []).push(p); });
   $("view").innerHTML = Object.keys(groups).map(sid => '<div class="group-title">' + esc(secName(Number(sid))) + " (" + groups[sid].length + ")</div>" +
     '<div class="panel tscroll" style="padding:4px 10px"><table class="ltable rec-t"><tr><th>' + esc(T("Name")) + "</th><th>" + esc(T("Tali3a")) + "</th><th>" + esc(T("School year")) + "</th><th>" + esc(T("School")) + "</th><th>" + esc(T("Father")) + "</th><th>" + esc(T("Mother")) + "</th><th>" + esc(T("Address")) + "</th></tr>" +
-    groups[sid].map(p => '<tr data-p="' + p.id + '"><td><b dir="auto">' + esc(p.name) + "</b>" + (arch && p.archived_at ? '<br><small class="mut">' + esc(T("Archived")) + " " + esc(BAS.fmtDate(p.archived_at)) + "</small>" : "") + "</td><td>" + esc(tName(p.tali3a_id)) + "</td><td>" + esc(p.school_year || "") + "</td><td dir=\"auto\">" + esc(p.school || "") +
+    groups[sid].map(p => '<tr data-p="' + p.id + '"><td><b dir="auto">' + esc(p.name) + "</b>" + chk(p) + (arch && p.archived_at ? '<br><small class="mut">' + esc(T("Archived")) + " " + esc(BAS.fmtDate(p.archived_at)) + "</small>" : "") + "</td><td>" + esc(tName(p.tali3a_id)) + "</td><td>" + esc(p.school_year || "") + "</td><td dir=\"auto\">" + esc(p.school || "") +
       '</td><td dir="auto">' + esc(p.father_name || "") + (p.father_job ? ' <small class="mut">· ' + esc(p.father_job) + "</small>" : "") + '</td><td dir="auto">' + esc(p.mother_name || "") + (p.mother_job ? ' <small class="mut">· ' + esc(p.mother_job) + "</small>" : "") +
       '</td><td dir="auto">' + esc(p.address || "") + "</td></tr>").join("") + "</table></div>").join("");
   $("view").querySelectorAll("tr[data-p]").forEach(tr => tr.onclick = () => personSheet(ALL.find(x => x.id === Number(tr.dataset.p))));
@@ -94,6 +97,7 @@ async function personSheet(p) {
     if (f[2] === "date") inp = '<input type="date" id="' + id + '" value="' + esc(v || "") + '">';
     else if (f[2] === "year") inp = '<select id="' + id + '"><option value="">—</option>' + YEARS.concat(v && YEARS.indexOf(v) < 0 ? [v] : []).map(y => "<option" + (y === v ? " selected" : "") + ">" + esc(y) + "</option>").join("") + "</select>";
     else if (f[2] === "yn") inp = '<select id="' + id + '"><option value="">—</option><option value="true"' + (v === true ? " selected" : "") + ">" + esc(T("Yes")) + '</option><option value="false"' + (v === false ? " selected" : "") + ">" + esc(T("No")) + "</option></select>";
+    else if (f[2] === "nid") inp = '<input id="' + id + '" inputmode="numeric" maxlength="14" placeholder="14 numbers" dir="ltr" value="' + esc(v || "") + '">';
     else if (f[2] === "area") inp = '<textarea id="' + id + '" rows="2" dir="auto">' + esc(v || "") + "</textarea>";
     else inp = '<input id="' + id + '"' + (f[2] === "tel" ? ' type="tel" inputmode="tel" placeholder="01xxxxxxxxx"' : ' dir="auto"') + ' value="' + esc(v || "") + '">';
     return '<div class="field"><label>' + esc(T(f[1])) + "</label>" + (f[2] === "tel" ? '<div class="phrow">' + inp + tel(v) + "</div>" : inp) + "</div>";
@@ -101,6 +105,8 @@ async function personSheet(p) {
   o.innerHTML = '<div class="sheet" style="max-width:600px"><div class="pd-top"><div class="pd-photo" id="rPh">' + (p.photo_path ? "" : "<span>" + esc((p.name || "?").trim().charAt(0)) + "</span>") + "</div>" +
     '<div><h2 style="margin:0" dir="auto">' + esc(p.name) + '</h2><div class="meta">' + esc(secName(p.section_id)) + (p.tali3a_id ? " · " + esc(tName(p.tali3a_id)) : "") +
     (p.is_active ? "" : ' · <span class="pill warn">' + esc(T("ARCHIVED")) + "</span>") + "</div></div></div>" +
+    (p.check_note ? '<div class="msg warn chkbox"><b>✱ ' + esc(T("Needs checking")) + '</b><br><span dir="auto">' + esc(p.check_note) + "</span>" +
+      (ed ? '<br><button class="btn ok sm" id="rChk" style="margin-top:8px">✓ ' + esc(T("Checked, remove the ✱")) + "</button>" : "") + "</div>" : "") +
     '<div class="panel">' + (ed ? '<div class="field"><label>' + esc(T("Name")) + '</label><input id="r_name" dir="auto" value="' + esc(p.name) + '"></div>' : "") +
     '<div class="grid2 rec-grid">' + FIELDS.map(input).join("") + "</div>" +
     (p.notes ? '<p class="meta">📝 ' + esc(p.notes) + "</p>" : "") +
@@ -116,6 +122,11 @@ async function personSheet(p) {
   o.onclick = e => { if (e.target === o) o.hidden = true; };
   if (p.photo_path) supabaseClient.storage.from("people").createSignedUrl(p.photo_path, 600).then(u => { if (!u.error && $("rPh")) $("rPh").innerHTML = '<img src="' + esc(u.data.signedUrl) + '" alt="">'; });
   const err = m => { $("rErr").textContent = m; $("rErr").hidden = false; };
+  if ($("rChk")) $("rChk").onclick = async () => {
+    const { error } = await supabaseClient.rpc("save_person", { p_id: p.id, p: { name: p.name, check_note: "" } });
+    if (error) return err(BAS.errText(error));
+    BAS.toast(T("Saved")); await load(); personSheet(ALL.find(x => x.id === p.id));
+  };
   if ($("rGo")) $("rGo").onclick = async () => {
     const d = { name: $("r_name").value };
     FIELDS.forEach(f => { d[f[0]] = $("r_" + f[0]).value; });
@@ -162,10 +173,10 @@ async function personSheet(p) {
 
 // an .csv file that opens in Excel (with Arabic)
 function download() {
-  const L = list(), head = ["Stage", "Name", "Tali3a"].concat(FIELDS.map(f => f[1]), ["Notes", "Archived"]);
+  const L = list(), head = ["Stage", "Name", "Tali3a"].concat(FIELDS.map(f => f[1]), ["Notes", "Needs checking", "Archived"]);
   const cell = v => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
-  const rows = L.map(p => [secName(p.section_id), p.name, tName(p.tali3a_id)].concat(FIELDS.map(f => f[0] === "mother_works" ? yn(p[f[0]]) : p[f[0]] || ""), [p.notes || "", p.is_active ? "" : T("Yes")]));
-  const csv = "﻿" + [head.map(x => cell(T(x)))].concat(rows.map(r => r.map(cell))).map(r => r.join(",")).join("\r\n");
+  const rows = L.map(p => [secName(p.section_id), p.name, tName(p.tali3a_id)].concat(FIELDS.map(f => f[0] === "mother_works" ? yn(p[f[0]]) : f[0] === "national_id" && p[f[0]] ? { id: p[f[0]] } : p[f[0]] || ""), [p.notes || "", p.check_note || "", p.is_active ? "" : T("Yes")]));
+  const csv = "﻿" + [head.map(x => cell(T(x)))].concat(rows.map(r => r.map(v => v && v.id ? '"=""' + v.id + '"""' : cell(v)))).map(r => r.join(",")).join("\r\n");
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
   a.download = "BAS group records " + BAS.todayISO() + ".csv";

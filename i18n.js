@@ -13,6 +13,12 @@
 
   // ---------- exact texts: "English": ["العربي", "Français"] ----------
   const D = {
+    // v19
+    "National ID": ["الرقم القومي", "N° d'identité national"], "14 numbers": ["14 رقم", "14 chiffres"],
+    "Needs checking": ["محتاج مراجعة", "À vérifier"], "need checking": ["محتاجين مراجعة", "à vérifier"], "✱ Needs checking": ["✱ محتاجين مراجعة", "✱ À vérifier"],
+    "Checked, remove the ✱": ["اتراجع، شيل العلامة ✱", "Vérifié, retirer le ✱"],
+    "Tell the people who edit Group records when it's checked.": ["قول للي بيعدّلوا سجلات الكشافة لما تتأكد.", "Prévenez les personnes qui modifient les registres une fois vérifié."],
+    "The national ID should be 14 numbers.": ["الرقم القومي لازم يكون 14 رقم.", "Le n° d'identité national doit avoir 14 chiffres."],
     // v18
     "Meeting plans": ["تحضير الاجتماعات", "Plans de réunion"], "+ New plan": ["+ تحضير جديد", "+ Nouveau plan"],
     "👥 Meeting": ["👥 اجتماع", "👥 Réunion"], "🚌 Trip": ["🚌 رحلة", "🚌 Sortie"], "⛺ Camp": ["⛺ معسكر", "⛺ Camp"], "Coming": ["الجاية", "À venir"], "Past": ["اللي فاتت", "Passés"],
