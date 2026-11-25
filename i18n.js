@@ -21,7 +21,7 @@
     "The national ID should be 14 numbers.": ["الرقم القومي لازم يكون 14 رقم.", "Le n° d'identité national doit avoir 14 chiffres."],
     "👥 Possible doubles": ["👥 ممكن مكررين", "👥 Doublons possibles"], "possible doubles": ["ممكن مكررين", "doublons possibles"],
     "No doubles found. If you still see someone twice, open one of them and use Join with…": ["مفيش مكررين. لو لسه شايف حد مرتين، افتحه ودوس «دمج مع…»", "Aucun doublon. Si vous voyez encore quelqu'un deux fois, ouvrez-le et utilisez Fusionner avec…"],
-    "The same scout written in English and in Arabic. Check each pair, then join them into one.": ["نفس الولد مكتوب مرة إنجليزي ومرة عربي. راجع كل اتنين، وبعدين ادمجهم في واحد.", "Le même scout écrit en anglais et en arabe. Vérifiez chaque paire, puis fusionnez-les."],
+    "These look like the same scout written twice. Check each pair, then join them into one.": ["دول شكلهم نفس الولد متكتب مرتين. راجع كل اتنين، وبعدين ادمجهم في واحد.", "Ces fiches semblent être le même scout écrit deux fois. Vérifiez chaque paire, puis fusionnez-les."],
     "Same scout, join them": ["نفس الولد، ادمجهم", "Même scout, fusionner"], "Join into one": ["دمج في واحد", "Fusionner en un seul"],
     "Attendance, subscription and tali3a move to one record. Empty details are filled from the other one. Nothing filled in is lost.": ["الحضور والاشتراك والطليعة بيتنقلوا لواحد. الخانات الفاضية بتتملى من التاني، ومفيش حاجة مكتوبة بتضيع.", "Présences, cotisation et tali3a passent sur une seule fiche. Les champs vides sont remplis par l'autre. Rien n'est perdu."],
     "Which name stays?": ["أنهي اسم يفضل؟", "Quel nom garder ?"], "Join": ["دمج", "Fusionner"], "Joined": ["اتدمجوا", "Fusionnés"],
