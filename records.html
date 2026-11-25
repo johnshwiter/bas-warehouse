@@ -60,24 +60,30 @@ const skWord = w => {
   let o = "";
   if (/[؀-ۿ]/.test(w)) { for (const ch of w) o += SK_AR[ch] || ""; }
   else {
-    w = w.toLowerCase().replace(/[^a-z]/g, "").replace(/sh|ch/g, "X").replace(/kh/g, "H").replace(/ph/g, "F").replace(/th/g, "T").replace(/gh/g, "G");
+    w = w.toLowerCase().replace(/[^a-z]/g, "").replace(/^chr/, "kr").replace(/michael/g, "maikel").replace(/sh|ch/g, "X").replace(/kh/g, "H").replace(/ph/g, "F").replace(/th/g, "T").replace(/gh/g, "G");
     for (const ch of w) o += ({ b: "B", p: "B", t: "T", j: "G", g: "G", h: "H", d: "D", r: "R", z: "Z", s: "S", c: "K", k: "K", q: "K", x: "KS", f: "F", v: "F", l: "L", m: "M", n: "N", X: "X", H: "H", F: "F", T: "T", G: "G" })[ch] || "";
   }
   return o.replace(/(.)\1+/g, "$1");
 };
 const skName = n => String(n || "").replace(/عبد\s+/g, "عبد").replace(/\babd\s*el\s*/gi, "abdel").split(/\s+/).filter(Boolean).map(skWord).filter(Boolean);
 const isAr = n => /[؀-ۿ]/.test(n || "");
+// two records look like one scout: same stage, same first and father's name (in any spelling),
+// and the shorter name's other parts all appear in the longer one, in order
 function doubles() {
-  const act = ALL.filter(p => p.is_active), out = [];
-  act.forEach(a => {
-    if (!isAr(a.name)) return;
-    const sa = skName(a.name);
-    act.forEach(b => {
-      if (b === a || isAr(b.name) || b.section_id !== a.section_id) return;
-      const sb = skName(b.name), n = Math.min(sb.length, 2);
-      if (n >= 1 && sa.length >= n && sb.slice(0, n).every((x, i) => x === sa[i]) && (n === 2 || sb.length === 1)) out.push([b, a]);
-    });
-  });
+  const act = ALL.filter(p => p.is_active), out = [], sk = new Map(act.map(p => [p.id, skName(p.name)]));
+  // the same part, allowing one letter off in longer names (Kirolos / Kyrillos, Mikhail / Michael)
+  const eq = (x, y) => { if (x === y) return true; if (Math.min(x.length, y.length) < 3 || Math.abs(x.length - y.length) > 1) return false;
+    let i = 0, j = 0, e = 0; while (i < x.length && j < y.length) { if (x[i] === y[j]) { i++; j++; continue; } if (++e > 1) return false; if (x.length > y.length) i++; else if (y.length > x.length) j++; else { i++; j++; } } return e + (x.length - i) + (y.length - j) <= 1; };
+  const sub = (s, l) => { let k = 0; for (const w of l) if (k < s.length && eq(w, s[k])) k++; return k === s.length; };
+  for (let x = 0; x < act.length; x++) for (let y = x + 1; y < act.length; y++) {
+    const a = act[x], b = act[y];
+    if (a.section_id !== b.section_id) continue;
+    const sa = sk.get(a.id), sb = sk.get(b.id), [s, l] = sa.length <= sb.length ? [sa, sb] : [sb, sa];
+    if (s.length < 2 || !eq(s[0], l[0]) || !eq(s[1], l[1]) || !sub(s.slice(2), l.slice(2))) continue;
+    if (a.national_id && b.national_id && a.national_id !== b.national_id) continue;
+    if (a.gender && b.gender && a.gender !== b.gender) continue;
+    out.push(isAr(a.name) && !isAr(b.name) ? [b, a] : [a, b]);
+  }
   return out;
 }
 const hay = p => BAS.norm([p.name, p.national_id, p.check_note, p.father_name, p.mother_name, p.phone, p.father_phone, p.mother_phone, p.school, p.address, p.school_year, p.father_job, p.mother_job, tName(p.tali3a_id), secName(p.section_id)].join(" "));
@@ -119,7 +125,7 @@ function drawDoubles() {
   $("count").textContent = D.length + " " + T("possible doubles");
   if (!D.length) { $("view").innerHTML = '<div class="empty">👌 ' + esc(T("No doubles found. If you still see someone twice, open one of them and use Join with…")) + "</div>"; return; }
   const sum = p => [p.tali3a_id ? tName(p.tali3a_id) : "", p.school_year || "", p.phone || p.mother_phone || p.father_phone || ""].filter(Boolean).join(" · ");
-  $("view").innerHTML = '<p class="meta">' + esc(T("The same scout written in English and in Arabic. Check each pair, then join them into one.")) + "</p>" +
+  $("view").innerHTML = '<p class="meta">' + esc(T("These look like the same scout written twice. Check each pair, then join them into one.")) + "</p>" +
     D.map(([a, b], i) => '<div class="panel dup-pair"><div class="meta">' + esc(secName(a.section_id)) + '</div><div class="grid2">' +
       [a, b].map(p => '<div><b dir="auto">' + esc(p.name) + "</b>" + chk(p) + '<br><small class="mut" dir="auto">' + esc(sum(p) || "—") + "</small></div>").join("") +
       '</div><div class="actions"><button class="btn gold sm" data-dj="' + i + '">👥 ' + esc(T("Same scout, join them")) + "</button></div></div>").join("");
