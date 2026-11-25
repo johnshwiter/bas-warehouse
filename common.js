@@ -39,6 +39,10 @@ const BAS = {
 
   isAdmin() { return !!(this.profile && this.profile.role === "admin" && this.profile.approval_status === "approved"); },
   isApproved() { return !!(this.profile && this.profile.approval_status === "approved"); },
+  // access the warehouse team gives an account: all_stages, records_edit, group_money, announce, book_any
+  can(k) { return this.isAdmin() || !!(this.isApproved() && this.profile.access && this.profile.access[k]); },
+  allStages() { return this.can("all_stages"); },
+  groupRole() { return (this.profile && this.profile.group_role) || ""; },
 
   allSections: [],
   sectionName(id, lang) {
@@ -69,6 +73,7 @@ const BAS = {
     if (!this.user) return "auth.html";
     if (!this.isApproved()) return "auth.html?pending=1";
     if (this.isAdmin()) return "team.html";
+    if (!this.profile.section_id) return this.allStages() ? "attendance.html" : "records.html";
     return "section.html";
   },
 
@@ -82,7 +87,8 @@ const BAS = {
     if (sec.error) sec = await supabaseClient.from("sections").select("id, name_en, name_ar").order("id");
     if (!sec.error) { this.allSections = sec.data || []; this.sections = this.allSections.filter(x => x.is_active !== false); }
     if (this.user) {
-      const p = await supabaseClient.from("profiles").select("id, full_name, role, approval_status, section_id, lang, stage_role").eq("id", this.user.id).single();
+      let p = await supabaseClient.from("profiles").select("id, full_name, role, approval_status, section_id, lang, stage_role, group_role, access").eq("id", this.user.id).single();
+      if (p.error) p = await supabaseClient.from("profiles").select("id, full_name, role, approval_status, section_id, lang, stage_role").eq("id", this.user.id).single();
       this.profile = p.error ? null : p.data;
       if (this.isApproved()) {
         const st = await supabaseClient.from("settings").select("*").eq("id", 1).single();
@@ -116,12 +122,20 @@ const BAS = {
       G.push({ t: "Money", items: [["mizania", "mizania.html", "Mizania"], ["group", "mizania.html?fund=group", "Group money"], ["money", "team.html#money", "Compensation"]] });
       G.push({ t: "Warehouse", items: [["maint", "team.html#maint", "Maintenance"], ["wait", "team.html#wait", "Waitlist"]] });
       G.push({ t: "Messages", items: [["chat", "team.html#chat", "Messages"], ["news", "team.html#news", "Announcements"]] });
+      G.push({ t: "People", items: [["records", "records.html", "Group records"]] });
       G.push({ t: "Team", items: [["people", "team.html#people", "Accounts"], ["trash", "team.html#trash", "Deleted"], ["log", "team.html#log", "Activity"], ["settings", "team.html#settings", "Settings"], ["help", "help.html", "Help"]] });
       if (mine) G.push({ t: "My stage", items: [["s-dash", "section.html?id=" + mine + "#dash", "My stage"], ["s-requests", "section.html?id=" + mine + "#requests", "Our requests"], ["s-chat", "section.html?id=" + mine + "#chat", "Stage chat"]] });
     } else if (this.isApproved()) {
+      const grp = [];
+      if (this.allStages()) grp.push(["attendance", "attendance.html", "Attendance"]);
+      grp.push(["records", "records.html", "Group records"]);
+      if (this.can("group_money")) grp.push(["group", "mizania.html?fund=group", "Group money"]);
+      if (this.can("announce")) grp.push(["news", "news.html", "Announcements"]);
+      if (this.groupRole() || this.allStages()) G.push({ t: this.groupRole() === "kada_3am" ? "القائد العام" : this.groupRole() === "mosa3ed_3am" ? "مساعد القائد العام" : "Group", items: grp });
+      if (!mine) { G.push({ t: "More", items: [["profile", "profile.html", "Profile"], ["help", "help.html", "Help"]].concat(this.groupRole() || this.allStages() ? [] : [["records", "records.html", "Group records"]]) }); return G; }
       G.push({ t: "My stage", items: [["s-dash", "section.html#dash", "Dashboard"], ["s-requests", "section.html#requests", "Requests"], ["s-history", "section.html#history", "History & search"],
         ["s-equipment", "section.html#equipment", "Equipment out / back"], ["s-money", "section.html#money", "Missing & compensation"], ["s-chat", "section.html#chat", "Messages"], ["s-wait", "section.html#wait", "Waitlist"]] });
-      G.push({ t: "", items: [["ohda", "ohda.html", "Camps & 3ohda"], ["attendance", "attendance.html", "Attendance"]] });
+      G.push({ t: "", items: [["ohda", "ohda.html", "Camps & 3ohda"]].concat(this.allStages() ? [] : [["attendance", "attendance.html", "Attendance"]]).concat(this.groupRole() || this.allStages() ? [] : [["records", "records.html", "Group records"]]) });
       G.push({ t: "More", items: [["s-news", "section.html#news", "Announcements"], ["profile", "profile.html", "Profile"], ["help", "help.html", "Help"]] });
     }
     return G;
@@ -150,6 +164,7 @@ const BAS = {
     try { let L = JSON.parse(localStorage.getItem("basRecent") || "[]").filter(x => x.h !== h); L.unshift({ t, h }); localStorage.setItem("basRecent", JSON.stringify(L.slice(0, 6))); } catch (e) {}
   },
   ICON_MORE: {
+    records: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11M13 13h5M13 16.5h5"/>',
     history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>', money: '<path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
     maint: '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>', wait: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/>',
     chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.4A8 8 0 1 1 21 12z"/>', news: '<path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/>',
@@ -171,7 +186,7 @@ const BAS = {
     if (!h) { h = document.createElement("header"); h.id = "top"; document.body.prepend(h); }
     const T = x => this.esc(this.tr ? this.tr(x) : this.t(x));
     const name = this.profile ? this.profile.full_name : (this.user ? this.user.email : "");
-    const tag = this.isAdmin() ? this.t("Warehouse team") : (this.profile && this.profile.section_id ? this.sectionName(this.profile.section_id) : "");
+    const tag = this.isAdmin() ? this.t("Warehouse team") : this.groupRole() ? (this.groupRole() === "kada_3am" ? "القائد العام" : "مساعد القائد العام") : (this.profile && this.profile.section_id ? this.sectionName(this.profile.section_id) : "");
     const ok = this.isApproved();
     h.className = "topbar";
     h.innerHTML = '<div class="topbar-in">' + (this.user ? '<button class="menubtn" id="menuBtn" aria-label="' + T("Menu") + '"><span></span><span></span><span></span><i class="mdot" id="menuDot" hidden></i></button>' : "") +

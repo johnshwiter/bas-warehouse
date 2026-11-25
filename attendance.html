@@ -39,9 +39,9 @@ const YEARS = ["KG1", "KG2"].concat([1, 2, 3, 4, 5, 6].map(n => n + " ابتدا
 (async function () {
   await BAS.init("attendance");
   if (!BAS.requireApproved()) return;
-  SECID = BAS.isAdmin() ? Number(QS.get("s")) || BAS.profile.section_id || (BAS.sections[0] || {}).id : BAS.profile.section_id;
+  SECID = BAS.allStages() ? Number(QS.get("s")) || BAS.profile.section_id || (BAS.sections[0] || {}).id : BAS.profile.section_id;
   if (!SECID) { $("view").innerHTML = '<div class="msg err">Your account has no stage. Ask the warehouse team.</div>'; return; }
-  if (BAS.isAdmin()) {
+  if (BAS.allStages()) {
     $("fSec").hidden = false;
     $("fSec").innerHTML = BAS.sections.map(s => '<option value="' + s.id + '"' + (s.id === SECID ? " selected" : "") + ">" + esc(s.name_ar) + " · " + esc(s.name_en) + "</option>").join("");
     $("fSec").onchange = () => { if (DIRTY && !confirm("You have attendance that isn't saved. Leave it?")) { $("fSec").value = SECID; return; } location.href = "attendance.html?s=" + $("fSec").value + "#" + TAB; };
@@ -54,7 +54,7 @@ const YEARS = ["KG1", "KG2"].concat([1, 2, 3, 4, 5, 6].map(n => n + " ابتدا
   if (tq) { const t = TAL.find(x => x.id === tq); if (t) tali3aSheet(t); }
   else if (pq) { const p = ROSTER.find(x => x.id === pq); if (p) personSheet(p); }
   else if (pay && ROSTER.some(x => x.id === pay)) { PAYASK = { id: pay, amt: Number(QS.get("amt")) || 0 }; TAB = "subs"; render(); }
-  if (tq || pq || pay) history.replaceState(null, "", "attendance.html" + (BAS.isAdmin() ? "?s=" + SECID : "") + "#" + TAB);
+  if (tq || pq || pay) history.replaceState(null, "", "attendance.html" + (BAS.allStages() ? "?s=" + SECID : "") + "#" + TAB);
 })();
 let PAYASK = null;
 
@@ -82,7 +82,7 @@ async function load(meetId) {
     const hr = await supabaseClient.rpc("att_year_records", { p_section: SECID }); HIST = hr.error ? null : (hr.data || []);
     const ys = subYear();
     SUBS = ROSTER.length && ys ? (await supabaseClient.from("sub_payments").select("*").eq("year_start", ys).in("roster_id", ROSTER.map(p => p.id))).data || [] : [];
-    if (BAS.isAdmin()) PROF = await BAS.q(supabaseClient.from("profiles").select("id, full_name, stage_role").eq("section_id", SECID).eq("approval_status", "approved"));
+    if (BAS.allStages()) PROF = await BAS.q(supabaseClient.from("profiles").select("id, full_name, stage_role").eq("section_id", SECID).eq("approval_status", "approved"));
     pickMeeting(meetId || (CUR && CUR.id));
     render();
   } catch (e) { $("view").innerHTML = '<div class="msg err">' + esc(BAS.errText(e)) + "</div>"; }
@@ -204,7 +204,7 @@ function bindTake() {
   document.querySelectorAll("[data-m]").forEach(b => b.onclick = () => {
     if (DIRTY && !confirm("You have attendance that isn't saved. Leave it?")) return;
     EDITING = null; DIRTY = false;
-    pickMeeting(Number(b.dataset.m)); history.replaceState(null, "", "?" + (BAS.isAdmin() ? "s=" + SECID + "&" : "") + "m=" + CUR.id + "#take"); takeView();
+    pickMeeting(Number(b.dataset.m)); history.replaceState(null, "", "?" + (BAS.allStages() ? "s=" + SECID + "&" : "") + "m=" + CUR.id + "#take"); takeView();
   });
   document.querySelectorAll("[data-go]").forEach(a => a.onclick = e => { e.preventDefault(); TAB = a.dataset.go; render(); });
   if ($("mAdd")) $("mAdd").onclick = () => meetingSheet(null);
@@ -485,8 +485,18 @@ async function personSheet(p) {
     "</div>" +
     (amt > 0 ? '<div class="panel"><b>💳 ' + esc(T("Yearly subscription")) + "</b> · " + (paid >= amt ? '<span class="pill ok">' + esc(T("PAID")) + "</span>" : paid > 0 ? BAS.money(paid) + " / " + BAS.money(amt) : '<span class="pill warn">' + esc(T("NOT PAID")) + "</span>") +
       ' <a class="lnk" href="#subs" data-gosubs>' + esc(T("Open")) + "</a></div>" : "") +
-    '<div id="dErr" class="msg err" hidden></div><div class="actions"><button class="btn gold" id="dGo">Save</button>' + (p.profile_id ? "" : '<button class="btn danger" id="dRm">Remove from the list</button>') + '<button class="btn line" id="dBack">Back</button></div></div>';
+    '<div id="dErr" class="msg err" hidden></div><div class="actions"><button class="btn gold" id="dGo">Save</button>' + (p.profile_id ? "" : '<button class="btn danger" id="dRm">' + esc(T("Archive")) + "</button>") + '<button class="btn line" id="dBack">Back</button></div></div>';
   o.hidden = false;
+  // a scout's details are changed only by the people chosen for Group records
+  if (!kada && !BAS.can("records_edit")) {
+    ["dN", "dB", "dY", "dJ", "dFn", "dFp", "dMn", "dMp"].forEach(id => { if ($(id)) $(id).disabled = true; });
+    const lb = $("dPf") && $("dPf").closest("label"); if (lb) lb.hidden = true; if ($("dPx")) $("dPx").hidden = true;
+    const n = document.createElement("p"); n.className = "msg info"; n.innerHTML = "🔒 " + esc(T("Details are changed in Group records by the people chosen for it.")) + ' <a class="lnk" href="records.html?p=' + p.id + '">' + esc(T("Open in Group records")) + "</a>";
+    o.querySelector(".sheet .panel").prepend(n);
+  } else if (!kada) {
+    const n = document.createElement("p"); n.className = "meta"; n.innerHTML = '<a class="lnk" href="records.html?p=' + p.id + '">' + esc(T("More details in Group records")) + " →</a>";
+    o.querySelector(".sheet .panel").prepend(n);
+  }
   $("dBack").onclick = () => { o.hidden = true; };
   o.onclick = e => { if (e.target === o) o.hidden = true; };
   $("dOF").onchange = () => $("dOF").closest(".pick").classList.toggle("on", $("dOF").checked);
@@ -519,10 +529,10 @@ async function personSheet(p) {
     if (await save({ photo_path: "" })) { BAS.toast("Saved"); load(CUR && CUR.id).then(() => personSheet(ROSTER.find(x => x.id === p.id) || p)); }
   };
   if ($("dRm")) $("dRm").onclick = async () => {
-    if (!confirm("Remove " + p.name + " from the stage's list? Past attendance keeps the name.")) return;
-    const { error } = await supabaseClient.from("roster").update({ is_active: false }).eq("id", p.id);
+    if (!confirm(T("Archive") + " " + p.name + "? " + T("They leave the stage's lists, but everything about them stays saved in Group records."))) return;
+    const { error } = await supabaseClient.rpc("set_person_active", { p_id: p.id, p_active: false });
     if (error) return BAS.toast(BAS.errText(error), "err");
-    o.hidden = true; BAS.toast("Removed"); load(CUR && CUR.id);
+    o.hidden = true; BAS.toast(T("Archived")); load(CUR && CUR.id);
   };
 }
 // Egyptian numbers for WhatsApp: 01xxxxxxxxx → 201xxxxxxxxx

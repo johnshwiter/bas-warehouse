@@ -54,7 +54,7 @@ let MOST = { stage: [], all: [] }, STOCK = [], CART = {}, CAT = "All", EDIT = nu
 (async function () {
   await BAS.init("book");
   if (!BAS.requireApproved()) return;
-  if (!BAS.isAdmin() && !BAS.profile.section_id) { $("grid").innerHTML = '<div class="msg err">Your account has no stage. Ask the warehouse team.</div>'; return; }
+  if (!BAS.isAdmin() && !BAS.profile.section_id && !BAS.can("book_any")) { $("grid").innerHTML = '<div class="msg err">Your account has no stage. Ask the warehouse team.</div>'; return; }
   try {
     const st = await BAS.loadStock();
     STOCK = st.list.filter(i => i.is_active);
@@ -145,7 +145,7 @@ async function saveDraft() {
   const names = cartLines().map(l => l.item.name_en + " ×" + l.qty);
   const title = (data.kind && data.kind !== "Meeting" ? (data.kind === "Camp" ? "⛺ " : "🚌 ") : "") + (data.date ? BAS.fmtDate(data.date, true) + " · " : "") + (names.slice(0, 3).join(", ") || "No items yet") + (names.length > 3 ? "…" : "");
   let sec = BAS.profile.section_id || null;
-  if (BAS.isAdmin() && data.who && data.who[0] === "s") sec = Number(data.who.slice(1));
+  if ((BAS.isAdmin() || BAS.can("book_any")) && data.who && data.who[0] === "s") sec = Number(data.who.slice(1));
   const row = { title, data, section_id: sec, updated_at: new Date().toISOString() };
   const r = DRAFT ? await supabaseClient.from("drafts").update(row).eq("id", DRAFT.id).select().single() : await supabaseClient.from("drafts").insert(Object.assign(row, { created_by: BAS.user.id })).select().single();
   if (r.error) return BAS.toast(BAS.errText(r.error), "err");
@@ -294,6 +294,8 @@ function openCheckout() {
   const o = $("sheet"), lines = cartLines(), r = EDIT;
   let who;
   if (r) who = '<div class="field"><label>For</label><div class="inline-in">' + BAS.borrowerHTML(r) + "</div></div>";
+  else if (!BAS.isAdmin() && BAS.can("book_any")) who = '<div class="field"><label>For which stage?</label><select id="coWho">' +
+      BAS.sections.map(s => '<option value="s' + s.id + '"' + (s.id === BAS.profile.section_id ? " selected" : "") + ">" + esc(s.name_ar) + " · " + esc(s.name_en) + "</option>").join("") + "</select></div>";
   else if (BAS.isAdmin()) who = '<div class="field"><label>For which stage or church service?</label><select id="coWho">' +
       '<optgroup label="Scout stages">' + BAS.sections.map(s => '<option value="s' + s.id + '">' + esc(s.name_ar) + " · " + esc(s.name_en) + "</option>").join("") + "</optgroup>" +
       '<optgroup label="Other church services">' + BAS.services.filter(v => v.is_active).map(v => '<option value="v' + v.id + '">' + esc(v.name_ar) + (v.name_en && v.name_en !== v.name_ar ? " · " + esc(v.name_en) : "") + "</option>").join("") +
@@ -325,7 +327,7 @@ function openCheckout() {
   o.onclick = e => { if (e.target === o) o.hidden = true; };
 
   $("coDate").onchange = lateCheck;
-  if ($("coWho")) $("coWho").onchange = () => { $("coNew").hidden = $("coWho").value !== "new"; };
+  if ($("coWho")) $("coWho").onchange = () => { if ($("coNew")) $("coNew").hidden = $("coWho").value !== "new"; };
   $("coSend").onclick = send;
   if ($("coDraft")) $("coDraft").onclick = saveDraft;
   if ($("coKind")) $("coKind").onchange = () => { if ($("coKind").value !== "Meeting") toCamp($("coKind").value); };
@@ -361,6 +363,7 @@ function lateCheck() {
 }
 
 async function borrower() {
+  if (!BAS.isAdmin() && BAS.can("book_any") && $("coWho")) return { section: Number($("coWho").value.slice(1)), service: null };
   if (!BAS.isAdmin()) return { section: null, service: null };
   const v = $("coWho").value;
   if (v[0] === "s") return { section: Number(v.slice(1)), service: null };
@@ -402,7 +405,7 @@ async function send() {
     return;
   }
   try { localStorage.setItem("basPlace", JSON.stringify(place)); } catch (e) {}
-  const back = BAS.isAdmin() ? "team.html#requests" : "section.html";
+  const back = BAS.isAdmin() ? "team.html#requests" : BAS.profile.section_id ? "section.html" : BAS.homeURL();
   const msg = EDIT ? (BAS.isAdmin() ? "Request #" + EDIT.id + " updated ✓" : "Change sent ✓") : "Request sent ✓";
   const sub = EDIT ? (BAS.isAdmin() ? "The new quantities are held." : "The warehouse team will approve or reject it. The old request stays until then.") : "Request #" + res.data + ". The warehouse team will prepare it.";
   const trip = !EDIT && $("coKind") && $("coKind").value !== "Meeting";

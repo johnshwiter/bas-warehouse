@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Announcements | BAS Warehouse</title>
+<link rel="icon" href="logo.png">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#17196A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="BAS Warehouse">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<meta name="color-scheme" content="only light">
+<link rel="stylesheet" href="bas.css">
+<script>(function(){var t="light";try{t=localStorage.getItem("basTheme")==="dark"?"dark":"light"}catch(e){}document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content="only "+t})()</script>
+</head>
+<body>
+<main class="page narrow">
+  <div class="head"><div><p class="eyebrow">To the whole group or one stage</p><h1>Announce<em>ments</em></h1></div></div>
+  <div class="panel" id="compose" hidden><h3>📣 New announcement</h3>
+    <div class="field"><label>To</label><select id="aTo"></select></div>
+    <div class="field"><label>Title</label><input id="aT" dir="auto"></div>
+    <div class="field"><label>Message</label><textarea id="aB" rows="4" dir="auto"></textarea></div>
+    <button class="btn gold" id="aGo">Post</button></div>
+  <div id="view"><div class="empty">Loading…</div></div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="common.js"></script>
+<script src="i18n.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id), esc = s => BAS.esc(s), T = x => BAS.tr ? BAS.tr(x) : x;
+async function load() {
+  const r = await supabaseClient.from("announcements").select("*").order("created_at", { ascending: false }).limit(60);
+  const L = r.error ? [] : r.data;
+  $("view").innerHTML = L.length ? L.map(a => '<div class="ann"><small>' + esc(BAS.fmtDateTime(a.created_at)) + " · " + esc(a.target === "all" ? T("everyone") : a.section_id ? BAS.sectionName(a.section_id) : a.service_id ? BAS.serviceName(a.service_id) : "") +
+    '</small><h4 dir="auto">' + esc(a.title) + '</h4><p dir="auto">' + esc(a.body) + "</p></div>").join("") : '<div class="empty">' + esc(T("No announcements yet.")) + "</div>";
+}
+(async function () {
+  await BAS.init("news");
+  if (!BAS.requireApproved()) return;
+  if (BAS.can("announce")) {
+    $("compose").hidden = false;
+    $("aTo").innerHTML = '<option value="">' + esc(T("Everyone")) + "</option>" + BAS.sections.map(s => '<option value="' + s.id + '">' + esc(s.name_ar) + "</option>").join("");
+    $("aGo").onclick = async () => {
+      const t = $("aT").value.trim(), b = $("aB").value.trim(), to = Number($("aTo").value) || null;
+      if (!t || !b) return BAS.toast(T("Write a title and a message"), "err");
+      if (!confirm(T("Post to") + " " + (to ? BAS.sectionName(to) : T("Everyone")) + "?")) return;
+      $("aGo").disabled = true;
+      const { error } = await supabaseClient.from("announcements").insert({ title: t, body: b, target: to ? "section" : "all", section_id: to, service_id: null, created_by: BAS.user.id });
+      $("aGo").disabled = false;
+      if (error) return BAS.toast(BAS.errText(error), "err");
+      $("aT").value = ""; $("aB").value = ""; BAS.toast(T("Posted")); load();
+    };
+  }
+  load();
+})();
+</script>
+</body>
+</html>

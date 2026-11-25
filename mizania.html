@@ -45,7 +45,12 @@ let BY = {}, MONEY = [], PAY = [], MAINT = [], LOSSES = [], ROWS = [], FM = "all
   }
   await BAS.init(FUND === "group" ? "group" : "mizania");
   if (!BAS.requireApproved()) return;
-  if (!BAS.isAdmin()) { location.replace("section.html#money"); return; }
+  if (!BAS.isAdmin()) {
+    // القادة العامة with "Group money" can read it, not change it
+    if (FUND !== "group" || !BAS.can("group_money")) { location.replace(BAS.homeURL()); return; }
+    document.body.classList.add("team-ok", "ro");
+    $("sub").textContent = BAS.tr ? BAS.tr("The group's own money: yearly subscriptions, donations, fundraising. Read only.") : "The group's own money: yearly subscriptions, donations, fundraising. Read only.";
+  }
   $("addBtn").onclick = () => entrySheet(null);
   await load();
 })();

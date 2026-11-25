@@ -65,7 +65,9 @@ async function loadAll() {
     RES = await BAS.loadReservations(BY);
     LOSSES = await BAS.q(supabaseClient.from("loss_status").select("*").order("created_at", { ascending: false })); await BAS.loadLossWho(LOSSES);
     PAYMENTS = await BAS.q(supabaseClient.from("payments").select("*").order("paid_on", { ascending: false }));
-    PEOPLE = await BAS.q(supabaseClient.from("profiles").select("id, full_name, email, role, approval_status, section_id, created_at, stage_role").order("created_at"));
+    let pq = await supabaseClient.from("profiles").select("id, full_name, email, role, approval_status, section_id, created_at, stage_role, group_role, access").order("created_at");
+    if (pq.error) pq = await supabaseClient.from("profiles").select("id, full_name, email, role, approval_status, section_id, created_at, stage_role").order("created_at");
+    if (pq.error) throw pq.error; PEOPLE = pq.data || [];
     TRANSFERS = await BAS.q(supabaseClient.from("transfer_requests").select("*").order("created_at", { ascending: false }));
     MAINT = await BAS.q(supabaseClient.from("maintenance").select("*").order("created_at", { ascending: false }));
     WAIT = await BAS.q(supabaseClient.from("waitlist").select("*").in("status", ["Waiting", "Available"]).order("created_at"));
@@ -702,12 +704,14 @@ function newsView() {
 function peopleView() {
   const pend = PEOPLE.filter(p => p.approval_status === "pending"), rest = PEOPLE.filter(p => p.approval_status !== "pending"), tr = TRANSFERS.filter(t => t.status === "Pending");
   const secOpts = sel => '<option value="">No stage</option>' + BAS.sections.map(s => '<option value="' + s.id + '"' + (s.id === sel ? " selected" : "") + ">" + esc(s.name_ar) + "</option>").join("");
-  const row = p => '<div class="person" data-p="' + p.id + '"><div><h4>' + esc(p.full_name) + (p.id === BAS.user.id ? " (you)" : "") + '</h4><div class="meta">' + esc(p.email || "") + " · signed up " + esc(BAS.fmtDate(p.created_at)) + " · " +
+  const GR = { kada_3am: "القائد العام", mosa3ed_3am: "مساعد القائد العام" }, ACC = p => Object.keys(p.access || {}).filter(k => p.access[k]);
+  const row = p => '<div class="person" data-p="' + p.id + '"><div><h4>' + esc(p.full_name) + (p.id === BAS.user.id ? " (you)" : "") + (p.group_role ? ' <span class="pill gold">' + esc(GR[p.group_role]) + "</span>" : "") + '</h4><div class="meta">' + esc(p.email || "") + " · signed up " + esc(BAS.fmtDate(p.created_at)) + " · " +
     '<span class="pill ' + (p.approval_status === "approved" ? "paid" : p.approval_status === "pending" ? "low" : "late") + '">' + esc(p.approval_status.toUpperCase()) + "</span></div></div>" +
     '<div class="actions" style="margin:0"><select data-f="section_id" aria-label="Stage">' + secOpts(p.section_id) + '</select><select data-f="role" aria-label="Role"><option value="leader"' + (p.role === "leader" ? " selected" : "") +
     '>Leader</option><option value="admin"' + (p.role === "admin" ? " selected" : "") + ">Warehouse team</option></select>" +
     (p.section_id && p.approval_status === "approved" ? '<select data-f="stage_role" aria-label="Role in the stage">' + [["leader", "Leader"], ["head", "قائد المرحلة"], ["deputy", "نائب قائد المرحلة"], ["assistant", "مساعد قائد المرحلة"]]
       .map(o => '<option value="' + o[0] + '"' + ((p.stage_role || "leader") === o[0] ? " selected" : "") + ">" + o[1] + "</option>").join("") + "</select>" : "") +
+    (p.role !== "admin" && p.approval_status !== "rejected" && "access" in p ? '<button class="btn line sm" data-acc>🔑 Access' + (ACC(p).length ? " (" + ACC(p).length + ")" : "") + "</button>" : "") +
     (p.approval_status !== "approved" ? '<button class="btn ok sm" data-ap="approved">Approve</button>' : "") + (p.approval_status !== "rejected" && p.id !== BAS.user.id ? '<button class="btn danger sm" data-ap="rejected">Reject</button>' : "") + (p.id !== BAS.user.id && p.approval_status !== "pending" ? '<button class="btn danger sm" data-rm="1">Remove account</button>' : "") + "</div></div>";
   $("view").innerHTML = (pend.length ? '<div class="group-title">New accounts waiting</div>' + pend.map(row).join("") : "") +
     (tr.length ? '<div class="group-title">Stage transfer requests</div>' + tr.map(t => '<div class="person"><div><h4>' + esc(person(t.profile_id)) + '</h4><div class="meta">' + BAS.secHTML(t.from_section) + " → <b>" + BAS.secHTML(t.to_section) + "</b> · " + esc(BAS.fmtDate(t.created_at)) + (t.note ? " · " + esc(t.note) : "") + "</div></div>" +
@@ -721,18 +725,74 @@ function peopleView() {
       updatePerson(id, { [s.dataset.f]: v });
     });
     el.querySelectorAll("[data-ap]").forEach(b => b.onclick = () => updatePerson(id, { approval_status: b.dataset.ap }));
+    el.querySelectorAll("[data-acc]").forEach(b => b.onclick = () => accessSheet(PEOPLE.find(x => x.id === id)));
     el.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => { const p = PEOPLE.find(x => x.id === id); if (confirm("Remove " + p.full_name + "'s account? They can't log in any more. You can restore it from Deleted.")) rpc("trash_item", { p_kind: "account", p_id: id }, "Account removed"); });
   });
   $("view").querySelectorAll("[data-tr]").forEach(b => b.onclick = () => rpc("decide_transfer", { p_id: Number(b.dataset.tr), p_approve: b.dataset.ok === "1" }, b.dataset.ok === "1" ? "Transfer approved" : "Transfer rejected"));
 }
+// what an account can do beyond its own stage
+const ACCESS = [
+  ["all_stages", "Every stage: attendance, people, tali3as, subscriptions"],
+  ["records_edit", "Change the details in Group records"],
+  ["group_money", "See Group money (read only)"],
+  ["announce", "Send announcements"],
+  ["book_any", "Book items for any stage"]];
+function accessSheet(p) {
+  const o = $("sheet"), A = p.access || {};
+  o.innerHTML = '<div class="sheet" style="max-width:520px"><h2>🔑 ' + esc(p.full_name) + '</h2><p class="meta">What this account can do beyond its own stage. Only the warehouse team changes this.</p>' +
+    '<div class="field"><label>Group role</label><select id="acR"><option value="">None</option><option value="kada_3am"' + (p.group_role === "kada_3am" ? " selected" : "") + '>القائد العام</option><option value="mosa3ed_3am"' + (p.group_role === "mosa3ed_3am" ? " selected" : "") + ">مساعد القائد العام</option></select></div>" +
+    '<div class="acc-ticks">' + ACCESS.map(a => '<label class="pick' + (A[a[0]] ? " on" : "") + '"><input type="checkbox" data-ak="' + a[0] + '"' + (A[a[0]] ? " checked" : "") + "> " + esc(BAS.tr ? BAS.tr(a[1]) : a[1]) + "</label>").join("") + "</div>" +
+    '<p class="meta">Choosing a group role ticks everything except Group records. You can untick any of them.</p>' +
+    '<div class="actions"><button class="btn gold" id="acGo">Save</button><button class="btn line" id="acBk">Back</button></div></div>';
+  o.hidden = false;
+  const sync = () => o.querySelectorAll("[data-ak]").forEach(c => c.closest(".pick").classList.toggle("on", c.checked));
+  o.querySelectorAll("[data-ak]").forEach(c => c.onchange = sync);
+  $("acR").onchange = () => { if ($("acR").value) o.querySelectorAll("[data-ak]").forEach(c => { if (c.dataset.ak !== "records_edit") c.checked = true; }); sync(); };
+  $("acBk").onclick = () => { o.hidden = true; };
+  $("acGo").onclick = async () => {
+    const acc = {}; o.querySelectorAll("[data-ak]").forEach(c => { if (c.checked) acc[c.dataset.ak] = true; });
+    const { error } = await supabaseClient.rpc("set_access", { p_id: p.id, p_group_role: $("acR").value || null, p_access: acc });
+    if (error) return BAS.toast(BAS.errText(error), "err");
+    o.hidden = true; BAS.toast("Saved"); loadAll();
+  };
+}
 async function updatePerson(id, row) {
   const p = PEOPLE.find(x => x.id === id);
-  if (row.approval_status === "approved" && p.role === "leader" && !p.section_id) { BAS.toast("Choose their stage first", "err"); return; }
+  if (row.approval_status === "approved" && p.role === "leader" && !p.section_id && !p.group_role) { BAS.toast("Choose their stage first (or give them a group role in Access)", "err"); return; }
   const { error } = await supabaseClient.from("profiles").update(row).eq("id", id);
   if (error) { BAS.toast(BAS.errText(error), "err"); return; }
   BAS.toast("Saved");
   if (id === BAS.user.id) { location.reload(); return; }
   await loadAll();
+}
+
+// ---------- Google Drive backup ----------
+async function backupBox() {
+  const box = $("bkBox"); if (!box) return;
+  const { data: b, error } = await supabaseClient.rpc("backup_status");
+  if (error) { box.innerHTML = '<p class="meta">' + esc(BAS.errText(error)) + "</p>"; return; }
+  const when = t => t ? esc(BAS.fmtDateTime(t)) : "—";
+  const st = b.last_status === "ok" ? '<span class="pill ok">OK</span>' : b.last_status === "sending" ? '<span class="pill low">SENDING</span>' : b.last_status ? '<span class="pill late">' + esc(b.last_status) + "</span>" : "—";
+  box.innerHTML = !b.connected ? '<p class="meta">Not connected yet. Follow the setup steps (Google script in bas.warehouse193@gmail.com, then one line in the Supabase SQL editor).</p>' :
+    '<p class="meta">Group records go to a Google Sheet a few minutes after any change, and the whole database is saved as one file a day, in the "BAS Backups" folder of bas.warehouse193@gmail.com.</p>' +
+    '<div class="person" style="margin:0 0 6px"><span>Backup</span><b>' + (b.enabled ? "✅ On" : "⏸ Off") + "</b></div>" +
+    '<div class="person" style="margin:0 0 6px"><span>Sheet last updated</span><b>' + when(b.last_live_at) + "</b></div>" +
+    '<div class="person" style="margin:0 0 6px"><span>Last daily file</span><b>' + when(b.last_daily_at) + "</b></div>" +
+    '<div class="person" style="margin:0 0 10px"><span>Last answer from Google</span><b>' + st + "</b></div>" +
+    '<div class="actions" style="margin:0"><button class="btn ' + (b.enabled ? "line" : "ok") + '" id="bkOn">' + (b.enabled ? "Turn off" : "Turn on") + '</button><button class="btn line" id="bkNow">Back up now</button><button class="btn line sm" id="bkRf">↻</button></div>';
+  if (!b.connected) return;
+  $("bkRf").onclick = backupBox;
+  $("bkOn").onclick = async () => {
+    if (!b.enabled && !confirm("Turn on the backup? From now on every change is copied to Google Drive.")) return;
+    const r = await supabaseClient.rpc("backup_enable", { p_on: !b.enabled });
+    if (r.error) return BAS.toast(BAS.errText(r.error), "err");
+    BAS.toast("Saved"); backupBox();
+  };
+  $("bkNow").onclick = async () => {
+    const r = await supabaseClient.rpc("backup_now");
+    if (r.error) return BAS.toast(BAS.errText(r.error), "err");
+    BAS.toast("Sent. The full file follows within 5 minutes."); setTimeout(backupBox, 4000);
+  };
 }
 
 // ---------- deleted things ----------
@@ -817,6 +877,7 @@ function settingsView() {
     '<button class="btn gold" id="svAdd">Add service</button></div>' +
     '<div class="group-title">Attendance</div><div class="panel" style="max-width:640px"><p class="meta"><span>The scout year started on</span> <b>' + esc(BAS.fmtDate(s.att_year_start || BAS.todayISO(), true)) + '</b> · <span>Percentages and absence counts start from this day.</span></p>' +
     '<div class="grid2"><div class="field"><label>First day of the new scout year</label><input type="date" id="nyDate" value="' + BAS.todayISO() + '"></div><div></div></div><button class="btn line" id="nyGo">Start a new scout year</button></div>' +
+    '<div class="group-title">Google Drive backup</div><div class="panel" style="max-width:640px" id="bkBox"><p class="meta">Loading…</p></div>' +
     '<div class="group-title">Help assistant</div><div class="panel" style="max-width:640px"><p class="meta">Questions each person can ask the assistant a day (0 turns it off). The written guides always work.</p>' +
     '<div class="grid2"><div class="field"><label>Questions per person a day</label><input type="number" min="0" max="100" id="aiLim" value="' + (s.ai_daily_limit == null ? 10 : s.ai_daily_limit) + '"></div><div></div></div><button class="btn ok" id="aiLimGo">Save</button></div>' +
     '<div class="group-title">Reset</div><div class="panel" style="max-width:640px;border-color:var(--bad)"><h3>🧹 Reset the history</h3>' +
@@ -827,6 +888,7 @@ function settingsView() {
   $("nyGo").onclick = () => { const d = $("nyDate").value; if (!d) return BAS.toast("Choose the date", "err");
     if (confirm("Start the new scout year on " + BAS.fmtDate(d, true) + "? Attendance before this day stops counting (it stays saved). Everyone's school year goes up by one, and the yearly subscription starts again.")) rpc("new_scout_year", { p_start: d }, "New scout year started").then(() => location.reload()); };
   $("rsGo").onclick = resetAll;
+  backupBox();
   $("aiLimGo").onclick = async () => { const n = Number($("aiLim").value); const { error } = await supabaseClient.rpc("set_ai_limit", { p_n: n }); if (error) return BAS.toast(BAS.errText(error), "err"); BAS.settings.ai_daily_limit = n; BAS.toast("Saved"); };
   $("sSave").onclick = async () => {
     const days = Number($("sDays").value), ret = Number($("sRet").value), low = Number($("sLow").value), times = $("sTimes").value.split(",").map(x => x.trim()).filter(Boolean);

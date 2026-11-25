@@ -13,6 +13,30 @@
 
   // ---------- exact texts: "English": ["العربي", "Français"] ----------
   const D = {
+    // v17
+    "Group records": ["سجلات الكشافة", "Registres du groupe"], "records": ["السجلات", "registres"], "Every scout's details, kept for good": ["بيانات كل ولد، محفوظة على طول", "Les informations de chaque scout, gardées pour toujours"],
+    "⬇ Download (Excel)": ["⬇ تنزيل (إكسل)", "⬇ Télécharger (Excel)"], "Search a name, parent, phone, school, address…": ["دوّر على اسم، أب أو أم، رقم، مدرسة، عنوان…", "Chercher un nom, un parent, un numéro, une école, une adresse…"],
+    "Current scouts": ["الأولاد الحاليين", "Scouts actuels"], "Archived": ["مؤرشف", "Archivé"], "archived": ["مؤرشفين", "archivés"], "ARCHIVED": ["مؤرشف", "ARCHIVÉ"], "scouts": ["ولد", "scouts"],
+    "Nobody matches.": ["مفيش حد بالبحث ده.", "Personne ne correspond."], "No scouts yet. Add them from Attendance › People.": ["مفيش أولاد لسه. ضيفهم من الحضور › الأفراد.", "Pas encore de scouts. Ajoutez-les dans Présence › Personnes."],
+    "School": ["المدرسة", "École"], "Address": ["العنوان", "Adresse"], "Scout's phone": ["موبايل الولد", "Téléphone du scout"], "Father's name": ["اسم الأب", "Nom du père"], "Father's job": ["شغل الأب", "Métier du père"],
+    "Mother's name": ["اسم الأم", "Nom de la mère"], "Mother's job": ["شغل الأم", "Métier de la mère"], "Does the mother work?": ["الأم بتشتغل؟", "La mère travaille-t-elle ?"], "Joined the scouts on": ["انضم للكشافة في", "Arrivé aux scouts le"],
+    "Yes": ["أيوه", "Oui"], "No": ["لأ", "Non"], "Only the people chosen by the warehouse team can change these details.": ["التفاصيل دي بيغيرها بس اللي فريق المخزن اختارهم.", "Seules les personnes choisies par l'équipe peuvent modifier ces informations."],
+    "Open in Attendance": ["افتح في الحضور", "Ouvrir dans Présence"], "Archive": ["أرشفة", "Archiver"], "Bring back": ["رجّعه", "Remettre"], "Brought back": ["رجع", "Remis"], "Delete forever": ["مسح نهائي", "Supprimer définitivement"], "Deleted forever": ["اتمسح نهائي", "Supprimé définitivement"],
+    "Close": ["قفل", "Fermer"], "Changes": ["التعديلات", "Modifications"], "No changes yet.": ["مفيش تعديلات لسه.", "Pas encore de modifications."], "Not available.": ["مش متاح.", "Indisponible."],
+    "Put this back": ["رجّع ده", "Remettre ceci"], "Put the old value back?": ["ترجّع القيمة القديمة؟", "Remettre l'ancienne valeur ?"], "Added": ["اتضاف", "Ajouté"], "Archived / back": ["أرشفة / رجوع", "Archivé / remis"], "Back": ["رجع", "Remis"], "Photo": ["الصورة", "Photo"], "Stage": ["المرحلة", "Branche"],
+    "They leave the stage's lists, but everything about them stays saved here.": ["هيخرج من قوايم المرحلة، بس كل بياناته هتفضل محفوظة هنا.", "Il quitte les listes de la branche, mais tout reste enregistré ici."],
+    "They leave the stage's lists, but everything about them stays saved in Group records.": ["هيخرج من قوايم المرحلة، بس كل بياناته هتفضل محفوظة في سجلات الكشافة.", "Il quitte les listes de la branche, mais tout reste enregistré dans les registres."],
+    "Delete": ["امسح", "Supprimer"], "forever? Everything about them, including their attendance, is deleted and can't be brought back. Type the reset code:": ["نهائي؟ كل حاجة عنه، حتى الحضور، هتتمسح ومش هترجع. اكتب كود المسح:", "définitivement ? Tout, y compris la présence, sera supprimé sans retour. Tapez le code :"],
+    "All stages": ["كل المراحل", "Toutes les branches"], "Details are changed in Group records by the people chosen for it.": ["التفاصيل بتتغير من سجلات الكشافة، من اللي اتختاروا لكده.", "Les informations se modifient dans les registres, par les personnes choisies."],
+    "Open in Group records": ["افتح في سجلات الكشافة", "Ouvrir dans les registres"], "More details in Group records": ["تفاصيل أكتر في سجلات الكشافة", "Plus d'informations dans les registres"],
+    "To the whole group or one stage": ["للمجموعة كلها أو لمرحلة", "À tout le groupe ou à une branche"], "📣 New announcement": ["📣 إعلان جديد", "📣 Nouvelle annonce"], "To": ["لـ", "À"], "Everyone": ["الكل", "Tout le monde"], "everyone": ["الكل", "tout le monde"],
+    "Post": ["انشر", "Publier"], "Post to": ["تنشر لـ", "Publier à"], "Posted": ["اتنشر", "Publié"], "Write a title and a message": ["اكتب عنوان ورسالة", "Écrivez un titre et un message"], "No announcements yet.": ["مفيش إعلانات لسه.", "Pas encore d'annonces."],
+    "The group's own money: yearly subscriptions, donations, fundraising. Read only.": ["فلوس المجموعة: الاشتراك السنوي، التبرعات، جمع الفلوس. للقراية بس.", "L'argent du groupe : cotisations, dons, collectes. Lecture seule."],
+    "Every stage: attendance, people, tali3as, subscriptions": ["كل المراحل: الحضور، الأفراد، الطلائع، الاشتراكات", "Toutes les branches : présence, personnes, patrouilles, cotisations"],
+    "Change the details in Group records": ["يغيّر التفاصيل في سجلات الكشافة", "Modifier les registres du groupe"], "See Group money (read only)": ["يشوف فلوس المجموعة (قراية بس)", "Voir l'argent du groupe (lecture seule)"],
+    "Send announcements": ["يبعت إعلانات", "Envoyer des annonces"], "Book items for any stage": ["يحجز حاجات لأي مرحلة", "Réserver pour n'importe quelle branche"], "For which stage?": ["لأنهي مرحلة؟", "Pour quelle branche ?"],
+    "Google Drive backup": ["النسخة الاحتياطية على جوجل درايف", "Sauvegarde Google Drive"], "Back up now": ["اعمل نسخة دلوقتي", "Sauvegarder maintenant"], "Turn on": ["شغّل", "Activer"], "Turn off": ["اقفل", "Désactiver"],
+    "Group": ["المجموعة", "Groupe"], "People": ["الأفراد", "Personnes"],
     // v16
     "Ask anything about the website": ["اسأل أي حاجة عن الموقع", "Posez n'importe quelle question sur le site"], "Help": ["مساعدة", "Aide"], "assistant": ["المساعد", "assistant"], "Ask": ["اسأل", "Demander"],
     "Ask… e.g. how do I book items? · Mina's dad's number · book 10 shoma for Friday": ["اسأل… مثلاً: أحجز حاجات إزاي؟ · رقم بابا مينا · احجز ١٠ شومة يوم الجمعة", "Demandez… ex. comment réserver ? · le numéro du père de Mina · réserver 10 bâtons vendredi"],

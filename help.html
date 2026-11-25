@@ -134,7 +134,7 @@ async function stats(p) {
 // which people a list covers: the stage they named (team), else their own stage, else everything they can see
 function scope(list, stage) {
   if (stage) { const s = BAS.allSections.filter(x => [x.name_ar, x.name_en].some(n => n && (norm(n).includes(norm(stage)) || norm(stage).includes(norm(n))))); if (s.length) return list.filter(p => s.some(x => x.id === p.section_id)); }
-  if (!BAS.isAdmin() && BAS.profile.section_id) return list.filter(p => p.section_id === BAS.profile.section_id);
+  if (!BAS.allStages() && BAS.profile.section_id) return list.filter(p => p.section_id === BAS.profile.section_id);
   return list;
 }
 const who = p => "<b>" + esc(p.name) + "</b>" + (p.role === "kada" ? ' <small class="mut">' + esc(T("Kada")) + "</small>" : "") + ' <small class="mut">' + esc(secOf(p.section_id).name_ar || "") + (p.tali3a_id ? " · " + esc(talName(p.tali3a_id)) : "") + "</small>";
@@ -163,7 +163,7 @@ async function personCard(p, want) {
     else v = p[f[0]] ? esc(p[f[0]]) : "—";
     rows.push("<tr><th>" + esc(T(f[1])) + "</th><td>" + v + "</td></tr>");
   }
-  const link = "attendance.html?" + (BAS.isAdmin() ? "s=" + p.section_id + "&" : "") + "p=" + p.id + "#people";
+  const link = "attendance.html?" + (BAS.allStages() ? "s=" + p.section_id + "&" : "") + "p=" + p.id + "#people";
   return '<div class="ai-card" data-noi18n><div>' + who(p) + '</div><table class="ai-t">' + rows.join("") + '</table><a class="btn line sm" href="' + link + '">' + esc(T("Open Details")) + "</a></div>";
 }
 async function runLookup(k, box) {
@@ -219,7 +219,7 @@ async function runLookup(k, box) {
 async function runFill(f, box) {
   const go = (href, label, note, extra) => { box.innerHTML += '<div class="ai-card">' + (note ? '<p class="meta" data-noi18n>' + note + "</p>" : "") + '<a class="btn gold" href="' + href + '" data-noi18n>' + esc(T(label)) + (extra ? " " + esc(extra) : "") + " →</a></div>"; };
   const pickP = async (then) => { const m = matchName(await roster(), f); if (!m.length) { box.innerHTML += '<p class="meta">' + esc(T("I couldn't find that name in the lists you can see.")) + "</p>"; return; } if (m.length > 1) box.innerHTML += choose(m, then); else then(m[0]); };
-  const sq = id => BAS.isAdmin() ? "s=" + id + "&" : "";
+  const sq = id => BAS.allStages() ? "s=" + id + "&" : "";
   if (f.type === "book") {
     if (!D.stock) D.stock = (await BAS.loadStock()).list.filter(i => i.is_active);
     const cart = {}, miss = [], short = [];
@@ -232,7 +232,7 @@ async function runFill(f, box) {
       if (put > 0) cart[key] = (cart[key] || 0) + put;
     });
     let whoV = "";
-    if (BAS.isAdmin() && f.for) { const s = BAS.allSections.find(x => [x.name_ar, x.name_en].some(n => n && norm(n).includes(norm(f.for)))), v = (BAS.services || []).find(x => [x.name_ar, x.name_en].some(n => n && norm(n).includes(norm(f.for)))); whoV = s ? "s" + s.id : v ? "v" + v.id : ""; }
+    if ((BAS.isAdmin() || BAS.can("book_any")) && f.for) { const s = BAS.allSections.find(x => [x.name_ar, x.name_en].some(n => n && norm(n).includes(norm(f.for)))), v = !BAS.isAdmin() ? null : (BAS.services || []).find(x => [x.name_ar, x.name_en].some(n => n && norm(n).includes(norm(f.for)))); whoV = s ? "s" + s.id : v ? "v" + v.id : ""; }
     const note = (miss.length ? "❓ " + esc(T("Not found")) + ": " + esc(miss.join("، ")) + "<br>" : "") + (short.length ? "⚠️ " + esc(T("Not enough")) + ": " + esc(short.join("، ")) : "");
     if (!Object.keys(cart).length) { box.innerHTML += '<div class="ai-card"><p class="meta" data-noi18n>' + note + '</p><a class="btn line sm" href="book.html">' + esc(T("Book items")) + "</a></div>"; return; }
     const kind = f.kind === "Camp" || f.kind === "Trip" ? f.kind : "Meeting";

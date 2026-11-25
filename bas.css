@@ -783,3 +783,14 @@ select.sortsel { width: auto; min-width: 0; padding: 7px 10px; font-size: 12px; 
 details.guide { border-top: 1px solid var(--line); padding: 8px 0; } details.guide:first-child { border-top: 0; }
 details.guide summary { cursor: pointer; font-weight: 700; } details.guide ol { margin: 8px 0 2px; padding-inline-start: 20px; line-height: 1.7; }
 [data-theme="dark"] .ai-msg.ai-bot { background: var(--card); }
+/* v17: read-only Group money for القادة العامة */
+body.ro #addBtn, body.ro #subEdit, body.ro #obEdit, body.ro [data-ed], body.ro [data-del] { display: none !important; }
+/* v17: Group records */
+.rec-t tr[data-p] { cursor: pointer; }
+.rec-t tr[data-p]:hover td { background: var(--line-2); }
+.rec-t td { min-width: 80px; }
+.rec-grid .rec-v { display: flex; flex-direction: column; gap: 2px; padding: 6px 0; border-bottom: 1px solid var(--line-2); }
+.rec-grid .rec-v .mut { font-size: 12px; }
+.rec-grid .rec-v .btn { align-self: flex-start; margin-top: 4px; }
+ul.rec-h { list-style: none; padding: 0; margin: 0; } ul.rec-h li { padding: 7px 0; border-bottom: 1px solid var(--line-2); color: var(--ink, inherit); }
+.acc-ticks label.pick { display: flex; margin: 0 0 6px; }

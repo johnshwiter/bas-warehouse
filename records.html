@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Group records | BAS Warehouse</title>
+<link rel="icon" href="logo.png">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#17196A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="BAS Warehouse">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<meta name="color-scheme" content="only light">
+<link rel="stylesheet" href="bas.css">
+<script>(function(){var t="light";try{t=localStorage.getItem("basTheme")==="dark"?"dark":"light"}catch(e){}document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content="only "+t})()</script>
+</head>
+<body>
+<main class="page">
+  <div class="head"><div><p class="eyebrow" id="eyebrow">Every scout's details, kept for good</p><h1>Group <em>records</em></h1></div>
+    <div class="actions" style="margin:0"><button class="btn line sm" id="dl" hidden>⬇ Download (Excel)</button></div></div>
+  <div class="toolbar">
+    <input id="q" type="search" placeholder="Search a name, parent, phone, school, address…" autocomplete="off" dir="auto">
+    <select id="fSec" hidden aria-label="Stage"></select>
+    <select id="fState" aria-label="Show"><option value="now">Current scouts</option><option value="arch">Archived</option></select>
+  </div>
+  <p class="meta" id="count"></p>
+  <div id="view"><div class="empty">Loading…</div></div>
+</main>
+<div class="overlay" id="sheet" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="common.js"></script>
+<script src="i18n.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id), esc = s => BAS.esc(s), T = x => BAS.tr ? BAS.tr(x) : x;
+const QS = new URLSearchParams(location.search);
+const YEARS = ["KG1", "KG2"].concat([1, 2, 3, 4, 5, 6].map(n => n + " ابتدائي"), [1, 2, 3].map(n => n + " إعدادي"), [1, 2, 3].map(n => n + " ثانوي"), [1, 2, 3, 4, 5].map(n => "جامعة " + n), ["خريج / بيشتغل"]);
+let ALL = [], TAL = [], CAN_EDIT = false;
+const FIELDS = [
+  ["birthday", "Birthday", "date"], ["school_year", "School year", "year"], ["school", "School"], ["address", "Address", "area"],
+  ["phone", "Scout's phone", "tel"], ["father_name", "Father's name"], ["father_phone", "Father's phone", "tel"], ["father_job", "Father's job"],
+  ["mother_name", "Mother's name"], ["mother_phone", "Mother's phone", "tel"], ["mother_job", "Mother's job"], ["mother_works", "Does the mother work?", "yn"],
+  ["joined_on", "Joined the scouts on", "date"]];
+const LABEL = { name: "Name", photo_path: "Photo", is_active: "Archived / back", section_id: "Stage", tali3a_id: "Tali3a", added: "Added" };
+FIELDS.forEach(f => LABEL[f[0]] = f[1]);
+
+const tName = id => (TAL.find(t => t.id === id) || {}).name || "";
+const secName = id => BAS.sectionName(id);
+const waNum = n => { let d = String(n).replace(/\D/g, ""); if (d.startsWith("00")) d = d.slice(2); if (d.startsWith("0")) d = "2" + d; return d; };
+const yn = v => v === true ? T("Yes") : v === false ? T("No") : "";
+const show = (p, k) => k === "birthday" || k === "joined_on" ? (p[k] ? BAS.fmtDate(p[k]) : "") : k === "mother_works" ? yn(p[k]) : (p[k] || "");
+const hay = p => BAS.norm([p.name, p.father_name, p.mother_name, p.phone, p.father_phone, p.mother_phone, p.school, p.address, p.school_year, p.father_job, p.mother_job, tName(p.tali3a_id), secName(p.section_id)].join(" "));
+
+async function load() {
+  let r = await supabaseClient.from("roster").select("*").eq("role", "3ayel").order("name");
+  if (r.error) { $("view").innerHTML = '<div class="msg err">' + esc(BAS.errText(r.error)) + "</div>"; return; }
+  ALL = r.data || [];
+  const t = await supabaseClient.from("tali3as").select("id, name, section_id");
+  TAL = t.error ? [] : t.data;
+  draw();
+}
+
+function list() {
+  const q = BAS.norm($("q").value.trim()), sec = Number($("fSec").value) || 0, arch = $("fState").value === "arch";
+  return ALL.filter(p => (arch ? !p.is_active : p.is_active) && (!sec || p.section_id === sec) && (!q || q.split(" ").every(w => hay(p).includes(w))))
+    .sort((a, b) => a.section_id - b.section_id || a.name.localeCompare(b.name, "ar"));
+}
+
+function draw() {
+  const L = list(), arch = $("fState").value === "arch";
+  $("count").textContent = L.length + " " + T(arch ? "archived" : "scouts");
+  if (!L.length) { $("view").innerHTML = '<div class="empty">' + esc(T(ALL.length ? "Nobody matches." : "No scouts yet. Add them from Attendance › People.")) + "</div>"; return; }
+  const groups = {};
+  L.forEach(p => { (groups[p.section_id] = groups[p.section_id] || []).push(p); });
+  $("view").innerHTML = Object.keys(groups).map(sid => '<div class="group-title">' + esc(secName(Number(sid))) + " (" + groups[sid].length + ")</div>" +
+    '<div class="panel tscroll" style="padding:4px 10px"><table class="ltable rec-t"><tr><th>' + esc(T("Name")) + "</th><th>" + esc(T("Tali3a")) + "</th><th>" + esc(T("School year")) + "</th><th>" + esc(T("School")) + "</th><th>" + esc(T("Father")) + "</th><th>" + esc(T("Mother")) + "</th><th>" + esc(T("Address")) + "</th></tr>" +
+    groups[sid].map(p => '<tr data-p="' + p.id + '"><td><b dir="auto">' + esc(p.name) + "</b>" + (arch && p.archived_at ? '<br><small class="mut">' + esc(T("Archived")) + " " + esc(BAS.fmtDate(p.archived_at)) + "</small>" : "") + "</td><td>" + esc(tName(p.tali3a_id)) + "</td><td>" + esc(p.school_year || "") + "</td><td dir=\"auto\">" + esc(p.school || "") +
+      '</td><td dir="auto">' + esc(p.father_name || "") + (p.father_job ? ' <small class="mut">· ' + esc(p.father_job) + "</small>" : "") + '</td><td dir="auto">' + esc(p.mother_name || "") + (p.mother_job ? ' <small class="mut">· ' + esc(p.mother_job) + "</small>" : "") +
+      '</td><td dir="auto">' + esc(p.address || "") + "</td></tr>").join("") + "</table></div>").join("");
+  $("view").querySelectorAll("tr[data-p]").forEach(tr => tr.onclick = () => personSheet(ALL.find(x => x.id === Number(tr.dataset.p))));
+}
+
+async function personSheet(p) {
+  const o = $("sheet"), ed = CAN_EDIT && p.is_active;
+  const tel = n => n ? ' <a class="btn line sm" href="tel:' + esc(n.replace(/[^\d+]/g, "")) + '">📞</a><a class="btn line sm" target="_blank" rel="noopener" href="https://wa.me/' + esc(waNum(n)) + '">💬</a>' : "";
+  const input = f => {
+    const v = p[f[0]], id = "r_" + f[0];
+    if (!ed) return '<div class="rec-v"><span class="mut">' + esc(T(f[1])) + "</span><b dir=\"auto\">" + esc(show(p, f[0]) || "—") + "</b>" + (f[2] === "tel" ? tel(v) : "") + "</div>";
+    let inp;
+    if (f[2] === "date") inp = '<input type="date" id="' + id + '" value="' + esc(v || "") + '">';
+    else if (f[2] === "year") inp = '<select id="' + id + '"><option value="">—</option>' + YEARS.concat(v && YEARS.indexOf(v) < 0 ? [v] : []).map(y => "<option" + (y === v ? " selected" : "") + ">" + esc(y) + "</option>").join("") + "</select>";
+    else if (f[2] === "yn") inp = '<select id="' + id + '"><option value="">—</option><option value="true"' + (v === true ? " selected" : "") + ">" + esc(T("Yes")) + '</option><option value="false"' + (v === false ? " selected" : "") + ">" + esc(T("No")) + "</option></select>";
+    else if (f[2] === "area") inp = '<textarea id="' + id + '" rows="2" dir="auto">' + esc(v || "") + "</textarea>";
+    else inp = '<input id="' + id + '"' + (f[2] === "tel" ? ' type="tel" inputmode="tel" placeholder="01xxxxxxxxx"' : ' dir="auto"') + ' value="' + esc(v || "") + '">';
+    return '<div class="field"><label>' + esc(T(f[1])) + "</label>" + (f[2] === "tel" ? '<div class="phrow">' + inp + tel(v) + "</div>" : inp) + "</div>";
+  };
+  o.innerHTML = '<div class="sheet" style="max-width:600px"><div class="pd-top"><div class="pd-photo" id="rPh">' + (p.photo_path ? "" : "<span>" + esc((p.name || "?").trim().charAt(0)) + "</span>") + "</div>" +
+    '<div><h2 style="margin:0" dir="auto">' + esc(p.name) + '</h2><div class="meta">' + esc(secName(p.section_id)) + (p.tali3a_id ? " · " + esc(tName(p.tali3a_id)) : "") +
+    (p.is_active ? "" : ' · <span class="pill warn">' + esc(T("ARCHIVED")) + "</span>") + "</div></div></div>" +
+    '<div class="panel">' + (ed ? '<div class="field"><label>' + esc(T("Name")) + '</label><input id="r_name" dir="auto" value="' + esc(p.name) + '"></div>' : "") +
+    '<div class="grid2 rec-grid">' + FIELDS.map(input).join("") + "</div>" +
+    (p.notes ? '<p class="meta">📝 ' + esc(p.notes) + "</p>" : "") +
+    (CAN_EDIT ? "" : '<p class="meta">🔒 ' + esc(T("Only the people chosen by the warehouse team can change these details.")) + "</p>") + "</div>" +
+    '<div id="rErr" class="msg err" hidden></div><div class="actions">' + (ed ? '<button class="btn gold" id="rGo">' + esc(T("Save")) + "</button>" : "") +
+    (p.is_active ? '<a class="btn line" href="attendance.html?' + (BAS.allStages() ? "s=" + p.section_id + "&" : "") + "p=" + p.id + '#people">' + esc(T("Open in Attendance")) + "</a>" : "") +
+    (p.is_active ? '<button class="btn danger" id="rArch">' + esc(T("Archive")) + "</button>" : '<button class="btn ok" id="rBack">' + esc(T("Bring back")) + "</button>") +
+    (!p.is_active && BAS.isAdmin() ? '<button class="btn danger" id="rPurge">' + esc(T("Delete forever")) + "</button>" : "") +
+    '<button class="btn line" id="rClose">' + esc(T("Close")) + "</button></div>" +
+    '<div class="panel"><h3>🕘 ' + esc(T("Changes")) + '</h3><div id="rHist" class="meta">…</div></div></div>';
+  o.hidden = false;
+  $("rClose").onclick = () => { o.hidden = true; };
+  o.onclick = e => { if (e.target === o) o.hidden = true; };
+  if (p.photo_path) supabaseClient.storage.from("people").createSignedUrl(p.photo_path, 600).then(u => { if (!u.error && $("rPh")) $("rPh").innerHTML = '<img src="' + esc(u.data.signedUrl) + '" alt="">'; });
+  const err = m => { $("rErr").textContent = m; $("rErr").hidden = false; };
+  if ($("rGo")) $("rGo").onclick = async () => {
+    const d = { name: $("r_name").value };
+    FIELDS.forEach(f => { d[f[0]] = $("r_" + f[0]).value; });
+    $("rGo").disabled = true;
+    const { error } = await supabaseClient.rpc("save_person", { p_id: p.id, p: d });
+    $("rGo").disabled = false;
+    if (error) return err(BAS.errText(error));
+    BAS.toast(T("Saved")); await load(); personSheet(ALL.find(x => x.id === p.id));
+  };
+  const active = async on => {
+    if (!confirm(on ? T("Bring back") + " " + p.name + "?" : T("Archive") + " " + p.name + "? " + T("They leave the stage's lists, but everything about them stays saved here."))) return;
+    const { error } = await supabaseClient.rpc("set_person_active", { p_id: p.id, p_active: on });
+    if (error) return err(BAS.errText(error));
+    o.hidden = true; BAS.toast(T(on ? "Brought back" : "Archived")); load();
+  };
+  if ($("rArch")) $("rArch").onclick = () => active(false);
+  if ($("rBack")) $("rBack").onclick = () => active(true);
+  if ($("rPurge")) $("rPurge").onclick = async () => {
+    const code = prompt(T("Delete") + " " + p.name + " " + T("forever? Everything about them, including their attendance, is deleted and can't be brought back. Type the reset code:"));
+    if (code === null) return;
+    const { data, error } = await supabaseClient.rpc("purge_person", { p_id: p.id, p_code: code });
+    if (error) return err(BAS.errText(error));
+    if (data) supabaseClient.storage.from("people").remove([data]).then(() => {});
+    o.hidden = true; BAS.toast(T("Deleted forever")); load();
+  };
+  // history of changes
+  const h = await supabaseClient.from("person_history").select("*").eq("roster_id", p.id).order("changed_at", { ascending: false }).limit(100);
+  if (!$("rHist")) return;
+  if (h.error || !h.data.length) { $("rHist").textContent = T(h.error ? "Not available." : "No changes yet."); return; }
+  const val = (f, v) => v == null || v === "" ? "—" : f === "section_id" ? secName(Number(v)) : f === "tali3a_id" ? (tName(Number(v)) || "#" + v) : f === "is_active" ? T(v === "true" ? "Brought back" : "Archived") :
+    f === "mother_works" ? yn(v === "true" ? true : false) : f === "birthday" || f === "joined_on" ? BAS.fmtDate(v) : f === "photo_path" ? "📷" : v;
+  const undo = f => CAN_EDIT && p.is_active && ["added", "is_active", "section_id", "tali3a_id"].indexOf(f) < 0;
+  $("rHist").innerHTML = '<ul class="rec-h">' + h.data.map(x => "<li><b>" + esc(T(LABEL[x.field] || x.field)) + "</b>: " +
+    (x.field === "added" ? "" : '<span class="mut" dir="auto">' + esc(val(x.field, x.old_value)) + "</span> → ") + '<span dir="auto">' + esc(val(x.field, x.new_value)) + "</span>" +
+    '<br><small class="mut">' + esc(BAS.fmtDateTime(x.changed_at)) + " · " + esc(x.changed_by_name || "") + "</small>" +
+    (undo(x.field) ? ' <button class="linkbtn" data-undo="' + x.id + '">↩ ' + esc(T("Put this back")) + "</button>" : "") + "</li>").join("") + "</ul>";
+  $("rHist").querySelectorAll("[data-undo]").forEach(b => b.onclick = async () => {
+    if (!confirm(T("Put the old value back?"))) return;
+    const { error } = await supabaseClient.rpc("restore_person_value", { p_hist: Number(b.dataset.undo) });
+    if (error) return err(BAS.errText(error));
+    BAS.toast(T("Saved")); await load(); personSheet(ALL.find(x => x.id === p.id));
+  });
+}
+
+// an .csv file that opens in Excel (with Arabic)
+function download() {
+  const L = list(), head = ["Stage", "Name", "Tali3a"].concat(FIELDS.map(f => f[1]), ["Notes", "Archived"]);
+  const cell = v => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
+  const rows = L.map(p => [secName(p.section_id), p.name, tName(p.tali3a_id)].concat(FIELDS.map(f => f[0] === "mother_works" ? yn(p[f[0]]) : p[f[0]] || ""), [p.notes || "", p.is_active ? "" : T("Yes")]));
+  const csv = "﻿" + [head.map(x => cell(T(x)))].concat(rows.map(r => r.map(cell))).map(r => r.join(",")).join("\r\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  a.download = "BAS group records " + BAS.todayISO() + ".csv";
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+(async function () {
+  await BAS.init("records");
+  if (!BAS.requireApproved()) return;
+  CAN_EDIT = BAS.can("records_edit");
+  if (BAS.allStages()) {
+    $("fSec").hidden = false;
+    $("fSec").innerHTML = '<option value="">' + esc(T("All stages")) + "</option>" + BAS.sections.map(s => '<option value="' + s.id + '">' + esc(s.name_ar) + "</option>").join("");
+    $("dl").hidden = false;
+  } else if (CAN_EDIT) $("dl").hidden = false;
+  $("q").oninput = draw; $("fSec").onchange = draw; $("fState").onchange = draw; $("dl").onclick = download;
+  await load();
+  const pq = Number(QS.get("p"));
+  if (pq) { const p = ALL.find(x => x.id === pq); if (p) { if (!p.is_active) { $("fState").value = "arch"; draw(); } personSheet(p); } history.replaceState(null, "", "records.html"); }
+})();
+</script>
+</body>
+</html>
