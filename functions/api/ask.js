@@ -25,6 +25,8 @@ PAGES (link: what is there)
 - calendar.html (team only): events; meetings show here.
 - profile.html: name, language, meeting reminder minutes, notifications, ask to move to another stage.
 - history.html: past requests.
+- records.html: Group records. Every scout's details (parents, jobs, school, address, phones) in a table with search, sorted by stage. Tap a name to see everything and the history of changes. Only people chosen by the warehouse team can change details; removing a scout archives them (Archived list), and only the warehouse team can delete forever (with a code).
+- news.html: announcements to everyone or one stage (القادة العامة).
 - Bell 🔔 at the top: notifications. Menu ☰: every page. Dark mode and Logout are at the bottom of the menu.
 - Team only (team.html): #overview, #requests (Prepare → Ready → Issue → Return), #stock (items, counts, add item), #maint Maintenance, #wait Waitlist, #money Compensation, #chat Messages, #news Announcements, #people Accounts (approve new leaders), #trash Deleted (restore, Delete forever, Empty Deleted), #log Activity, #settings Settings (minimum days, New scout year, Reset). mizania.html = warehouse money, mizania.html?fund=group = Group money (subscriptions).
 RULES: leaders see only their own stage. Kada = leaders, scouts = the kids. Every tali3a has a 3arif and a mosa3ed 3arif.
