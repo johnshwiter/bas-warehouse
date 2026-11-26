@@ -23,7 +23,7 @@
   <div class="toolbar">
     <input id="q" type="search" placeholder="Search a name, parent, phone, school, address…" autocomplete="off" dir="auto">
     <select id="fSec" hidden aria-label="Stage"></select>
-    <select id="fState" aria-label="Show"><option value="now">Current scouts</option><option value="chk">✱ Needs checking</option><option value="dup" id="fDup" hidden>👥 Possible doubles</option><option value="arch">Archived</option></select>
+    <select id="fState" aria-label="Show"><option value="now">Current scouts</option><option value="chk">✱ Needs checking</option><option value="noen">🔤 No English name yet</option><option value="dup" id="fDup" hidden>👥 Possible doubles</option><option value="arch">Archived</option></select>
   </div>
   <p class="meta" id="count"></p>
   <div id="view"><div class="empty">Loading…</div></div>
@@ -71,22 +71,39 @@ const isAr = n => /[؀-ۿ]/.test(n || "");
 // and the shorter name's other parts all appear in the longer one, in order
 function doubles() {
   const act = ALL.filter(p => p.is_active), out = [], sk = new Map(act.map(p => [p.id, skName(p.name)]));
-  // the same part, allowing one letter off in longer names (Kirolos / Kyrillos, Mikhail / Michael)
-  const eq = (x, y) => { if (x === y) return true; if (Math.min(x.length, y.length) < 3 || Math.abs(x.length - y.length) > 1) return false;
+  // Arabic with Arabic: compare the letters themselves (ماريان ≠ مارينا), only spelling variants (أ/ا, ى/ي, ة/ه) count as the same
+  const arW = n => BAS.norm(n).replace(/عبد\s+/g, "عبد").replace(/[ً-ْـ]/g, "").split(/\s+/).filter(Boolean);
+  const off1 = (x, y) => { if (x === y) return true; if (Math.min(x.length, y.length) < 3 || Math.abs(x.length - y.length) > 1) return false;
     let i = 0, j = 0, e = 0; while (i < x.length && j < y.length) { if (x[i] === y[j]) { i++; j++; continue; } if (++e > 1) return false; if (x.length > y.length) i++; else if (y.length > x.length) j++; else { i++; j++; } } return e + (x.length - i) + (y.length - j) <= 1; };
-  const sub = (s, l) => { let k = 0; for (const w of l) if (k < s.length && eq(w, s[k])) k++; return k === s.length; };
+  const sub = (s, l, eq) => { let k = 0; for (const w of l) if (k < s.length && eq(w, s[k])) k++; return k === s.length; };
+  const match = (sa, sb, eq) => { const [s, l] = sa.length <= sb.length ? [sa, sb] : [sb, sa]; return s.length >= 2 && eq(s[0], l[0]) && eq(s[1], l[1]) && sub(s.slice(2), l.slice(2), eq); };
+  const yi = p => YEARS.indexOf(p.school_year || "");
   for (let x = 0; x < act.length; x++) for (let y = x + 1; y < act.length; y++) {
     const a = act[x], b = act[y];
     if (a.section_id !== b.section_id) continue;
-    const sa = sk.get(a.id), sb = sk.get(b.id), [s, l] = sa.length <= sb.length ? [sa, sb] : [sb, sa];
-    if (s.length < 2 || !eq(s[0], l[0]) || !eq(s[1], l[1]) || !sub(s.slice(2), l.slice(2))) continue;
     if (a.national_id && b.national_id && a.national_id !== b.national_id) continue;
     if (a.gender && b.gender && a.gender !== b.gender) continue;
-    out.push(isAr(a.name) && !isAr(b.name) ? [b, a] : [a, b]);
+    const mixed = isAr(a.name) !== isAr(b.name), why = [];
+    let sure;
+    if (mixed) {
+      if (match(sk.get(a.id), sk.get(b.id), (u, v) => u === v)) sure = true;
+      else if (match(sk.get(a.id), sk.get(b.id), off1)) { sure = false; why.push(T("names close but not the same")); }
+      else continue;
+    } else {
+      const wa = isAr(a.name) ? arW(a.name) : sk.get(a.id), wb = isAr(b.name) ? arW(b.name) : sk.get(b.id);
+      if (!match(wa, wb, (u, v) => u === v)) continue;
+      sure = true;
+    }
+    if (yi(a) >= 0 && yi(b) >= 0 && Math.abs(yi(a) - yi(b)) > 1) { sure = false; why.push(T("different school year") + ": " + a.school_year + " / " + b.school_year); }
+    if (a.tali3a_id && b.tali3a_id && a.tali3a_id !== b.tali3a_id) { sure = false; why.push(T("different tali3a")); }
+    out.push({ a: mixed && isAr(a.name) ? b : a, b: mixed && isAr(a.name) ? a : b, sure, why });
   }
-  return out;
+  return out.sort((p, q) => q.sure - p.sure);
 }
-const hay = p => BAS.norm([p.name, p.national_id, p.check_note, p.father_name, p.mother_name, p.phone, p.father_phone, p.mother_phone, p.school, p.address, p.school_year, p.father_job, p.mother_job, tName(p.tali3a_id), secName(p.section_id)].join(" "));
+const arN = p => p.name_ar || p.name;
+const enN = p => (p.name_ar && p.name !== p.name_ar && !isAr(p.name)) ? p.name : "";
+const nm2 = p => '<b dir="auto">' + esc(arN(p)) + "</b>" + chk(p) + (enN(p) ? '<br><small class="mut" dir="ltr">' + esc(enN(p)) + "</small>" : "");
+const hay = p => BAS.norm([p.name, p.name_ar, p.national_id, p.check_note, p.father_name, p.mother_name, p.phone, p.father_phone, p.mother_phone, p.school, p.address, p.school_year, p.father_job, p.mother_job, tName(p.tali3a_id), secName(p.section_id)].join(" "));
 
 async function load() {
   let r = await supabaseClient.from("roster").select("*").eq("role", "3ayel").order("name");
@@ -99,9 +116,9 @@ async function load() {
 
 function list() {
   const q = BAS.norm($("q").value.trim()), sec = Number($("fSec").value) || 0, arch = $("fState").value === "arch";
-  const onlyChk = $("fState").value === "chk";
-  return ALL.filter(p => (arch ? !p.is_active : p.is_active) && (!onlyChk || p.check_note) && (!sec || p.section_id === sec) && (!q || q.split(" ").every(w => hay(p).includes(w))))
-    .sort((a, b) => a.section_id - b.section_id || a.name.localeCompare(b.name, "ar"));
+  const onlyChk = $("fState").value === "chk", noEn = $("fState").value === "noen";
+  return ALL.filter(p => (arch ? !p.is_active : p.is_active) && (!onlyChk || p.check_note) && (!noEn || isAr(p.name)) && (!sec || p.section_id === sec) && (!q || q.split(" ").every(w => hay(p).includes(w))))
+    .sort((a, b) => a.section_id - b.section_id || arN(a).localeCompare(arN(b), "ar"));
 }
 
 function draw() {
@@ -114,32 +131,68 @@ function draw() {
   L.forEach(p => { (groups[p.section_id] = groups[p.section_id] || []).push(p); });
   $("view").innerHTML = Object.keys(groups).map(sid => '<div class="group-title">' + esc(secName(Number(sid))) + " (" + groups[sid].length + ")</div>" +
     '<div class="panel tscroll" style="padding:4px 10px"><table class="ltable rec-t"><tr><th>' + esc(T("Name")) + "</th><th>" + esc(T("Tali3a")) + "</th><th>" + esc(T("School year")) + "</th><th>" + esc(T("School")) + "</th><th>" + esc(T("Father")) + "</th><th>" + esc(T("Mother")) + "</th><th>" + esc(T("Address")) + "</th></tr>" +
-    groups[sid].map(p => '<tr data-p="' + p.id + '"><td><b dir="auto">' + esc(p.name) + "</b>" + chk(p) + (arch && p.archived_at ? '<br><small class="mut">' + esc(T("Archived")) + " " + esc(BAS.fmtDate(p.archived_at)) + "</small>" : "") + "</td><td>" + esc(tName(p.tali3a_id)) + "</td><td>" + esc(p.school_year || "") + "</td><td dir=\"auto\">" + esc(p.school || "") +
+    groups[sid].map(p => '<tr data-p="' + p.id + '"><td>' + nm2(p) + (arch && p.archived_at ? '<br><small class="mut">' + esc(T("Archived")) + " " + esc(BAS.fmtDate(p.archived_at)) + "</small>" : "") + "</td><td>" + esc(tName(p.tali3a_id)) + "</td><td>" + esc(p.school_year || "") + "</td><td dir=\"auto\">" + esc(p.school || "") +
       '</td><td dir="auto">' + esc(p.father_name || "") + (p.father_job ? ' <small class="mut">· ' + esc(p.father_job) + "</small>" : "") + '</td><td dir="auto">' + esc(p.mother_name || "") + (p.mother_job ? ' <small class="mut">· ' + esc(p.mother_job) + "</small>" : "") +
       '</td><td dir="auto">' + esc(p.address || "") + "</td></tr>").join("") + "</table></div>").join("");
   $("view").querySelectorAll("tr[data-p]").forEach(tr => tr.onclick = () => personSheet(ALL.find(x => x.id === Number(tr.dataset.p))));
 }
 
 function drawDoubles() {
-  const D = doubles().filter(([a]) => !Number($("fSec").value) || a.section_id === Number($("fSec").value));
+  const D = doubles().filter(d => !Number($("fSec").value) || d.a.section_id === Number($("fSec").value));
   $("count").textContent = D.length + " " + T("possible doubles");
   if (!D.length) { $("view").innerHTML = '<div class="empty">👌 ' + esc(T("No doubles found. If you still see someone twice, open one of them and use Join with…")) + "</div>"; return; }
+  // someone in more than one pair: leave those for a person to choose
+  const seen = {}; D.forEach(({ a, b }) => { seen[a.id] = (seen[a.id] || 0) + 1; seen[b.id] = (seen[b.id] || 0) + 1; });
+  const multi = d => seen[d.a.id] > 1 || seen[d.b.id] > 1;
+  const tick = d => d.sure && !multi(d);
   const sum = p => [p.tali3a_id ? tName(p.tali3a_id) : "", p.school_year || "", p.phone || p.mother_phone || p.father_phone || ""].filter(Boolean).join(" · ");
-  $("view").innerHTML = '<p class="meta">' + esc(T("These look like the same scout written twice. Check each pair, then join them into one.")) + "</p>" +
-    D.map(([a, b], i) => '<div class="panel dup-pair"><div class="meta">' + esc(secName(a.section_id)) + '</div><div class="grid2">' +
-      [a, b].map(p => '<div><b dir="auto">' + esc(p.name) + "</b>" + chk(p) + '<br><small class="mut" dir="auto">' + esc(sum(p) || "—") + "</small></div>").join("") +
-      '</div><div class="actions"><button class="btn gold sm" data-dj="' + i + '">👥 ' + esc(T("Same scout, join them")) + "</button></div></div>").join("");
-  $("view").querySelectorAll("[data-dj]").forEach(b => b.onclick = () => { const [x, y] = D[Number(b.dataset.dj)]; joinDlg(x, y); });
+  $("view").innerHTML = '<div class="panel"><p class="meta" style="margin-top:0">' + esc(T("These look like the same scout written twice. Only the sure ones are ticked. Look at the rest yourself, then join in one go.")) + "</p>" +
+    '<p class="meta">' + esc(T("Both names stay: the English one for attendance, the Arabic one for Group records.")) + "</p>" +
+    '<div class="actions"><button class="btn gold" id="dupAll">👥 ' + esc(T("Join all ticked")) + ' (<span id="dupN"></span>)</button><button class="btn line sm" id="dupNone">' + esc(T("Untick all")) + "</button></div>" +
+    '<div id="dupMsg" class="meta"></div></div>' +
+    D.map((d, i) => '<label class="panel dup-pair" style="display:block;cursor:pointer"><div class="meta"><input type="checkbox" data-dt="' + i + '"' + (tick(d) ? " checked" : "") + "> " + esc(secName(d.a.section_id)) +
+      (multi(d) ? ' · <span class="pill warn">' + esc(T("in more than one pair, check by hand")) + "</span>" : "") +
+      d.why.map(w => ' · <span class="pill warn">' + esc(w) + "</span>").join("") + '</div><div class="grid2">' +
+      [d.a, d.b].map(p => '<div>' + nm2(p) + '<br><small class="mut" dir="auto">' + esc(sum(p) || "—") + "</small></div>").join("") +
+      '</div><div class="actions"><button class="btn line sm" data-dj="' + i + '">' + esc(T("Join only these two…")) + "</button></div></label>").join("");
+  const boxes = [...$("view").querySelectorAll("[data-dt]")];
+  const cnt = () => { $("dupN").textContent = boxes.filter(b => b.checked).length; };
+  boxes.forEach(b => b.onchange = cnt); cnt();
+  $("dupNone").onclick = () => { boxes.forEach(b => b.checked = false); cnt(); };
+  $("view").querySelectorAll("[data-dj]").forEach(b => b.onclick = e => { e.preventDefault(); const d = D[Number(b.dataset.dj)]; joinDlg(d.a, d.b); });
+  $("dupAll").onclick = async () => {
+    const pick = boxes.filter(b => b.checked).map(b => [D[Number(b.dataset.dt)].a, D[Number(b.dataset.dt)].b]);
+    if (!pick.length) return;
+    if (!confirm(T("Join") + " " + pick.length + " " + T("pairs? Each pair becomes one scout. You can't split them again."))) return;
+    const done = new Set(); let ok = 0, bad = [];
+    $("dupAll").disabled = true;
+    for (const [a, b] of pick) {
+      if (done.has(a.id) || done.has(b.id)) continue;
+      const nm = [a.name_ar, b.name_ar, a.name, b.name].filter(n => n && isAr(n)).sort((x, y) => y.split(/\s+/).length - x.split(/\s+/).length)[0] || a.name;
+      $("dupMsg").textContent = "⏳ " + (ok + bad.length + 1) + " / " + pick.length;
+      const { error } = await supabaseClient.rpc("merge_people", { p_keep: a.id, p_drop: b.id, p_name: nm });
+      if (error) bad.push(nm + ": " + BAS.errText(error)); else ok++;
+      done.add(a.id); done.add(b.id);
+    }
+    $("dupAll").disabled = false;
+    BAS.toast("✅ " + ok + " " + T("joined"));
+    await load();
+    if (bad.length) $("dupMsg").textContent = "⚠️ " + bad.join(" | ");
+  };
 }
 
 // keep the record that was there first (it has the attendance); its empty details are filled from the other one
 function joinDlg(a, b) {
   const keep = a.id < b.id ? a : b, drop = keep === a ? b : a, o = $("sheet");
-  const names = [...new Set([b.name, a.name])];
+  const all = [a.name, b.name, a.name_ar, b.name_ar].filter(Boolean), en = all.find(n => !isAr(n));
+  const ars = [...new Set(all.filter(isAr))].sort((x, y) => y.split(/\s+/).length - x.split(/\s+/).length);
+  const names = en ? [ars[0] || en] : ars;
   o.innerHTML = '<div class="sheet" style="max-width:520px"><h2>👥 ' + esc(T("Join into one")) + "</h2>" +
     '<p class="meta">' + esc(T("Attendance, subscription and tali3a move to one record. Empty details are filled from the other one. Nothing filled in is lost.")) + "</p>" +
-    '<div class="panel"><label class="mut">' + esc(T("Which name stays?")) + "</label>" +
-    names.map((n, i) => '<label class="pick' + (i === 0 ? " on" : "") + '" style="display:block;margin:6px 0"><input type="radio" name="jn" value="' + esc(n) + '"' + (i === 0 ? " checked" : "") + '> <b dir="auto">' + esc(n) + "</b></label>").join("") + "</div>" +
+    (en ? '<div class="panel"><div class="meta">' + esc(T("Arabic name")) + '</div><b dir="rtl">' + esc(ars[0] || "—") + '</b><div class="meta" style="margin-top:8px">' + esc(T("English name (shows in attendance)")) + '</div><b dir="ltr">' + esc(en) + "</b>" +
+      '<input type="radio" name="jn" value="' + esc(names[0]) + '" checked hidden></div>'
+    : '<div class="panel"><label class="mut">' + esc(T("Which name stays?")) + "</label>" +
+    names.map((n, i) => '<label class="pick' + (i === 0 ? " on" : "") + '" style="display:block;margin:6px 0"><input type="radio" name="jn" value="' + esc(n) + '"' + (i === 0 ? " checked" : "") + '> <b dir="auto">' + esc(n) + "</b></label>").join("") + "</div>") +
     '<div id="jErr" class="msg err" hidden></div><div class="actions"><button class="btn gold" id="jGo">' + esc(T("Join")) + '</button><button class="btn line" id="jNo">' + esc(T("Cancel")) + "</button></div></div>";
   o.hidden = false;
   o.querySelectorAll("input[name=jn]").forEach(r => r.onchange = () => o.querySelectorAll(".pick").forEach(l => l.classList.toggle("on", l.querySelector("input").checked)));
@@ -156,11 +209,11 @@ function joinDlg(a, b) {
 function joinPick(p) {
   const L = ALL.filter(x => x.is_active && x.id !== p.id && x.section_id === p.section_id).sort((a, b) => a.name.localeCompare(b.name, "ar"));
   const o = $("sheet");
-  o.innerHTML = '<div class="sheet" style="max-width:520px"><h2>👥 ' + esc(T("Join with…")) + '</h2><p class="meta" dir="auto">' + esc(p.name) + " = ?</p>" +
+  o.innerHTML = '<div class="sheet" style="max-width:520px"><h2>👥 ' + esc(T("Join with…")) + '</h2><p class="meta" dir="auto">' + esc(arN(p)) + " = ?</p>" +
     '<div class="field"><input id="jQ" placeholder="' + esc(T("Search a name…")) + '"></div><div id="jL" class="mvlist"></div>' +
     '<div class="actions"><button class="btn line" id="jNo">' + esc(T("Cancel")) + "</button></div></div>";
   o.hidden = false;
-  const show = () => { const q = BAS.norm($("jQ").value.trim()); $("jL").innerHTML = L.filter(x => !q || BAS.norm(x.name).includes(q)).slice(0, 60).map(x => '<button class="pick" style="display:block;width:100%;text-align:start" data-jp="' + x.id + '"><b dir="auto">' + esc(x.name) + "</b> <small class=\"mut\">" + esc(x.tali3a_id ? tName(x.tali3a_id) : "") + "</small></button>").join("") || '<div class="empty">—</div>';
+  const show = () => { const q = BAS.norm($("jQ").value.trim()); $("jL").innerHTML = L.filter(x => !q || BAS.norm(x.name + " " + (x.name_ar || "")).includes(q)).slice(0, 60).map(x => '<button class="pick" style="display:block;width:100%;text-align:start" data-jp="' + x.id + '"><b dir="auto">' + esc(arN(x)) + (enN(x) ? " · " + esc(enN(x)) : "") + "</b> <small class=\"mut\">" + esc(x.tali3a_id ? tName(x.tali3a_id) : "") + "</small></button>").join("") || '<div class="empty">—</div>';
     $("jL").querySelectorAll("[data-jp]").forEach(b => b.onclick = () => joinDlg(p, ALL.find(x => x.id === Number(b.dataset.jp)))); };
   $("jQ").oninput = show; show();
   $("jNo").onclick = () => personSheet(p);
@@ -182,11 +235,12 @@ async function personSheet(p) {
     return '<div class="field"><label>' + esc(T(f[1])) + "</label>" + (f[2] === "tel" ? '<div class="phrow">' + inp + tel(v) + "</div>" : inp) + "</div>";
   };
   o.innerHTML = '<div class="sheet" style="max-width:600px"><div class="pd-top"><div class="pd-photo" id="rPh">' + (p.photo_path ? "" : "<span>" + esc((p.name || "?").trim().charAt(0)) + "</span>") + "</div>" +
-    '<div><h2 style="margin:0" dir="auto">' + esc(p.name) + '</h2><div class="meta">' + esc(secName(p.section_id)) + (p.tali3a_id ? " · " + esc(tName(p.tali3a_id)) : "") +
+    '<div><h2 style="margin:0" dir="auto">' + esc(arN(p)) + chk(p) + '</h2>' + (enN(p) ? '<div class="mut" dir="ltr">' + esc(enN(p)) + "</div>" : "") + '<div class="meta">' + esc(secName(p.section_id)) + (p.tali3a_id ? " · " + esc(tName(p.tali3a_id)) : "") +
     (p.is_active ? "" : ' · <span class="pill warn">' + esc(T("ARCHIVED")) + "</span>") + "</div></div></div>" +
     (p.check_note ? '<div class="msg warn chkbox"><b>✱ ' + esc(T("Needs checking")) + '</b><br><span dir="auto">' + esc(p.check_note) + "</span>" +
       (ed ? '<br><button class="btn ok sm" id="rChk" style="margin-top:8px">✓ ' + esc(T("Checked, remove the ✱")) + "</button>" : "") + "</div>" : "") +
-    '<div class="panel">' + (ed ? '<div class="field"><label>' + esc(T("Name")) + '</label><input id="r_name" dir="auto" value="' + esc(p.name) + '"></div>' : "") +
+    '<div class="panel">' + (ed ? '<div class="grid2"><div class="field"><label>' + esc(T("Arabic name")) + '</label><input id="r_name_ar" dir="rtl" value="' + esc(p.name_ar || "") + '"></div>' +
+      '<div class="field"><label>' + esc(T("English name (shows in attendance)")) + '</label><input id="r_name" dir="auto" value="' + esc(p.name) + '"></div></div>' : "") +
     '<div class="grid2 rec-grid">' + FIELDS.map(input).join("") + "</div>" +
     (p.notes ? '<p class="meta">📝 ' + esc(p.notes) + "</p>" : "") +
     (CAN_EDIT ? "" : '<p class="meta">🔒 ' + esc(T("Only the people chosen by the warehouse team can change these details.")) + "</p>") + "</div>" +
@@ -208,7 +262,7 @@ async function personSheet(p) {
     BAS.toast(T("Saved")); await load(); personSheet(ALL.find(x => x.id === p.id));
   };
   if ($("rGo")) $("rGo").onclick = async () => {
-    const d = { name: $("r_name").value };
+    const d = { name: $("r_name").value, name_ar: $("r_name_ar").value };
     FIELDS.forEach(f => { d[f[0]] = $("r_" + f[0]).value; });
     $("rGo").disabled = true;
     const { error } = await supabaseClient.rpc("save_person", { p_id: p.id, p: d });
@@ -254,9 +308,9 @@ async function personSheet(p) {
 
 // an .csv file that opens in Excel (with Arabic)
 function download() {
-  const L = list(), head = ["Stage", "Name", "Tali3a"].concat(FIELDS.map(f => f[1]), ["Notes", "Needs checking", "Archived"]);
+  const L = list(), head = ["Stage", "Arabic name", "Name", "Tali3a"].concat(FIELDS.map(f => f[1]), ["Notes", "Needs checking", "Archived"]);
   const cell = v => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
-  const rows = L.map(p => [secName(p.section_id), p.name, tName(p.tali3a_id)].concat(FIELDS.map(f => f[0] === "mother_works" ? yn(p[f[0]]) : f[0] === "national_id" && p[f[0]] ? { id: p[f[0]] } : p[f[0]] || ""), [p.notes || "", p.check_note || "", p.is_active ? "" : T("Yes")]));
+  const rows = L.map(p => [secName(p.section_id), p.name_ar || "", p.name, tName(p.tali3a_id)].concat(FIELDS.map(f => f[0] === "mother_works" ? yn(p[f[0]]) : f[0] === "national_id" && p[f[0]] ? { id: p[f[0]] } : p[f[0]] || ""), [p.notes || "", p.check_note || "", p.is_active ? "" : T("Yes")]));
   const csv = "﻿" + [head.map(x => cell(T(x)))].concat(rows.map(r => r.map(v => v && v.id ? '"=""' + v.id + '"""' : cell(v)))).map(r => r.join(",")).join("\r\n");
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));

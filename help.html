@@ -94,10 +94,10 @@ const PAGES = /^(book|section|camp|ohda|attendance|calendar|profile|history|team
 function matchName(list, q, field) {
   const qs = [q.name, q.name_ar].filter(Boolean).map(norm).filter(Boolean);
   if (!qs.length) return [];
-  const f = field || (x => x.name);
+  const f = field ? (x => [field(x)]) : (x => [x.name, x.name_ar].filter(Boolean));
   // exact names first, then names that contain it; two or more → the page asks "Which one?"
-  const exact = list.filter(x => qs.indexOf(norm(f(x))) >= 0);
-  const part = list.filter(x => exact.indexOf(x) < 0 && (() => { const n = norm(f(x)); return qs.some(s => n.includes(s) || s.split(" ").every(w => w && n.includes(w))); })());
+  const exact = list.filter(x => f(x).some(v => qs.indexOf(norm(v)) >= 0));
+  const part = list.filter(x => exact.indexOf(x) < 0 && f(x).some(v => { const n = norm(v); return qs.some(s => n.includes(s) || s.split(" ").every(w => w && n.includes(w))); }));
   return exact.concat(part);
 }
 async function roster() {

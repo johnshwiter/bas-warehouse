@@ -137,7 +137,7 @@ function phase2View() {
 function phase2Form(embedded) {
   const group = role => {
     const L = ROSTER.filter(p => p.role === role);
-    return '<div class="picks">' + (L.length ? L.map(p => '<label class="pick' + (PICK[p.id] ? " on" : "") + '" data-nm="' + esc(BAS.norm(p.name)) + '"><input type="checkbox" data-pk="' + p.id + '"' + (PICK[p.id] ? " checked" : "") + ">" + gTag(p.gender) + " " + esc(p.name) +
+    return '<div class="picks">' + (L.length ? L.map(p => '<label class="pick' + (PICK[p.id] ? " on" : "") + '" data-nm="' + esc(BAS.norm(p.name + " " + (p.name_ar || ""))) + '"><input type="checkbox" data-pk="' + p.id + '"' + (PICK[p.id] ? " checked" : "") + ">" + gTag(p.gender) + " " + esc(p.name) +
       (p.profile_id ? "" : '<span style="margin-inline-start:auto"><button type="button" class="linkbtn sm" data-ren="' + p.id + '">rename</button> · <button type="button" class="linkbtn sm" data-hide="' + p.id + '">remove</button></span>') + "</label>").join("") : '<span class="mut">Nobody in the list yet. Add them below.</span>') + "</div>";
   };
   const kids = NEW ? NEW.kids : R.kids_count;

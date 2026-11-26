@@ -317,8 +317,8 @@ const BAS = {
       const p = await supabaseClient.from("profiles").select("id, full_name, email, section_id, role, approval_status");
       (p.data || []).filter(x => x.approval_status !== "removed").forEach(x => idx.push({ g: "People", t: x.full_name, s: (x.role === "admin" ? "Warehouse team" : "") + (x.section_id ? " " + this.sectionName(x.section_id) : "") + (x.email ? " · " + x.email : ""), h: "team.html#people", k: this.norm(x.full_name + " " + (x.email || "")) }));
     }
-    const ro = await supabaseClient.from("roster").select("id, name, role, section_id").eq("is_active", true);
-    (ro.data || []).forEach(x => idx.push({ g: "People", t: x.name, s: (x.role === "kada" ? "Kada" : "Scout") + " · " + this.sectionName(x.section_id), h: "ohda.html?q=" + encodeURIComponent(x.name), k: this.norm(x.name) }));
+    const ro = await supabaseClient.from("roster").select("id, name, name_ar, role, section_id").eq("is_active", true);
+    (ro.data || []).forEach(x => idx.push({ g: "People", t: x.name, s: (x.role === "kada" ? "Kada" : "Scout") + " · " + this.sectionName(x.section_id), h: "ohda.html?q=" + encodeURIComponent(x.name), k: this.norm(x.name + " " + (x.name_ar || "")) }));
     this._idx = idx;
     return idx;
   },
