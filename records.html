@@ -23,6 +23,7 @@
   <div class="toolbar">
     <input id="q" type="search" placeholder="Search a name, parent, phone, school, address…" autocomplete="off" dir="auto">
     <select id="fSec" hidden aria-label="Stage"></select>
+    <select id="fWho" aria-label="Who"><option value="3ayel">Scouts</option><option value="kada">Kada</option><option value="all">Scouts and kada</option></select>
     <select id="fState" aria-label="Show"><option value="now">Current scouts</option><option value="chk">✱ Needs checking</option><option value="noen">🔤 No English name yet</option><option value="dup" id="fDup" hidden>👥 Possible doubles</option><option value="arch">Archived</option></select>
   </div>
   <p class="meta" id="count"></p>
@@ -41,12 +42,15 @@ const QS = new URLSearchParams(location.search);
 const YEARS = ["KG1", "KG2"].concat([1, 2, 3, 4, 5, 6].map(n => n + " ابتدائي"), [1, 2, 3].map(n => n + " إعدادي"), [1, 2, 3].map(n => n + " ثانوي"), [1, 2, 3, 4, 5].map(n => "جامعة " + n), ["خريج / بيشتغل"]);
 let ALL = [], TAL = [], CAN_EDIT = false;
 const FIELDS = [
-  ["national_id", "National ID", "nid"], ["birthday", "Birthday", "date"], ["school_year", "School year", "year"], ["school", "School"], ["address", "Address", "area"],
+  ["national_id", "National ID", "nid"], ["scout_no", "Scout number"], ["birthday", "Birthday", "date"], ["school_year", "School year", "year"], ["school", "School"], ["address", "Address", "area"], ["confession_father", "أب الاعتراف"],
   ["phone", "Scout's phone", "tel"], ["father_name", "Father's name"], ["father_phone", "Father's phone", "tel"], ["father_job", "Father's job"],
   ["mother_name", "Mother's name"], ["mother_phone", "Mother's phone", "tel"], ["mother_job", "Mother's job"], ["mother_works", "Does the mother work?", "yn"],
   ["joined_on", "Joined the scouts on", "date"]];
 const LABEL = { merged: "Joined with", check_note: "Needs checking", name: "Name", photo_path: "Photo", is_active: "Archived / back", section_id: "Stage", tali3a_id: "Tali3a", added: "Added" };
 FIELDS.forEach(f => LABEL[f[0]] = f[1]);
+// scout number only where the stage uses it (متقدم ورائدات, مرشح جوالة)
+const hasNo = sid => !!(BAS.allSections.find(s => s.id === sid) || {}).has_scout_no;
+const pf = p => FIELDS.filter(f => f[0] !== "scout_no" || hasNo(p.section_id) || p.scout_no);
 
 const tName = id => (TAL.find(t => t.id === id) || {}).name || "";
 const secName = id => BAS.sectionName(id);
@@ -70,7 +74,7 @@ const isAr = n => /[؀-ۿ]/.test(n || "");
 // two records look like one scout: same stage, same first and father's name (in any spelling),
 // and the shorter name's other parts all appear in the longer one, in order
 function doubles() {
-  const act = ALL.filter(p => p.is_active), out = [], sk = new Map(act.map(p => [p.id, skName(p.name)]));
+  const act = ALL.filter(p => p.is_active && p.role === "3ayel"), out = [], sk = new Map(act.map(p => [p.id, skName(p.name)]));
   // Arabic with Arabic: compare the letters themselves (ماريان ≠ مارينا), only spelling variants (أ/ا, ى/ي, ة/ه) count as the same
   const arW = n => BAS.norm(n).replace(/عبد\s+/g, "عبد").replace(/[ً-ْـ]/g, "").split(/\s+/).filter(Boolean);
   const off1 = (x, y) => { if (x === y) return true; if (Math.min(x.length, y.length) < 3 || Math.abs(x.length - y.length) > 1) return false;
@@ -102,11 +106,11 @@ function doubles() {
 }
 const arN = p => p.name_ar || p.name;
 const enN = p => (p.name_ar && p.name !== p.name_ar && !isAr(p.name)) ? p.name : "";
-const nm2 = p => '<b dir="auto">' + esc(arN(p)) + "</b>" + chk(p) + (enN(p) ? '<br><small class="mut" dir="ltr">' + esc(enN(p)) + "</small>" : "");
-const hay = p => BAS.norm([p.name, p.name_ar, p.national_id, p.check_note, p.father_name, p.mother_name, p.phone, p.father_phone, p.mother_phone, p.school, p.address, p.school_year, p.father_job, p.mother_job, tName(p.tali3a_id), secName(p.section_id)].join(" "));
+const nm2 = p => '<b dir="auto">' + esc(arN(p)) + "</b>" + chk(p) + (p.role === "kada" ? ' <span class="pill">' + esc(T("Kada")) + "</span>" : "") + (enN(p) ? '<br><small class="mut" dir="ltr">' + esc(enN(p)) + "</small>" : "");
+const hay = p => BAS.norm([p.name, p.name_ar, p.national_id, p.scout_no, p.confession_father, p.check_note, p.father_name, p.mother_name, p.phone, p.father_phone, p.mother_phone, p.school, p.address, p.school_year, p.father_job, p.mother_job, tName(p.tali3a_id), secName(p.section_id)].join(" "));
 
 async function load() {
-  let r = await supabaseClient.from("roster").select("*").eq("role", "3ayel").order("name");
+  let r = await supabaseClient.from("roster").select("*").in("role", ["3ayel", "kada"]).order("name");
   if (r.error) { $("view").innerHTML = '<div class="msg err">' + esc(BAS.errText(r.error)) + "</div>"; return; }
   ALL = r.data || [];
   const t = await supabaseClient.from("tali3as").select("id, name, section_id");
@@ -116,8 +120,8 @@ async function load() {
 
 function list() {
   const q = BAS.norm($("q").value.trim()), sec = Number($("fSec").value) || 0, arch = $("fState").value === "arch";
-  const onlyChk = $("fState").value === "chk", noEn = $("fState").value === "noen";
-  return ALL.filter(p => (arch ? !p.is_active : p.is_active) && (!onlyChk || p.check_note) && (!noEn || isAr(p.name)) && (!sec || p.section_id === sec) && (!q || q.split(" ").every(w => hay(p).includes(w))))
+  const onlyChk = $("fState").value === "chk", noEn = $("fState").value === "noen", who = $("fWho").value;
+  return ALL.filter(p => (who === "all" || p.role === who) && (arch ? !p.is_active : p.is_active) && (!onlyChk || p.check_note) && (!noEn || isAr(p.name)) && (!sec || p.section_id === sec) && (!q || q.split(" ").every(w => hay(p).includes(w))))
     .sort((a, b) => a.section_id - b.section_id || arN(a).localeCompare(arN(b), "ar"));
 }
 
@@ -125,7 +129,7 @@ function draw() {
   if ($("fState").value === "dup") return drawDoubles();
   const L = list(), arch = $("fState").value === "arch";
   const nChk = ALL.filter(p => p.is_active && p.check_note).length;
-  $("count").textContent = L.length + " " + T(arch ? "archived" : "scouts") + (nChk && !arch ? " · ✱ " + nChk + " " + T("need checking") : "");
+  $("count").textContent = L.length + " " + T(arch ? "archived" : { kada: "kada", all: "people" }[$("fWho").value] || "scouts") + (nChk && !arch ? " · ✱ " + nChk + " " + T("need checking") : "");
   if (!L.length) { $("view").innerHTML = '<div class="empty">' + esc(T(ALL.length ? "Nobody matches." : "No scouts yet. Add them from Attendance › People.")) + "</div>"; return; }
   const groups = {};
   L.forEach(p => { (groups[p.section_id] = groups[p.section_id] || []).push(p); });
@@ -241,13 +245,13 @@ async function personSheet(p) {
       (ed ? '<br><button class="btn ok sm" id="rChk" style="margin-top:8px">✓ ' + esc(T("Checked, remove the ✱")) + "</button>" : "") + "</div>" : "") +
     '<div class="panel">' + (ed ? '<div class="grid2"><div class="field"><label>' + esc(T("Arabic name")) + '</label><input id="r_name_ar" dir="rtl" value="' + esc(p.name_ar || "") + '"></div>' +
       '<div class="field"><label>' + esc(T("English name (shows in attendance)")) + '</label><input id="r_name" dir="auto" value="' + esc(p.name) + '"></div></div>' : "") +
-    '<div class="grid2 rec-grid">' + FIELDS.map(input).join("") + "</div>" +
+    '<div class="grid2 rec-grid">' + pf(p).map(input).join("") + "</div>" +
     (p.notes ? '<p class="meta">📝 ' + esc(p.notes) + "</p>" : "") +
     (CAN_EDIT ? "" : '<p class="meta">🔒 ' + esc(T("Only the people chosen by the warehouse team can change these details.")) + "</p>") + "</div>" +
     '<div id="rErr" class="msg err" hidden></div><div class="actions">' + (ed ? '<button class="btn gold" id="rGo">' + esc(T("Save")) + "</button>" : "") +
     (p.is_active ? '<a class="btn line" href="attendance.html?' + (BAS.allStages() ? "s=" + p.section_id + "&" : "") + "p=" + p.id + '#people">' + esc(T("Open in Attendance")) + "</a>" : "") +
-    (ed ? '<button class="btn line" id="rJoin">👥 ' + esc(T("Join with…")) + "</button>" : "") +
-    (p.is_active ? '<button class="btn danger" id="rArch">' + esc(T("Archive")) + "</button>" : '<button class="btn ok" id="rBack">' + esc(T("Bring back")) + "</button>") +
+    (ed && p.role !== "kada" ? '<button class="btn line" id="rJoin">👥 ' + esc(T("Join with…")) + "</button>" : "") +
+    (p.role === "kada" ? "" : p.is_active ? '<button class="btn danger" id="rArch">' + esc(T("Archive")) + "</button>" : '<button class="btn ok" id="rBack">' + esc(T("Bring back")) + "</button>") +
     (!p.is_active && BAS.isAdmin() ? '<button class="btn danger" id="rPurge">' + esc(T("Delete forever")) + "</button>" : "") +
     '<button class="btn line" id="rClose">' + esc(T("Close")) + "</button></div>" +
     '<div class="panel"><h3>🕘 ' + esc(T("Changes")) + '</h3><div id="rHist" class="meta">…</div></div></div>';
@@ -263,7 +267,7 @@ async function personSheet(p) {
   };
   if ($("rGo")) $("rGo").onclick = async () => {
     const d = { name: $("r_name").value, name_ar: $("r_name_ar").value };
-    FIELDS.forEach(f => { d[f[0]] = $("r_" + f[0]).value; });
+    pf(p).forEach(f => { d[f[0]] = $("r_" + f[0]).value; });
     $("rGo").disabled = true;
     const { error } = await supabaseClient.rpc("save_person", { p_id: p.id, p: d });
     $("rGo").disabled = false;
@@ -308,9 +312,9 @@ async function personSheet(p) {
 
 // an .csv file that opens in Excel (with Arabic)
 function download() {
-  const L = list(), head = ["Stage", "Arabic name", "Name", "Tali3a"].concat(FIELDS.map(f => f[1]), ["Notes", "Needs checking", "Archived"]);
+  const L = list(), head = ["Stage", "Kada or scout", "Arabic name", "Name", "Tali3a"].concat(FIELDS.map(f => f[1]), ["Notes", "Needs checking", "Archived"]);
   const cell = v => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
-  const rows = L.map(p => [secName(p.section_id), p.name_ar || "", p.name, tName(p.tali3a_id)].concat(FIELDS.map(f => f[0] === "mother_works" ? yn(p[f[0]]) : f[0] === "national_id" && p[f[0]] ? { id: p[f[0]] } : p[f[0]] || ""), [p.notes || "", p.check_note || "", p.is_active ? "" : T("Yes")]));
+  const rows = L.map(p => [secName(p.section_id), T(p.role === "kada" ? "Kada" : "Scout"), p.name_ar || "", p.name, tName(p.tali3a_id)].concat(FIELDS.map(f => f[0] === "mother_works" ? yn(p[f[0]]) : f[0] === "national_id" && p[f[0]] ? { id: p[f[0]] } : p[f[0]] || ""), [p.notes || "", p.check_note || "", p.is_active ? "" : T("Yes")]));
   const csv = "﻿" + [head.map(x => cell(T(x)))].concat(rows.map(r => r.map(v => v && v.id ? '"=""' + v.id + '"""' : cell(v)))).map(r => r.join(",")).join("\r\n");
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
@@ -328,7 +332,7 @@ function download() {
     $("fSec").innerHTML = '<option value="">' + esc(T("All stages")) + "</option>" + BAS.sections.map(s => '<option value="' + s.id + '">' + esc(s.name_ar) + "</option>").join("");
     $("dl").hidden = false;
   } else if (CAN_EDIT) $("dl").hidden = false;
-  $("q").oninput = draw; $("fSec").onchange = draw; $("fState").onchange = draw; $("dl").onclick = download;
+  $("q").oninput = draw; $("fSec").onchange = draw; $("fState").onchange = draw; $("fWho").onchange = draw; $("dl").onclick = download;
   await load();
   const pq = Number(QS.get("p"));
   if (pq) { const p = ALL.find(x => x.id === pq); if (p) { if (!p.is_active) { $("fState").value = "arch"; draw(); } personSheet(p); } history.replaceState(null, "", "records.html"); }

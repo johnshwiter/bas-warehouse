@@ -25,6 +25,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
 <script src="common.js"></script>
+<script src="kada.js"></script>
 <script src="i18n.js"></script>
 <script>
 "use strict";
@@ -46,7 +47,7 @@ const YEARS = ["KG1", "KG2"].concat([1, 2, 3, 4, 5, 6].map(n => n + " ابتدا
     $("fSec").innerHTML = BAS.sections.map(s => '<option value="' + s.id + '"' + (s.id === SECID ? " selected" : "") + ">" + esc(s.name_ar) + " · " + esc(s.name_en) + "</option>").join("");
     $("fSec").onchange = () => { if (DIRTY && !confirm("You have attendance that isn't saved. Leave it?")) { $("fSec").value = SECID; return; } location.href = "attendance.html?s=" + $("fSec").value + "#" + TAB; };
   }
-  window.addEventListener("hashchange", () => { const t = location.hash.slice(1); if (t && t !== TAB && ["take", "sum", "people", "subs", "set"].indexOf(t) >= 0) { TAB = t; render(); } });
+  window.addEventListener("hashchange", () => { const t = location.hash.slice(1); if (t && t !== TAB && ["take", "sum", "kada", "people", "subs", "set"].indexOf(t) >= 0) { TAB = t; render(); } });
   window.addEventListener("beforeunload", e => { if (DIRTY) { e.preventDefault(); e.returnValue = ""; } });
   await load(Number(QS.get("m")) || null);
   // links from the help assistant and reminders: open a tali3a, a person, or a payment to confirm
@@ -99,10 +100,10 @@ function pickMeeting(id) {
 }
 
 function render() {
-  const tabs = [["take", "Take attendance"], ["sum", "Summary"], ["people", "People & tali3as"], ["subs", "Subscription"], ["set", "Settings"]];
+  const tabs = [["take", "Take attendance"], ["sum", "Summary"], ["kada", "Kada"], ["people", "People & tali3as"], ["subs", "Subscription"], ["set", "Settings"]];
   $("tabs").innerHTML = tabs.map(t => '<button class="tab' + (TAB === t[0] ? " on" : "") + '" data-t="' + t[0] + '">' + t[1] + "</button>").join("");
   $("tabs").querySelectorAll("[data-t]").forEach(b => b.onclick = () => { TAB = b.dataset.t; history.replaceState(null, "", location.search + "#" + TAB); render(); });
-  ({ take: takeView, sum: sumView, people: peopleView, subs: subsView, set: setView }[TAB] || takeView)();
+  ({ take: takeView, sum: sumView, kada: kadaView, people: peopleView, subs: subsView, set: setView }[TAB] || takeView)();
 }
 
 // ---------- helpers ----------
@@ -258,6 +259,11 @@ function meetingSheet(m) {
     if (r.error) return BAS.toast(BAS.errText(r.error), "err");
     o.hidden = true; DIRTY = false; load(m ? m.id : r.data);
   };
+}
+
+// ---------- kada: kada meetings and تحضير (group kada meetings are on kada.html) ----------
+function kadaView() {
+  KADAV.mount({ el: $("view"), sec: SECID, kada: kadaSorted(), sheet: $("sheet") });
 }
 
 // ---------- summary ----------

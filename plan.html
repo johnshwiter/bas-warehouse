@@ -150,7 +150,8 @@ async function openPlan(id) {
   const o = $("sheet");
   o.innerHTML = '<div class="sheet" style="max-width:640px"><h2>' + esc(kindLabel(p.kind)) + " · " + esc(fmtD(p.meet_date)) + " · " + esc(hm(p.meet_time)) + '</h2><p class="meta"><bdi>' + esc(BAS.sectionName(p.section_id)) + "</bdi> · " + esc(p.place) +
     " · " + esc(T("Sent by")) + " " + esc(p.created_by_name || "") + (p.updated_by_name && p.updated_at !== p.created_at ? " · " + esc(T("changed by")) + " " + esc(p.updated_by_name) + " " + esc(BAS.fmtDateTime(p.updated_at)) : "") + "</p>" +
-    '<div class="panel"><div class="grid2 rec-grid"><div class="rec-v"><span class="mut">' + esc(T("Meeting leader")) + "</span><b>" + esc(nm(p, p.leader_id)) + "</b></div>" + ans +
+    '<div class="panel"><div class="grid2 rec-grid"><div class="rec-v"><span class="mut">' + esc(T("Meeting leader")) + "</span><b>" + esc(nm(p, p.leader_id)) + "</b></div>" +
+      (p.store_id ? '<div class="rec-v"><span class="mut">' + esc(T("مسؤول المخزن")) + "</span><b>" + esc(nm(p, p.store_id)) + "</b></div>" : "") + ans +
     '<div class="rec-v"><span class="mut">' + esc(T("Leaders and assistants coming")) + "</span><b>" + people(p.kada_ids) + '</b></div><div class="rec-v"><span class="mut">' + esc(T("Gawala coming")) + "</span><b>" + people(p.gawala_ids) + "</b></div></div></div>" +
     '<div class="group-title">' + esc(T("Paragraphs")) + "</div>" + (p.paras || []).map((x, i) => '<div class="panel para-v"><b>' + (i + 1) + ". " + esc(x.type) + '</b> <small class="mut">· ' + people(x.people) + "</small>" +
       (x.prep ? '<p dir="auto" style="white-space:pre-wrap;margin:6px 0">' + BAS.linkify(x.prep) + "</p>" : "") + (x.files && x.files.length ? "<div>" + files(x.files) + "</div>" : "") + "</div>").join("") +
@@ -212,6 +213,7 @@ async function form(p) {
       '<div class="field"><label>' + esc(T("Time")) + ' *</label><input type="time" id="fT" value="' + esc(p ? hm(p.meet_time) : "") + '"></div></div>' +
       '<div class="field"><label>' + esc(T("Place")) + ' *</label><input id="fP" dir="auto" value="' + esc(p ? p.place : "") + '"></div>' +
       '<div class="field"><label>' + esc(T("Meeting leader")) + ' *</label><select id="fL"><option value="">—</option>' + KADA.map(k => '<option value="' + k.id + '"' + (p && p.leader_id === k.id ? " selected" : "") + ">" + esc(k.name) + "</option>").join("") + "</select></div>" +
+      '<div class="field"><label>' + esc(T("مسؤول المخزن")) + '</label><select id="fSt"><option value="">—</option>' + KADA.map(k => '<option value="' + k.id + '"' + (p && p.store_id === k.id ? " selected" : "") + ">" + esc(k.name) + "</option>").join("") + "</select></div>" +
       FORM().map(q => '<div class="field" data-q="' + esc(q.id) + '"><label>' + esc(q.label) + (q.required ? " *" : "") + "</label>" + (q.type === "long" ? '<textarea id="q_' + esc(q.id) + '" rows="3" dir="auto">' + esc((p && p.answers && p.answers[q.id]) || "") + "</textarea>" : '<input id="q_' + esc(q.id) + '" dir="auto" value="' + esc((p && p.answers && p.answers[q.id]) || "") + '">') + "</div>").join("") +
       '<div class="field"><label>' + esc(T("Leaders and assistants coming")) + "</label>" + (head().length ? chk("kada", p ? p.kada_ids : []) : '<p class="meta">—</p>') + "</div>" +
       '<div class="field"><label>' + esc(T("Gawala coming")) + "</label>" + (gaw().length ? chk("gaw", p ? p.gawala_ids : []) : '<p class="meta">—</p>') + "</div>" +
@@ -233,10 +235,10 @@ async function form(p) {
       x.people = [...el.querySelectorAll("[data-pp]:checked")].map(c => Number(c.dataset.pp)); });
     if (!p) p = { _new: true };
     p._kind = (o.querySelector("#fK .tab.on") || {}).dataset ? o.querySelector("#fK .tab.on").dataset.k : "Meeting";
-    p._v = { d: $("fD").value, t: $("fT").value, pl: $("fP").value, l: $("fL").value, k: [...o.querySelectorAll("[data-kada]:checked")].map(c => Number(c.dataset.kada)), g: [...o.querySelectorAll("[data-gaw]:checked")].map(c => Number(c.dataset.gaw)),
+    p._v = { d: $("fD").value, t: $("fT").value, pl: $("fP").value, l: $("fL").value, st: $("fSt").value, k: [...o.querySelectorAll("[data-kada]:checked")].map(c => Number(c.dataset.kada)), g: [...o.querySelectorAll("[data-gaw]:checked")].map(c => Number(c.dataset.gaw)),
       a: Object.fromEntries(FORM().map(q => [q.id, ($("q_" + q.id) || {}).value || ""])) };
   };
-  const restore = () => { if (!p || !p._v) return; $("fD").value = p._v.d; $("fT").value = p._v.t; $("fP").value = p._v.pl; $("fL").value = p._v.l;
+  const restore = () => { if (!p || !p._v) return; $("fD").value = p._v.d; $("fT").value = p._v.t; $("fP").value = p._v.pl; $("fL").value = p._v.l; $("fSt").value = p._v.st || "";
     o.querySelectorAll("[data-kada]").forEach(c => { c.checked = p._v.k.indexOf(Number(c.dataset.kada)) >= 0; }); o.querySelectorAll("[data-gaw]").forEach(c => { c.checked = p._v.g.indexOf(Number(c.dataset.gaw)) >= 0; });
     FORM().forEach(q => { if ($("q_" + q.id)) $("q_" + q.id).value = p._v.a[q.id] || ""; });
     o.querySelectorAll("#fK .tab").forEach(b => b.classList.toggle("on", b.dataset.k === p._kind));
@@ -246,7 +248,7 @@ async function form(p) {
     $("fBack").onclick = () => { o.hidden = true; };
     o.querySelectorAll(".pick input").forEach(c => c.onchange = () => c.closest(".pick").classList.toggle("on", c.checked));
     o.querySelectorAll("#fK .tab").forEach(b => b.onclick = () => { o.querySelectorAll("#fK .tab").forEach(x => x.classList.toggle("on", x === b)); });
-    if ($("fS")) $("fS").onchange = async () => { grab(); sec = Number($("fS").value); await stageKada(sec); p._v.l = ""; p._v.k = []; p._v.g = []; paras.forEach(x => { x.people = []; }); draw(); restore(); };
+    if ($("fS")) $("fS").onchange = async () => { grab(); sec = Number($("fS").value); await stageKada(sec); p._v.l = ""; p._v.st = ""; p._v.k = []; p._v.g = []; paras.forEach(x => { x.people = []; }); draw(); restore(); };
     $("addP").onclick = () => { grab(); paras.push({ type: "", people: [], prep: "", files: [] }); draw(); restore(); };
     o.querySelectorAll("[data-rmp]").forEach(b => b.onclick = () => { grab(); paras.splice(Number(b.dataset.rmp), 1); draw(); restore(); });
     o.querySelectorAll("[data-rmf]").forEach(b => b.onclick = async () => {
@@ -272,7 +274,7 @@ async function form(p) {
     });
     $("fGo").onclick = async () => {
       grab();
-      const v = p._v, d = { section_id: sec, kind: p._kind, meet_date: v.d, meet_time: v.t, place: v.pl, leader_id: v.l, kada_ids: v.k, gawala_ids: v.g, answers: v.a,
+      const v = p._v, d = { section_id: sec, kind: p._kind, meet_date: v.d, meet_time: v.t, place: v.pl, leader_id: v.l, store_id: v.st || null, kada_ids: v.k, gawala_ids: v.g, answers: v.a,
         paras: paras.map(x => ({ type: x.type.trim(), people: x.people, prep: x.prep.trim(), files: x.files || [] })) };
       $("fGo").disabled = true;
       const { data, error } = await supabaseClient.rpc("save_plan", { p_id: editing ? p.id : null, p: d });

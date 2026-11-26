@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kada attendance | BAS Warehouse</title>
+<link rel="icon" href="logo.png">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#17196A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="BAS Warehouse">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<meta name="color-scheme" content="only light">
+<link rel="stylesheet" href="bas.css">
+<script>(function(){var t="light";try{t=localStorage.getItem("basTheme")==="dark"?"dark":"light"}catch(e){}document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content="only "+t})()</script>
+</head>
+<body>
+<main class="page">
+  <div class="head"><div><p class="eyebrow">Group kada meetings, and every kad's attendance this year</p><h1 data-ar="حضور <em>القادة</em>">Kada <em>attendance</em></h1></div></div>
+  <div id="view"><div class="empty">Loading…</div></div>
+</main>
+<div class="overlay" id="sheet" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="common.js"></script>
+<script src="i18n.js"></script>
+<script src="kada.js"></script>
+<script>
+"use strict";
+(async function () {
+  await BAS.init("kada");
+  if (!BAS.requireApproved()) return;
+  const v = document.getElementById("view");
+  if (!BAS.isAdmin() && !BAS.allStages()) { v.innerHTML = '<div class="msg err">' + BAS.esc(BAS.tr ? BAS.tr("Only the warehouse team and Group Leaders can open this page.") : "Only the warehouse team and Group Leaders can open this page.") + "</div>"; return; }
+  try {
+    const order = new Map(BAS.allSections.map((s, i) => [s.id, i]));
+    const K = (await BAS.q(supabaseClient.from("roster").select("*").eq("role", "kada").eq("is_active", true).order("name")))
+      .sort((a, b) => (order.get(a.section_id) - order.get(b.section_id)) || a.name.localeCompare(b.name));
+    await KADAV.mount({ el: v, sec: null, kada: K, sheet: document.getElementById("sheet") });
+  } catch (e) { v.innerHTML = '<div class="msg err">' + BAS.esc(BAS.errText(e)) + "</div>"; }
+})();
+</script>
+</body>
+</html>

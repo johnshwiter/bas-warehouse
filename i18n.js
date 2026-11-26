@@ -13,6 +13,25 @@
 
   // ---------- exact texts: "English": ["العربي", "Français"] ----------
   const D = {
+    // v20
+    "Time / title": ["الوقت / العنوان", "Heure / titre"], "Taken by": ["سجّله", "Pris par"], "Draft saved by": ["مسودة حفظها", "Brouillon par"], "Everyone present": ["الكل حاضر", "Tout le monde présent"],
+    "Attendance saved": ["الحضور اتحفظ", "Présences enregistrées"], "Delete this meeting?": ["تمسح الاجتماع ده؟", "Supprimer cette réunion ?"], "Finish": ["خلصت", "Terminer"], "Save draft": ["احفظ مسودة", "Enregistrer le brouillon"],
+    "You have changes that aren't saved. Leave them?": ["في تغييرات مش محفوظة. تسيبها؟", "Des changements ne sont pas enregistrés. Les abandonner ?"],
+    "Kada attendance": ["حضور القادة", "Présences des chefs"], "Kada": ["القادة", "Chefs"], "Kada meeting": ["اجتماع قادة", "Réunion des chefs"], "تحضير": ["تحضير", "Préparation"],
+    "Group kada meeting": ["اجتماع قادة المجموعة", "Réunion des chefs du groupe"], "Scout meetings": ["اجتماعات الكشافة", "Réunions des scouts"], "Kada meetings": ["اجتماعات القادة", "Réunions des chefs"],
+    "Group kada meetings": ["اجتماعات قادة المجموعة", "Réunions des chefs du groupe"], "Kada attendance this year": ["حضور القادة السنة دي", "Présences des chefs cette année"],
+    "Came / meetings, for each kind. The % counts all of them together.": ["حضر / من كام اجتماع، لكل نوع. النسبة بتحسبهم كلهم مع بعض.", "Venu / réunions, par type. Le % les compte tous ensemble."],
+    "No kada meetings or تحضير yet. Add one with the buttons above.": ["مفيش اجتماعات قادة أو تحضير لسه. ضيف واحد من الزراير اللي فوق.", "Pas encore de réunion de chefs ni de préparation. Ajoutez-en avec les boutons ci-dessus."],
+    "No group kada meetings yet. Add one with the button above.": ["مفيش اجتماعات قادة للمجموعة لسه. ضيف واحد من الزرار اللي فوق.", "Pas encore de réunion des chefs du groupe. Ajoutez-en une avec le bouton ci-dessus."],
+    "No kada in the list yet.": ["مفيش قادة في القايمة لسه.", "Pas encore de chefs dans la liste."], "here": ["حاضر", "présents"], "not marked": ["مش متعلّم عليهم", "non marqués"],
+    "Some kada aren't marked. Finish anyway? They won't count.": ["في قادة مش متعلّم عليهم. تخلّص برضه؟ مش هيتحسبوا.", "Certains chefs ne sont pas marqués. Terminer quand même ? Ils ne compteront pas."],
+    "Only the warehouse team and Group Leaders can open this page.": ["فريق المخزن والقادة العامة بس اللي يقدروا يفتحوا الصفحة دي.", "Seuls l'équipe du dépôt et les chefs de groupe peuvent ouvrir cette page."],
+    "Only the warehouse team and Group Leaders can add group kada meetings.": ["فريق المخزن والقادة العامة بس اللي يضيفوا اجتماعات قادة المجموعة.", "Seuls l'équipe du dépôt et les chefs de groupe peuvent ajouter ces réunions."],
+    "Group kada meetings, and every kad's attendance this year": ["اجتماعات قادة المجموعة، وحضور كل قائد السنة دي", "Réunions des chefs du groupe, et les présences de chaque chef cette année"],
+    "Scout number": ["رقم الكشاف", "Numéro scout"], "أب الاعتراف": ["أب الاعتراف", "Père de confession"], "مسؤول المخزن": ["مسؤول المخزن", "Responsable du dépôt"],
+    "Scouts": ["الكشافة", "Scouts"], "Scouts and kada": ["الكشافة والقادة", "Scouts et chefs"], "Kada or scout": ["قائد ولا كشاف", "Chef ou scout"], "Scout": ["كشاف", "Scout"],
+    "kada": ["قائد", "chefs"], "people": ["شخص", "personnes"], "Kada attendance taken": ["حضور القادة اتسجل", "Présences des chefs prises"],
+    "Finished kada attendance changed": ["حضور قادة متقفل اتغير", "Présences des chefs terminées modifiées"], "Kada attendance draft saved": ["مسودة حضور القادة اتحفظت", "Brouillon des présences des chefs enregistré"],
     // v19
     "National ID": ["الرقم القومي", "N° d'identité national"], "14 numbers": ["14 رقم", "14 chiffres"],
     "Needs checking": ["محتاج مراجعة", "À vérifier"], "need checking": ["محتاجين مراجعة", "à vérifier"], "✱ Needs checking": ["✱ محتاجين مراجعة", "✱ À vérifier"],

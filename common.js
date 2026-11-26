@@ -125,12 +125,12 @@ const BAS = {
       G.push({ t: "Money", items: [["mizania", "mizania.html", "Mizania"], ["group", "mizania.html?fund=group", "Group money"], ["money", "team.html#money", "Compensation"]] });
       G.push({ t: "Warehouse", items: [["maint", "team.html#maint", "Maintenance"], ["wait", "team.html#wait", "Waitlist"]] });
       G.push({ t: "Messages", items: [["chat", "team.html#chat", "Messages"], ["news", "team.html#news", "Announcements"]] });
-      G.push({ t: "People", items: [["records", "records.html", "Group records"]] });
+      G.push({ t: "People", items: [["records", "records.html", "Group records"], ["kada", "kada.html", "Kada attendance"]] });
       G.push({ t: "Team", items: [["people", "team.html#people", "Accounts"], ["trash", "team.html#trash", "Deleted"], ["log", "team.html#log", "Activity"], ["settings", "team.html#settings", "Settings"], ["help", "help.html", "Help"]] });
       if (mine) G.push({ t: "My stage", items: [["s-dash", "section.html?id=" + mine + "#dash", "My stage"], ["s-requests", "section.html?id=" + mine + "#requests", "Our requests"], ["s-chat", "section.html?id=" + mine + "#chat", "Stage chat"]] });
     } else if (this.isApproved()) {
       const grp = [];
-      if (this.allStages()) grp.push(["attendance", "attendance.html", "Attendance"]);
+      if (this.allStages()) grp.push(["attendance", "attendance.html", "Attendance"], ["kada", "kada.html", "Kada attendance"]);
       if (this.allStages() || this.can("plans_all")) grp.push(["plan", "plan.html", "Meeting plans"]);
       grp.push(["records", "records.html", "Group records"]);
       if (this.can("group_money")) grp.push(["group", "mizania.html?fund=group", "Group money"]);
@@ -170,6 +170,7 @@ const BAS = {
   },
   ICON_MORE: {
     plan: '<path d="M8 3h8v3H8z"/><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 11h8M8 15h5"/>',
+    kada: '<circle cx="9" cy="7" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6 1.5 0 2.8.5 3.9 1.4"/><path d="m14 18 2 2 4-4"/>',
     records: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11M13 13h5M13 16.5h5"/>',
     history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>', money: '<path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
     maint: '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>', wait: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/>',
