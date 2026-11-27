@@ -41,21 +41,23 @@ window.KADAV = (function () {
     const mStatus = m => { const t = takes(m), need = o.sec ? 1 : secsWithKada.length;
       return t.length && t.filter(k => k.status === "done").length >= need ? "done" : t.length ? "draft" : "open"; };
     const locked = () => S.cur && mStatus(S.cur) === "done" && !S.editing;
-    const canManage = m => BAS.isAdmin() || (m.status === "open" && (m.section_id || BAS.allStages() || m.created_by === (BAS.profile || {}).id));
+    const canGroup = BAS.isAdmin() || ["kada_3am", "mosa3ed_3am"].indexOf(BAS.groupRole()) >= 0;
+    const canManage = m => BAS.isAdmin() || (m.status === "open" && (m.section_id ? true : canGroup));
     const secName = id => BAS.sectionName ? BAS.sectionName(id) : "";
     function draw() {
       const today = BAS.todayISO();
       let h = '<div class="actions" style="margin:0 0 8px">' +
-        '<button class="btn line sm" data-add="group">+ 👥 ' + esc(T("Kada meeting (all stages)")) + "</button>" +
-        (o.sec ? '<button class="btn line sm" data-add="prep">+ 📝 ' + esc(T("تحضير")) + "</button>" : "") +
+        // a stage adds its own تحضير; a kada meeting for all stages comes from the team, القائد العام or مساعد القائد العام (Kada attendance page)
+        (o.sec ? '<button class="btn line sm" data-add="prep">+ 📝 ' + esc(T("تحضير")) + "</button>"
+               : canGroup ? '<button class="btn line sm" data-add="group">+ 👥 ' + esc(T("Kada meeting (all stages)")) + "</button>" : "") +
         (S.cur && canManage(S.cur) ? '<button class="btn danger sm" id="kDel">' + esc(T("Delete this meeting")) + "</button>" : "") + "</div>";
       h += S.M.length ? '<div class="meets">' + S.M.slice().reverse().map(m => '<button class="meet ' + mStatus(m) + (S.cur && m.id === S.cur.id ? " on" : "") + '" data-km="' + m.id + '"><b>' + esc(BAS.fmtDate(m.meet_date, true)) + "</b>" +
           KIND[m.kind][0] + " " + esc(T(KIND[m.kind][1])) + " · " + ({ done: "✅", draft: "📝" }[mStatus(m)] || (m.meet_date > today ? "🕓" : "⬜")) + (m.title ? " · " + esc(m.title) : "") + "</button>").join("") + "</div>"
-        : '<div class="empty">' + esc(T(o.sec ? "No kada meetings or تحضير yet. Add one with the buttons above." : "No kada meetings yet. Add one with the button above.")) + "</div>";
+        : '<div class="empty">' + esc(T(o.sec ? "No تحضير or kada meetings yet." : canGroup ? "No kada meetings yet. Add one with the button above." : "No kada meetings yet.")) + "</div>";
       if (S.cur) {
         const m = S.cur, fut = m.meet_date > today;
         h += '<div class="panel"><div class="req-top"><h3>' + KIND[m.kind][0] + " " + esc(T(KIND[m.kind][1])) + " · " + esc(BAS.fmtDate(m.meet_date, true)) + "<small>" + esc(m.start_time ? T("Starts") + " " + fmtT(m.start_time) : T("No start time")) + (m.title ? " · " + esc(m.title) : "") +
-          '</small></h3><div><button class="linkbtn" id="kEdit">✏️ ' + esc(T(canManage(m) ? "Date / time / title" : "Time / title")) + "</button></div></div>" +
+          '</small></h3><div>' + (canManage(m) || m.section_id ? '<button class="linkbtn" id="kEdit">✏️ ' + esc(T(canManage(m) ? "Date / time / title" : "Time / title")) + "</button>" : "") + "</div></div>" +
           (m.kind === "group" ? '<div class="meta">👥 ' + esc(T("One meeting for every stage. Each stage marks its own kada.")) + "</div>" : "") +
           '<div class="meta">' + (takes(m).length ? takes(m).map(k => (k.status === "done" ? "✅ " : "📝 ") + (o.sec ? "" : esc(secName(k.section_id)) + ": ") + esc(T(k.status === "done" ? "Taken by" : "Draft saved by")) + " <bdi>" + esc(k.taken_by_name || "") + "</bdi> · " + esc(BAS.fmtDateTime(k.taken_at))).join("<br>") : esc(T("Not taken yet"))) + "</div></div>";
         if (fut) h += '<div class="empty">' + esc(T("This meeting hasn't happened yet.")) + "</div>";
@@ -93,6 +95,8 @@ window.KADAV = (function () {
       let h = '<div class="group-title" style="margin-top:22px">' + esc(T("Kada attendance this year")) + "</div>" +
         '<p class="meta">' + esc(T("Came / meetings, for each kind. The % counts all of them together.")) + "</p>" +
         '<div class="panel tscroll stabw"><table class="stab"><tr><th>' + esc(T("Name")) + "</th>" + (o.sec ? "" : "<th>" + esc(T("Stage")) + "</th>") + "<th>%</th>" + kinds.map(k => "<th>" + esc(T(k[1])) + "</th>").join("") + "</tr>";
+      const low = L.filter(p => { const a = cnt(p); return a.t && a.c * 100 / a.t < 75; });
+      if (low.length) h += '<div class="msg warn">⚠️ ' + esc(T("Under 75%:")) + " " + low.map(p => "<bdi>" + esc(p.name) + "</bdi> (" + Math.round(cnt(p).c * 100 / cnt(p).t) + "%)").join(" · ") + "</div>";
       L.forEach(p => {
         const a = cnt(p), pct = a.t ? Math.round(a.c * 100 / a.t) : null, band = pct == null ? "" : pct >= 75 ? "g" : pct >= 50 ? "y" : "r";
         h += '<tr><td dir="auto">' + esc(p.name) + "</td>" + (o.sec ? "" : "<td>" + esc(secName(p.section_id)) + "</td>") + "<td>" + (pct == null ? '<span class="z">—</span>' : '<span class="band ' + band + '">' + pct + "%</span>") + "</td>" + kinds.map(k => cell(cnt(p, k[0]))).join("") + "</tr>";
