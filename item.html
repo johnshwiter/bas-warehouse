@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Item history | BAS Warehouse</title>
+<title>Item history | BAS</title>
 <link rel="icon" href="logo.png">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="theme-color" content="#17196A">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="BAS Warehouse">
+<meta name="apple-mobile-web-app-title" content="BAS">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
 <meta name="color-scheme" content="only light">
 <link rel="stylesheet" href="bas.css">
@@ -45,7 +45,7 @@ async function load() {
   try {
     const st = await BAS.loadStock(); BY = st.byId; IT = BY[ID];
     if (!IT) { $("view").innerHTML = '<div class="empty">This item was not found or was deleted.</div>'; return; }
-    document.title = IT.name_en + " | BAS Warehouse"; BAS.addRecent("📦 " + IT.name_en, "item.html?id=" + IT.id);
+    document.title = IT.name_en + " | BAS"; BAS.addRecent("📦 " + IT.name_en, "item.html?id=" + IT.id);
     const lines = await BAS.q(supabaseClient.from("reservation_items").select("id, reservation_id, item_id, variant_id, quantity, prepared_qty, issued_qty, returned_qty, missing_qty, damaged_qty").eq("item_id", ID));
     const ids = [...new Set(lines.map(l => l.reservation_id))];
     let res = [];

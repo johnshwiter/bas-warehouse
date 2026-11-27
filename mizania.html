@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mizania | BAS Warehouse</title>
+<title>Mizania | BAS</title>
 <link rel="icon" href="logo.png">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -41,7 +41,7 @@ let BY = {}, MONEY = [], PAY = [], MAINT = [], LOSSES = [], ROWS = [], FM = "all
   if (FUND === "group") {
     $("eyb").textContent = "Money"; $("ttl").textContent = "Group money";
     $("sub").textContent = "The group's own money: yearly subscriptions, donations, fundraising. Separate from the warehouse Mizania. Only the warehouse team sees it.";
-    document.title = "Group money | BAS Warehouse";
+    document.title = "Group money | BAS";
   }
   await BAS.init(FUND === "group" ? "group" : "mizania");
   if (!BAS.requireApproved()) return;

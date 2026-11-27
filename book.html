@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Book items | BAS Warehouse</title>
+<title>Book items | BAS</title>
 <link rel="icon" href="logo.png">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="theme-color" content="#17196A">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="BAS Warehouse">
+<meta name="apple-mobile-web-app-title" content="BAS">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
 <meta name="color-scheme" content="only light">
 <link rel="stylesheet" href="bas.css">
@@ -105,7 +105,7 @@ async function startEdit(id, byId) {
   $("subtitle").textContent = BAS.isAdmin() ? "Change the items, then save. The new quantities are checked against stock." : "Change what you need. The warehouse team will approve or reject the change; until then the old request stays as it is.";
   $("editNote").innerHTML = '<div class="msg info">Current: ' + r.items.map(i => esc(BAS.lineName(i)) + " ×" + i.quantity).join(", ") + " · " + esc(BAS.fmtDate(r.meeting_date, true)) + " · " + esc(r.place || "") +
     ' · <a class="lnk" href="' + (BAS.isAdmin() ? "team.html#requests" : "section.html") + '">Stop editing</a></div>';
-  document.title = "Edit #" + id + " | BAS Warehouse";
+  document.title = "Edit #" + id + " | BAS";
 }
 
 // ---------- drafts: saved, not booked ----------

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Camp / trip | BAS Warehouse</title>
+<title>Camp / trip | BAS</title>
 <link rel="icon" href="logo.png">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -68,7 +68,7 @@ const secOf = () => NEW ? NEW.sec : R.section_id;
 const qtyOf = l => l.issued_qty != null ? l.issued_qty : (l.prepared_qty || l.quantity);
 
 function render() {
-  document.title = "#" + R.id + " | BAS Warehouse"; BAS.addRecent((R.kind === "Trip" ? "🚌 " : "⛺ ") + "#" + R.id + " · " + BAS.borrowerName(R.section_id, R.service_id, R.who_name) + (R.place ? " · " + R.place : ""), "camp.html?id=" + R.id);
+  document.title = "#" + R.id + " | BAS"; BAS.addRecent((R.kind === "Trip" ? "🚌 " : "⛺ ") + "#" + R.id + " · " + BAS.borrowerName(R.section_id, R.service_id, R.who_name) + (R.place ? " · " + R.place : ""), "camp.html?id=" + R.id);
   let h = '<div class="head"><div><p class="eyebrow">' + (R.kind === "Camp" ? "⛺ Camp" : "🚌 Trip") + " · #" + R.id + "</p><h1>" + BAS.borrowerHTML(R) + "</h1>" +
     '<p class="sub">' + esc(BAS.fmtDate(R.meeting_date, true)) + (R.end_date ? " → " + esc(BAS.fmtDate(R.end_date, true)) : "") + " · " + esc(R.place || "") + " · " + BAS.statusBadge(R.status) + "</p></div>" +
     '<button class="btn gold" id="pdfBtn">📄 Save as PDF</button></div>';
@@ -204,7 +204,7 @@ function cartSummary() {
   return L.length ? L.length + (L.length === 1 ? " item · " : " items · ") + n + (n === 1 ? " piece" : " pieces") : "No items chosen yet";
 }
 function renderNew() {
-  document.title = (NEW.kind === "Camp" ? "New camp" : "New trip") + " | BAS Warehouse";
+  document.title = (NEW.kind === "Camp" ? "New camp" : "New trip") + " | BAS";
   const secSel = BAS.isAdmin() ? '<div class="field"><label>Stage</label><select id="nSec">' + BAS.sections.map(x => '<option value="' + x.id + '"' + (x.id === NEW.sec ? " selected" : "") + ">" + esc(x.name_ar) + " · " + esc(x.name_en) + "</option>").join("") + "</select></div>"
     : '<div class="field"><label>Stage</label><div class="inline-in">' + BAS.secHTML(NEW.sec) + "</div></div>";
   let h = '<div class="head"><div><p class="eyebrow">' + (NEW.kind === "Camp" ? "⛺ New camp" : "🚌 New trip") + '</p><h1>' + esc(NEW.kind === "Camp" ? "New camp" : "New trip") + "</h1>" +

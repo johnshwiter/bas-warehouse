@@ -201,7 +201,7 @@ const BAS = {
     const ok = this.isApproved();
     h.className = "topbar";
     h.innerHTML = '<div class="topbar-in">' + (this.user ? '<button class="menubtn" id="menuBtn" aria-label="' + T("Menu") + '"><span></span><span></span><span></span><i class="mdot" id="menuDot" hidden></i></button>' : "") +
-      '<a class="brand" href="' + this.homeURL() + '"><img src="logo.png" alt="BA Scout"><div><b>BI ARCHI ANGELOUS</b><span>BAS Warehouse</span></div></a>' +
+      '<a class="brand" href="' + this.homeURL() + '"><img src="logo.png" alt="BAS"><div><b>BI ARCHI ANGELOUS</b><span>BAS</span></div></a>' +
       (ok ? '<div class="gsearch"><input id="gq" type="search" placeholder="Search everything…" aria-label="Search everything" autocomplete="off"><div id="gres" class="gres" hidden></div></div>' : "") +
       (ok ? '<button class="bell" id="bellBtn" aria-label="Notifications">🔔<span class="bdg" id="bellN" hidden></span></button>' : "") + "</div>";
     // side menu

@@ -272,7 +272,7 @@
     // menus and common
     "Overview": ["نظرة عامة", "Vue d'ensemble"], "Requests": ["الطلبات", "Demandes"], "Book items": ["احجز أدوات", "Réserver"], "Calendar": ["التقويم", "Calendrier"],
     "Stock": ["المخزون", "Stock"], "Profile": ["حسابي", "Profil"], "My stage": ["مرحلتي", "Mon unité"], "Logout": ["خروج", "Déconnexion"],
-    "Warehouse team": ["فريق المخزن", "Équipe entrepôt"], "Leader": ["قائد", "Chef"], "BAS Warehouse": ["مخزن BAS", "Entrepôt BAS"],
+    "Warehouse team": ["فريق المخزن", "Équipe entrepôt"], "Leader": ["قائد", "Chef"], "BAS": ["BAS", "BAS"],
     "Loading…": ["بيحمّل…", "Chargement…"], "Opening the warehouse…": ["بنفتح المخزن…", "Ouverture de l'entrepôt…"],
     "Back": ["رجوع", "Retour"], "‹ Back": ["‹ رجوع", "‹ Retour"], "Save": ["حفظ", "Enregistrer"], "Delete": ["مسح", "Supprimer"], "Edit": ["تعديل", "Modifier"],
     "Close": ["قفل", "Fermer"], "Cancel": ["إلغاء", "Annuler"], "Reject": ["رفض", "Refuser"], "Approve": ["موافقة", "Approuver"], "Remove": ["شيل", "Retirer"],
@@ -773,7 +773,7 @@
   BAS.setUnit = on => { if (!!BAS.unitSwap === !!on) return; BAS.unitSwap = !!on; run(document.body); };
   BAS.retr = () => run(document.body);
   run(document.body);
-  document.title = BAS.tr(document.title.split(" | ")[0]) + " | " + BAS.tr("BAS Warehouse");
+  document.title = BAS.tr(document.title.split(" | ")[0]) + " | BAS";
   new MutationObserver(ms => ms.forEach(m => {
     if (m.type === "characterData") fix(m.target);
     else m.addedNodes.forEach(run);

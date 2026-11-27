@@ -1,11 +1,11 @@
-// BAS Warehouse: shows phone notifications and opens the right page when tapped
+// BAS: shows phone notifications and opens the right page when tapped
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));
 self.addEventListener("fetch", () => {});
 self.addEventListener("push", e => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (x) { d = { body: e.data ? e.data.text() : "" }; }
-  e.waitUntil(self.registration.showNotification(d.title || "BAS Warehouse", {
+  e.waitUntil(self.registration.showNotification(d.title || "BAS", {
     body: d.body || "", icon: "icon-192.png", badge: "badge-72.png", tag: d.tag, data: { url: d.url || "index.html" }
   }));
 });

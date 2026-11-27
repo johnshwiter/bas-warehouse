@@ -1,7 +1,7 @@
 {
-  "name": "BAS Warehouse",
-  "short_name": "BAS Warehouse",
-  "description": "BI ARCHI ANGELOUS scout warehouse",
+  "name": "BAS · BI ARCHI ANGELOUS",
+  "short_name": "BAS",
+  "description": "BI ARCHI ANGELOUS scouts: attendance, records, meeting plans and the warehouse",
   "start_url": "index.html",
   "scope": "./",
   "display": "standalone",
