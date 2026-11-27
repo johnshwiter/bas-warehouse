@@ -14,6 +14,7 @@
   // ---------- exact texts: "English": ["العربي", "Français"] ----------
   const D = {
     // v20
+    "Download as Excel": ["نزّل ملف إكسل", "Télécharger en Excel"], "Couldn't load the Excel maker. Check the internet and try again.": ["مقدرناش نجهّز ملف الإكسل. اتأكد من النت وجرّب تاني.", "Impossible de préparer le fichier Excel. Vérifiez internet et réessayez."],
     "No تحضير or kada meetings yet.": ["مفيش تحضير أو اجتماعات قادة لسه.", "Pas encore de préparation ni de réunion des chefs."], "No kada meetings yet.": ["مفيش اجتماعات قادة لسه.", "Pas encore de réunion des chefs."],
     "Under 75%:": ["تحت 75٪:", "Sous 75 % :"], "Everyone left here is still in the group": ["كل اللي فاضلين هنا لسه في المجموعة", "Tous ceux qui restent ici sont toujours dans le groupe"],
     "Archive the ones who left first. Then this clears “not in the 2026 registration” for the scouts left on this stage's list. Other reasons stay.": ["أرشف اللي سابوا الأول. بعدين ده هيشيل «مش في تسجيل 2026» من الكشافة اللي فاضلين في قايمة المرحلة دي. باقي الأسباب هتفضل.", "Archivez d'abord ceux qui sont partis. Ceci retire ensuite « pas dans l'inscription 2026 » pour les scouts restants. Les autres raisons restent."],
