@@ -3,7 +3,8 @@
 "use strict";
 window.KADAV = (function () {
   const esc = s => BAS.esc(s), T = x => (BAS.tr ? BAS.tr(x) : x);
-  const KIND = { kada: ["👥", "Kada meeting"], prep: ["📝", "تحضير"], group: ["🏛", "Group kada meeting"] };
+  // a kada meeting (kind "group") is one meeting for every stage; each stage marks its own kada. تحضير is per stage.
+  const KIND = { group: ["👥", "Kada meeting"], kada: ["👥", "Kada meeting"], prep: ["📝", "تحضير"] };
   const ST = [["present", "✓", "Present"], ["late", "⏰", "Late"], ["excused", "📝", "Excused"], ["absent", "✗", "Absent"]];
   const came = s => s === "present" || s === "late" || s === "half";
   const fmtT = t => { if (!t) return ""; let [h, m] = t.slice(0, 5).split(":").map(Number); const ap = h >= 12 ? "PM" : "AM"; h = h % 12 || 12; return h + ":" + String(m).padStart(2, "0") + " " + ap; };
@@ -11,19 +12,21 @@ window.KADAV = (function () {
 
   // o: { el, sec (stage id, or null for group kada meetings), kada: [roster rows], sheet: overlay element }
   async function mount(o) {
-    const S = { o, M: [], R: [], Y: [], cur: null, state: {}, editing: false, dirty: false };
+    const S = { o, M: [], R: [], K: [], Y: [], cur: null, state: {}, editing: false, dirty: false };
+    const secsWithKada = [...new Set(o.kada.map(p => p.section_id))];
     o.el.innerHTML = '<div class="empty">' + esc(T("Loading…")) + "</div>";
     async function load(pick) {
       try {
-        let q = supabaseClient.from("kada_meetings").select("*").gte("meet_date", yearStart()).order("meet_date", { ascending: false });
-        q = o.sec ? q.eq("section_id", o.sec) : q.is("section_id", null);
-        S.M = await BAS.q(q);
+        const base = () => supabaseClient.from("kada_meetings").select("*").gte("meet_date", yearStart());
+        S.M = (await BAS.q(base().is("section_id", null))).concat(o.sec ? await BAS.q(base().eq("section_id", o.sec)) : [])
+          .sort((a, b) => b.meet_date.localeCompare(a.meet_date) || b.id - a.id);
         const ids = S.M.map(m => m.id);
         S.R = ids.length ? await BAS.q(supabaseClient.from("kada_att").select("*").in("meeting_id", ids)) : [];
+        S.K = ids.length ? await BAS.q(supabaseClient.from("kada_takes").select("*").in("meeting_id", ids)) : [];
         const y = await supabaseClient.rpc("kada_year_records", { p_section: o.sec || null });
         S.Y = y.error ? [] : y.data || [];
         const today = BAS.todayISO();
-        S.cur = S.M.find(m => m.id === pick) || S.M.find(m => m.meet_date === today) || S.M.find(m => m.meet_date <= today && m.status !== "done") || S.M.find(m => m.meet_date <= today) || null;
+        S.cur = S.M.find(m => m.id === pick) || S.M.find(m => m.meet_date === today) || S.M.find(m => m.meet_date <= today && mStatus(m) !== "done") || S.M.find(m => m.meet_date <= today) || null;
         S.editing = false; S.dirty = false; fill(); draw();
       } catch (e) { o.el.innerHTML = '<div class="msg err">' + esc(BAS.errText(e)) + "</div>"; }
     }
@@ -33,22 +36,28 @@ window.KADAV = (function () {
       const R = S.R.filter(r => r.meeting_id === S.cur.id);
       o.kada.forEach(p => { const r = R.find(x => x.roster_id === p.id); S.state[p.id] = r ? r.status : ""; });
     }
-    const locked = () => S.cur && S.cur.status === "done" && !S.editing;
+    // this stage's part (or, on the group page, every stage's part) is finished
+    const takes = m => S.K.filter(k => k.meeting_id === m.id && (o.sec ? k.section_id === o.sec : secsWithKada.indexOf(k.section_id) >= 0));
+    const mStatus = m => { const t = takes(m), need = o.sec ? 1 : secsWithKada.length;
+      return t.length && t.filter(k => k.status === "done").length >= need ? "done" : t.length ? "draft" : "open"; };
+    const locked = () => S.cur && mStatus(S.cur) === "done" && !S.editing;
+    const canManage = m => BAS.isAdmin() || (m.status === "open" && (m.section_id || BAS.allStages() || m.created_by === (BAS.profile || {}).id));
     const secName = id => BAS.sectionName ? BAS.sectionName(id) : "";
     function draw() {
       const today = BAS.todayISO();
       let h = '<div class="actions" style="margin:0 0 8px">' +
-        (o.sec ? '<button class="btn line sm" data-add="kada">+ 👥 ' + esc(T("Kada meeting")) + '</button><button class="btn line sm" data-add="prep">+ 📝 ' + esc(T("تحضير")) + "</button>"
-               : '<button class="btn line sm" data-add="group">+ 🏛 ' + esc(T("Group kada meeting")) + "</button>") +
-        (S.cur && (BAS.isAdmin() || !S.R.some(r => r.meeting_id === S.cur.id)) ? '<button class="btn danger sm" id="kDel">' + esc(T("Delete this meeting")) + "</button>" : "") + "</div>";
-      h += S.M.length ? '<div class="meets">' + S.M.slice().reverse().map(m => '<button class="meet ' + m.status + (S.cur && m.id === S.cur.id ? " on" : "") + '" data-km="' + m.id + '"><b>' + esc(BAS.fmtDate(m.meet_date, true)) + "</b>" +
-          KIND[m.kind][0] + " " + esc(T(KIND[m.kind][1])) + " · " + (m.status === "done" ? "✅" : m.status === "draft" ? "📝" : m.meet_date > today ? "🕓" : "⬜") + (m.title ? " · " + esc(m.title) : "") + "</button>").join("") + "</div>"
-        : '<div class="empty">' + esc(T(o.sec ? "No kada meetings or تحضير yet. Add one with the buttons above." : "No group kada meetings yet. Add one with the button above.")) + "</div>";
+        '<button class="btn line sm" data-add="group">+ 👥 ' + esc(T("Kada meeting (all stages)")) + "</button>" +
+        (o.sec ? '<button class="btn line sm" data-add="prep">+ 📝 ' + esc(T("تحضير")) + "</button>" : "") +
+        (S.cur && canManage(S.cur) ? '<button class="btn danger sm" id="kDel">' + esc(T("Delete this meeting")) + "</button>" : "") + "</div>";
+      h += S.M.length ? '<div class="meets">' + S.M.slice().reverse().map(m => '<button class="meet ' + mStatus(m) + (S.cur && m.id === S.cur.id ? " on" : "") + '" data-km="' + m.id + '"><b>' + esc(BAS.fmtDate(m.meet_date, true)) + "</b>" +
+          KIND[m.kind][0] + " " + esc(T(KIND[m.kind][1])) + " · " + ({ done: "✅", draft: "📝" }[mStatus(m)] || (m.meet_date > today ? "🕓" : "⬜")) + (m.title ? " · " + esc(m.title) : "") + "</button>").join("") + "</div>"
+        : '<div class="empty">' + esc(T(o.sec ? "No kada meetings or تحضير yet. Add one with the buttons above." : "No kada meetings yet. Add one with the button above.")) + "</div>";
       if (S.cur) {
         const m = S.cur, fut = m.meet_date > today;
         h += '<div class="panel"><div class="req-top"><h3>' + KIND[m.kind][0] + " " + esc(T(KIND[m.kind][1])) + " · " + esc(BAS.fmtDate(m.meet_date, true)) + "<small>" + esc(m.start_time ? T("Starts") + " " + fmtT(m.start_time) : T("No start time")) + (m.title ? " · " + esc(m.title) : "") +
-          '</small></h3><div><button class="linkbtn" id="kEdit">✏️ ' + esc(T("Time / title")) + "</button></div></div>" +
-          '<div class="meta">' + (m.status === "done" ? "✅ " + esc(T("Taken by")) + " <bdi>" + esc(m.taken_by_name || "") + "</bdi>" + " · " + esc(BAS.fmtDateTime(m.taken_at)) : m.status === "draft" ? "📝 " + esc(T("Draft saved by")) + " <bdi>" + esc(m.taken_by_name || "") + "</bdi>" : esc(T("Not taken yet"))) + "</div></div>";
+          '</small></h3><div><button class="linkbtn" id="kEdit">✏️ ' + esc(T(canManage(m) ? "Date / time / title" : "Time / title")) + "</button></div></div>" +
+          (m.kind === "group" ? '<div class="meta">👥 ' + esc(T("One meeting for every stage. Each stage marks its own kada.")) + "</div>" : "") +
+          '<div class="meta">' + (takes(m).length ? takes(m).map(k => (k.status === "done" ? "✅ " : "📝 ") + (o.sec ? "" : esc(secName(k.section_id)) + ": ") + esc(T(k.status === "done" ? "Taken by" : "Draft saved by")) + " <bdi>" + esc(k.taken_by_name || "") + "</bdi> · " + esc(BAS.fmtDateTime(k.taken_at))).join("<br>") : esc(T("Not taken yet"))) + "</div></div>";
         if (fut) h += '<div class="empty">' + esc(T("This meeting hasn't happened yet.")) + "</div>";
         else if (!o.kada.length) h += '<div class="empty">' + esc(T("No kada in the list yet.")) + "</div>";
         else {
@@ -64,7 +73,7 @@ window.KADAV = (function () {
           const n = Object.values(S.state).filter(came).length, set = Object.values(S.state).filter(Boolean).length;
           h += '<div class="att-sticky"><div class="meta">' + n + " " + esc(T("here")) + " · " + (o.kada.length - set) + " " + esc(T("not marked")) + '</div><div class="actions" style="margin:6px 0 0">' +
             (locked() ? '<span class="meta lockmsg">🔒 ' + esc(T("Finished. Press Edit to change it.")) + '</span><button class="btn line" id="kUnlock">✏️ ' + esc(T("Edit")) + "</button>"
-              : m.status === "done" ? '<button class="btn gold" id="kSaveCh">💾 ' + esc(T("Save changes")) + '</button><button class="btn line" id="kCancel">' + esc(T("Cancel")) + "</button>"
+              : mStatus(m) === "done" ? '<button class="btn gold" id="kSaveCh">💾 ' + esc(T("Save changes")) + '</button><button class="btn line" id="kCancel">' + esc(T("Cancel")) + "</button>"
               : '<button class="btn gold" id="kFin">✅ ' + esc(T("Finish")) + '</button><button class="btn line" id="kDraft">💾 ' + esc(T("Save draft")) + "</button>") + "</div></div>";
         }
       }
@@ -76,7 +85,7 @@ window.KADAV = (function () {
       // per kad: came / total for each kind of meeting, then attended % over all of them
       const L = o.kada;
       if (!L.length) return "";
-      const kinds = [["meeting", "Scout meetings"], ["kada", "Kada meetings"], ["prep", "تحضير"], ["group", "Group kada meetings"]];
+      const kinds = [["meeting", "Scout meetings"], ["kada", "Kada meetings"], ["prep", "تحضير"]];
       const secOf = p => BAS.allSections.find(s => s.id === p.section_id) || {};
       const cnt = (p, k) => { const R = S.Y.filter(r => r.roster_id === p.id && (!k || r.src === k)), ex = secOf(p).att_excused_came;
         return { t: R.length, c: R.filter(r => came(r.status) || (ex && r.status === "excused")).length }; };
@@ -93,7 +102,8 @@ window.KADAV = (function () {
     function sheet(kind, m) {
       const ov = o.sheet;
       ov.innerHTML = '<div class="sheet" style="max-width:480px"><h2>' + KIND[kind][0] + " " + esc(T(KIND[kind][1])) + (m ? " · " + esc(BAS.fmtDate(m.meet_date, true)) : "") + "</h2>" +
-        (m ? "" : '<div class="field"><label>' + esc(T("Date")) + '</label><input type="date" id="kmD" value="' + BAS.todayISO() + '"></div>') +
+        (m && !canManage(m) ? "" : '<div class="field"><label>' + esc(T("Date")) + '</label><input type="date" id="kmD" value="' + (m ? m.meet_date : BAS.todayISO()) + '"></div>') +
+        (!m && kind === "group" ? '<p class="meta">👥 ' + esc(T("It shows in every stage's Kada tab.")) + "</p>" : "") +
         '<div class="field"><label>' + esc(T("Starts at")) + '</label><input type="time" id="kmT" value="' + esc(m && m.start_time ? m.start_time.slice(0, 5) : "") + '"></div>' +
         '<div class="field"><label>' + esc(T("Title (optional)")) + '</label><input id="kmN" dir="auto" value="' + esc(m ? m.title || "" : "") + '"></div>' +
         '<div class="actions"><button class="btn gold" id="kmGo">' + esc(T("Save")) + '</button><button class="btn line" id="kmBack">' + esc(T("Back")) + "</button></div></div>";
@@ -101,7 +111,8 @@ window.KADAV = (function () {
       document.getElementById("kmBack").onclick = () => { ov.hidden = true; };
       document.getElementById("kmGo").onclick = async () => {
         const t = document.getElementById("kmT").value, n = document.getElementById("kmN").value;
-        const r = m ? await supabaseClient.rpc("edit_kada_meeting", { p_id: m.id, p_time: t, p_title: n })
+        const dEl = document.getElementById("kmD");
+        const r = m ? await supabaseClient.rpc("edit_kada_meeting", { p_id: m.id, p_date: dEl ? dEl.value : null, p_time: t, p_title: n })
                     : await supabaseClient.rpc("add_kada_meeting", { p_section: o.sec || null, p_kind: kind, p_date: document.getElementById("kmD").value, p_time: t, p_title: n });
         if (r.error) return BAS.toast(BAS.errText(r.error), "err");
         ov.hidden = true; load(m ? m.id : r.data);
@@ -110,7 +121,7 @@ window.KADAV = (function () {
     async function save(finish) {
       const rows = Object.keys(S.state).filter(id => S.state[id]).map(id => ({ roster_id: Number(id), status: S.state[id] }));
       if (finish && rows.length < o.kada.length && !confirm(T("Some kada aren't marked. Finish anyway? They won't count."))) return;
-      const { error } = await supabaseClient.rpc("save_kada_att", { p_meeting: S.cur.id, p_rows: rows, p_finish: finish });
+      const { error } = await supabaseClient.rpc("save_kada_att", { p_meeting: S.cur.id, p_section: o.sec || null, p_rows: rows, p_finish: finish });
       if (error) return BAS.toast(BAS.errText(error), "err");
       BAS.toast(T(finish ? "Attendance saved" : "Draft saved")); load(S.cur.id);
     }
