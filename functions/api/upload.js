@@ -1,4 +1,4 @@
-// BAS Warehouse · meeting plan files → Google Drive (Cloudflare Pages Function, served at /api/upload)
+// BAS · meeting plan files → Google Drive (Cloudflare Pages Function, served at /api/upload)
 // The file goes to the Google script in bas.warehouse193@gmail.com, which saves it in
 // "BAS Backups (don't move or rename)/Meeting plans/<stage>/<date>" and gives back a view link.
 //
