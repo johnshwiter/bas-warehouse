@@ -130,7 +130,8 @@ const BAS = {
       if (mine) G.push({ t: "My stage", items: [["s-dash", "section.html?id=" + mine + "#dash", "My stage"], ["s-requests", "section.html?id=" + mine + "#requests", "Our requests"], ["s-chat", "section.html?id=" + mine + "#chat", "Stage chat"]] });
     } else if (this.isApproved()) {
       const grp = [];
-      if (this.allStages()) grp.push(["attendance", "attendance.html", "Attendance"], ["kada", "kada.html", "Kada attendance"]);
+      if (this.allStages()) grp.push(["attendance", "attendance.html", "Attendance"]);
+      if (this.allStages() || this.groupRole()) grp.push(["kada", "kada.html", "Kada attendance"]);
       if (this.allStages() || this.can("plans_all")) grp.push(["plan", "plan.html", "Meeting plans"]);
       grp.push(["records", "records.html", "Group records"]);
       if (this.can("group_money")) grp.push(["group", "mizania.html?fund=group", "Group money"]);
