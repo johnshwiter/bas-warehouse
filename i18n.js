@@ -14,6 +14,13 @@
   // ---------- exact texts: "English": ["العربي", "Français"] ----------
   const D = {
     // v20
+    "Kada meeting (all stages)": ["اجتماع قادة (كل المراحل)", "Réunion des chefs (toutes les étapes)"], "Date / time / title": ["التاريخ / الوقت / العنوان", "Date / heure / titre"],
+    "One meeting for every stage. Each stage marks its own kada.": ["اجتماع واحد لكل المراحل. كل مرحلة بتعلّم على قادتها.", "Une réunion pour toutes les étapes. Chaque étape marque ses chefs."],
+    "It shows in every stage's Kada tab.": ["هيظهر في تبويب القادة في كل المراحل.", "Elle apparaît dans l'onglet Chefs de chaque étape."],
+    "No kada meetings yet. Add one with the button above.": ["مفيش اجتماعات قادة لسه. ضيف واحد من الزرار اللي فوق.", "Pas encore de réunion des chefs. Ajoutez-en une avec le bouton ci-dessus."],
+    "Kada meetings for every stage, and every kad's attendance this year": ["اجتماعات القادة لكل المراحل، وحضور كل قائد السنة دي", "Réunions des chefs pour toutes les étapes, et les présences de chaque chef cette année"],
+    "Only the warehouse team can change this meeting now that attendance is in it.": ["فريق المخزن بس اللي يقدر يغيّر الاجتماع ده بعد ما اتسجل فيه حضور.", "Seule l'équipe du dépôt peut modifier cette réunion maintenant que des présences y sont."],
+    "There's already one on that day.": ["في واحد في اليوم ده بالفعل.", "Il y en a déjà une ce jour-là."], "You can only add meetings for your own stage.": ["تقدر تضيف اجتماعات لمرحلتك بس.", "Vous ne pouvez ajouter des réunions que pour votre étape."],
     "Time / title": ["الوقت / العنوان", "Heure / titre"], "Taken by": ["سجّله", "Pris par"], "Draft saved by": ["مسودة حفظها", "Brouillon par"], "Everyone present": ["الكل حاضر", "Tout le monde présent"],
     "Attendance saved": ["الحضور اتحفظ", "Présences enregistrées"], "Delete this meeting?": ["تمسح الاجتماع ده؟", "Supprimer cette réunion ?"], "Finish": ["خلصت", "Terminer"], "Save draft": ["احفظ مسودة", "Enregistrer le brouillon"],
     "You have changes that aren't saved. Leave them?": ["في تغييرات مش محفوظة. تسيبها؟", "Des changements ne sont pas enregistrés. Les abandonner ?"],
