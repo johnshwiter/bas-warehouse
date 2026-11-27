@@ -829,3 +829,7 @@ label.busy { opacity: .6; pointer-events: none; }
 
 /* v22b: a phone that isn't 11 numbers yet */
 input[type=tel].bad { border-color: #D33 !important; background: #FFF1F1; }
+/* v23: BAS sits in the middle under BI ARCHI ANGELOUS */
+.brand > div { text-align: center; }
+.auth-card .mlogo > div { text-align: center; }
+.auth-card .mlogo span { display: block; }
