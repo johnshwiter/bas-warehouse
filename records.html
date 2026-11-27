@@ -138,6 +138,18 @@ function draw() {
     groups[sid].map(p => '<tr data-p="' + p.id + '"><td>' + nm2(p) + (arch && p.archived_at ? '<br><small class="mut">' + esc(T("Archived")) + " " + esc(BAS.fmtDate(p.archived_at)) + "</small>" : "") + "</td><td>" + esc(tName(p.tali3a_id)) + "</td><td>" + esc(p.school_year || "") + "</td><td dir=\"auto\">" + esc(p.school || "") +
       '</td><td dir="auto">' + esc(p.father_name || "") + (p.father_job ? ' <small class="mut">· ' + esc(p.father_job) + "</small>" : "") + '</td><td dir="auto">' + esc(p.mother_name || "") + (p.mother_job ? ' <small class="mut">· ' + esc(p.mother_job) + "</small>" : "") +
       '</td><td dir="auto">' + esc(p.address || "") + "</td></tr>").join("") + "</table></div>").join("");
+  // ✱ list: one tap clears "not in the 2026 registration" for everyone still on a stage's list
+  const sec = Number($("fSec").value) || 0, regN = L.filter(p => p.role === "3ayel" && (p.check_note || "").indexOf("مش في تسجيل 2026") >= 0).length;
+  if ($("fState").value === "chk" && CAN_EDIT && regN)
+    $("view").insertAdjacentHTML("afterbegin", '<div class="panel">' + (sec
+      ? '<p class="meta" style="margin-top:0">' + esc(T("Archive the ones who left first. Then this clears “not in the 2026 registration” for the scouts left on this stage's list. Other reasons stay.")) + '</p><button class="btn ok" id="regOk">✓ ' + esc(T("Everyone left here is still in the group")) + " (" + regN + ")</button>"
+      : '<p class="meta" style="margin:0">💡 ' + esc(T("Pick a stage to clear “not in the 2026 registration” for everyone left on its list in one tap.")) + "</p>") + "</div>");
+  if ($("regOk")) $("regOk").onclick = async () => {
+    if (!confirm(T("Everyone left here is still in the group") + " (" + regN + ")?")) return;
+    const { data, error } = await supabaseClient.rpc("clear_reg_doubt", { p_section: sec });
+    if (error) return BAS.toast(BAS.errText(error), "err");
+    BAS.toast("✅ " + data); load();
+  };
   $("view").querySelectorAll("tr[data-p]").forEach(tr => tr.onclick = () => personSheet(ALL.find(x => x.id === Number(tr.dataset.p))));
 }
 
