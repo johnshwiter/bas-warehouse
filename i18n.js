@@ -14,6 +14,10 @@
   // ---------- exact texts: "English": ["العربي", "Français"] ----------
   const D = {
     // v20
+    "Open the move to": ["افتح النقل لـ", "Ouvrir le transfert vers"], "Check the names and press Move.": ["راجع الأسامي ودوس «انقل».", "Vérifiez les noms et appuyez sur Déplacer."],
+    "Which stage should they move to?": ["ينتقلوا لأنهي مرحلة؟", "Vers quelle étape ?"], "They're already in that stage.": ["هما في المرحلة دي بالفعل.", "Ils sont déjà dans cette étape."],
+    "has an account, so the warehouse team changes their stage from Accounts.": ["عنده حساب، ففريق المخزن بيغيّر مرحلته من الحسابات.", "a un compte : l'équipe du dépôt change son étape depuis les comptes."],
+    "Only the stage's kada, the warehouse team, القائد العام and مساعد القائد العام can move people.": ["قادة المرحلة وفريق المخزن والقائد العام ومساعده بس اللي يقدروا ينقلوا.", "Seuls les chefs de l'étape, l'équipe du dépôt et les chefs de groupe peuvent déplacer."],
     "Download as Excel": ["نزّل ملف إكسل", "Télécharger en Excel"], "Couldn't load the Excel maker. Check the internet and try again.": ["مقدرناش نجهّز ملف الإكسل. اتأكد من النت وجرّب تاني.", "Impossible de préparer le fichier Excel. Vérifiez internet et réessayez."],
     "No تحضير or kada meetings yet.": ["مفيش تحضير أو اجتماعات قادة لسه.", "Pas encore de préparation ni de réunion des chefs."], "No kada meetings yet.": ["مفيش اجتماعات قادة لسه.", "Pas encore de réunion des chefs."],
     "Under 75%:": ["تحت 75٪:", "Sous 75 % :"], "Everyone left here is still in the group": ["كل اللي فاضلين هنا لسه في المجموعة", "Tous ceux qui restent ici sont toujours dans le groupe"],

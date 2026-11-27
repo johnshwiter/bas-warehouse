@@ -55,7 +55,10 @@ const YEARS = ["KG1", "KG2"].concat([1, 2, 3, 4, 5, 6].map(n => n + " ابتدا
   if (tq) { const t = TAL.find(x => x.id === tq); if (t) tali3aSheet(t); }
   else if (pq) { const p = ROSTER.find(x => x.id === pq); if (p) personSheet(p); }
   else if (pay && ROSTER.some(x => x.id === pay)) { PAYASK = { id: pay, amt: Number(QS.get("amt")) || 0 }; TAB = "subs"; render(); }
-  if (tq || pq || pay) history.replaceState(null, "", "attendance.html" + (BAS.allStages() ? "?s=" + SECID : "") + "#" + TAB);
+  // the assistant: move these people to that stage (ticked and chosen; the leader presses Move)
+  const mv = (QS.get("move") || "").split(",").map(Number).filter(id => ROSTER.some(x => x.id === id));
+  if (!tq && !pq && !pay && mv.length) moveSheet(mv, Number(QS.get("to")) || 0);
+  if (tq || pq || pay || mv.length) history.replaceState(null, "", "attendance.html" + (BAS.allStages() ? "?s=" + SECID : "") + "#" + TAB);
 })();
 let PAYASK = null;
 
@@ -483,17 +486,19 @@ function noTali3aSheet() {
 }
 
 // ---------- moving up: many people to another stage (their details and attendance go with them) ----------
-function moveSheet(only) {
+function moveSheet(only, to) {
+  const pre = Array.isArray(only) ? only : only ? [only] : [];
   const o = $("sheet"), others = BAS.sections.filter(x => x.id !== SECID);
   const L = kadaSorted().concat(ROSTER.filter(p => p.role !== "kada").sort((a, b) => a.name.localeCompare(b.name))).filter(p => !p.profile_id);
   const years = [...new Set(L.map(p => p.school_year).filter(Boolean))];
   o.innerHTML = '<div class="sheet" style="max-width:560px"><h2>⇪ ' + esc(T("Move to another stage")) + '</h2><p class="meta">' + esc(T("Their details, subscription and this year's attendance go with them. Their tali3a and 3arif role stay here.")) + "</p>" +
-    '<div class="field"><label>' + esc(T("New stage")) + '</label><select id="mvTo"><option value="">—</option>' + others.map(x => '<option value="' + x.id + '">' + esc(x.name_ar) + "</option>").join("") + "</select></div>" +
+    '<div class="field"><label>' + esc(T("New stage")) + '</label><select id="mvTo"><option value="">—</option>' + others.map(x => '<option value="' + x.id + '"' + (to === x.id ? " selected" : "") + ">" + esc(x.name_ar) + "</option>").join("") + "</select></div>" +
     '<div class="actions" style="margin:0 0 6px"><select id="mvPick"><option value="">' + esc(T("Tick a group…")) + '</option><option value="all">' + esc(T("Everyone")) + "</option>" +
       TAL.map(t => '<option value="t' + t.id + '">' + esc(t.name) + "</option>").join("") + years.map(y => '<option value="y' + esc(y) + '">' + esc(y) + "</option>").join("") + '<option value="none">' + esc(T("Nobody")) + "</option></select></div>" +
-    '<div class="mvlist">' + L.map(p => '<label class="pick' + (only === p.id ? " on" : "") + '"><input type="checkbox" data-mv="' + p.id + '"' + (only === p.id ? " checked" : "") + "> " + esc(p.name) + ' <small class="mut">' + esc(p.role === "kada" ? T("Kada") : [p.tali3a_id ? tName(p.tali3a_id) : "", p.school_year || ""].filter(Boolean).join(" · ")) + "</small></label>").join("") + "</div>" +
+    '<div class="mvlist">' + L.map(p => '<label class="pick' + (pre.indexOf(p.id) >= 0 ? " on" : "") + '"><input type="checkbox" data-mv="' + p.id + '"' + (pre.indexOf(p.id) >= 0 ? " checked" : "") + "> " + esc(p.name) + ' <small class="mut">' + esc(p.role === "kada" ? T("Kada") : [p.tali3a_id ? tName(p.tali3a_id) : "", p.school_year || ""].filter(Boolean).join(" · ")) + "</small></label>").join("") + "</div>" +
     '<div id="mvErr" class="msg err" hidden></div><div class="actions"><button class="btn gold" id="mvGo">' + esc(T("Move")) + ' <span id="mvN"></span></button><button class="btn line" id="mvBk">Back</button></div></div>';
   o.hidden = false; $("mvBk").onclick = () => { o.hidden = true; };
+  if (pre.length) { const f = o.querySelector('[data-mv="' + pre[0] + '"]'); if (f) f.scrollIntoView({ block: "center" }); }
   const cnt = () => { const n = o.querySelectorAll("[data-mv]:checked").length; $("mvN").textContent = n ? "(" + n + ")" : ""; o.querySelectorAll("[data-mv]").forEach(c => c.closest(".pick").classList.toggle("on", c.checked)); };
   o.querySelectorAll("[data-mv]").forEach(c => c.onchange = cnt); cnt();
   $("mvPick").onchange = () => { const v = $("mvPick").value; o.querySelectorAll("[data-mv]").forEach(c => { const p = ROSTER.find(x => x.id === Number(c.dataset.mv));
