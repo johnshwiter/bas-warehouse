@@ -35,7 +35,14 @@ window.KADAV = (function () {
       if (!S.cur) return;
       const R = S.R.filter(r => r.meeting_id === S.cur.id);
       o.kada.forEach(p => { const r = R.find(x => x.roster_id === p.id); S.state[p.id] = r ? r.status : ""; });
+      // marks tapped on this phone and not saved yet come back after a reload
+      S.restored = false;
+      const d = BAS.draft.get(dk()), last = Math.max(0, ...S.K.filter(k => k.meeting_id === S.cur.id).map(k => Date.parse(k.taken_at) || 0));
+      if (d && d.at > last) { Object.assign(S.state, d.state); S.dirty = true; S.restored = true; if (d.editing) S.editing = true; }
+      else if (d) BAS.draft.del(dk());
     }
+    const dk = () => "kada-" + (S.cur ? S.cur.id : 0) + "-" + (o.sec || 0);
+    const keep = () => BAS.draft.set(dk(), { state: S.state, editing: S.editing, at: Date.now() });
     // this stage's part (or, on the group page, every stage's part) is finished
     const takes = m => S.K.filter(k => k.meeting_id === m.id && (o.sec ? k.section_id === o.sec : secsWithKada.indexOf(k.section_id) >= 0));
     const mStatus = m => { const t = takes(m), need = o.sec ? 1 : secsWithKada.length;
@@ -65,6 +72,7 @@ window.KADAV = (function () {
         else {
           const lk = locked() ? " disabled" : "";
           let last = null;
+          if (S.restored) h += '<div class="msg info restored">♻️ ' + esc(T("Your marks that weren't saved were brought back from this phone. Press Save draft or Finish.")) + "</div>";
           h += (locked() ? "" : '<div class="actions" style="margin:0 0 8px"><button class="btn line sm" id="kAll">✓ ' + esc(T("Everyone present")) + "</button></div>") + '<div class="att-list">';
           o.kada.forEach(p => {
             if (!o.sec && p.section_id !== last) { last = p.section_id; h += '</div><div class="group-title">' + esc(secName(p.section_id)) + '</div><div class="att-list">'; }
@@ -125,8 +133,15 @@ window.KADAV = (function () {
     async function save(finish) {
       const rows = Object.keys(S.state).filter(id => S.state[id]).map(id => ({ roster_id: Number(id), status: S.state[id] }));
       if (finish && rows.length < o.kada.length && !confirm(T("Some kada aren't marked. Finish anyway? They won't count."))) return;
-      const { error } = await supabaseClient.rpc("save_kada_att", { p_meeting: S.cur.id, p_section: o.sec || null, p_rows: rows, p_finish: finish });
+      const args = { p_meeting: S.cur.id, p_section: o.sec || null, p_rows: rows, p_finish: finish };
+      const { error } = await supabaseClient.rpc("save_kada_att", args);
+      if (error && BAS.isNetErr(error)) {
+        BAS.offq.push(dk(), "save_kada_att", args, T(KIND[S.cur.kind][1]) + " · " + BAS.fmtDate(S.cur.meet_date, true));
+        const L = BAS.offq.list(); L[L.length - 1].draft = dk(); BAS.offq.put(L);
+        return BAS.toast(T("No internet. It's saved on this phone and sends by itself when you're online."), "err");
+      }
       if (error) return BAS.toast(BAS.errText(error), "err");
+      BAS.draft.del(dk());
       BAS.toast(T(finish ? "Attendance saved" : "Draft saved")); load(S.cur.id);
     }
     function bind() {
@@ -134,6 +149,7 @@ window.KADAV = (function () {
       el.querySelectorAll("[data-add]").forEach(b => b.onclick = () => sheet(b.dataset.add));
       el.querySelectorAll("[data-km]").forEach(b => b.onclick = () => {
         if (S.dirty && !confirm(T("You have changes that aren't saved. Leave them?"))) return;
+        if (S.dirty) BAS.draft.del(dk());
         S.cur = S.M.find(m => m.id === Number(b.dataset.km)); S.editing = false; S.dirty = false; fill(); draw();
       });
       if (g("kEdit")) g("kEdit").onclick = () => sheet(S.cur.kind, S.cur);
@@ -146,11 +162,11 @@ window.KADAV = (function () {
       el.querySelectorAll("[data-kr] [data-ks]").forEach(b => b.onclick = () => {
         if (locked()) return;
         const id = Number(b.closest("[data-kr]").dataset.kr), s = b.dataset.ks;
-        S.state[id] = S.state[id] === s ? "" : s; S.dirty = true; draw();
+        S.state[id] = S.state[id] === s ? "" : s; S.dirty = true; keep(); draw();
       });
-      if (g("kAll")) g("kAll").onclick = () => { o.kada.forEach(p => { if (!S.state[p.id]) S.state[p.id] = "present"; }); S.dirty = true; draw(); };
+      if (g("kAll")) g("kAll").onclick = () => { o.kada.forEach(p => { if (!S.state[p.id]) S.state[p.id] = "present"; }); S.dirty = true; keep(); draw(); };
       if (g("kUnlock")) g("kUnlock").onclick = () => { S.editing = true; draw(); };
-      if (g("kCancel")) g("kCancel").onclick = () => { S.editing = false; S.dirty = false; fill(); draw(); };
+      if (g("kCancel")) g("kCancel").onclick = () => { BAS.draft.del(dk()); S.editing = false; S.dirty = false; fill(); draw(); };
       if (g("kSaveCh")) g("kSaveCh").onclick = () => save(true);
       if (g("kFin")) g("kFin").onclick = () => save(true);
       if (g("kDraft")) g("kDraft").onclick = () => save(false);

@@ -47,8 +47,9 @@ const YEARS = ["KG1", "KG2"].concat([1, 2, 3, 4, 5, 6].map(n => n + " ابتدا
     $("fSec").innerHTML = BAS.sections.map(s => '<option value="' + s.id + '"' + (s.id === SECID ? " selected" : "") + ">" + esc(s.name_ar) + " · " + esc(s.name_en) + "</option>").join("");
     $("fSec").onchange = () => { if (DIRTY && !confirm("You have attendance that isn't saved. Leave it?")) { $("fSec").value = SECID; return; } location.href = "attendance.html?s=" + $("fSec").value + "#" + TAB; };
   }
-  window.addEventListener("hashchange", () => { const t = location.hash.slice(1); if (t && t !== TAB && ["take", "sum", "kada", "people", "subs", "set"].indexOf(t) >= 0) { TAB = t; render(); } });
+  window.addEventListener("hashchange", () => { const t = location.hash.slice(1); if (t && t !== TAB && ["take", "sum", "eft", "kada", "people", "subs", "set"].indexOf(t) >= 0) { TAB = t; render(); } });
   window.addEventListener("beforeunload", e => { if (DIRTY) { e.preventDefault(); e.returnValue = ""; } });
+  BAS.onOffqSent = () => load(CUR && CUR.id);
   await load(Number(QS.get("m")) || null);
   // links from the help assistant and reminders: open a tali3a, a person, or a payment to confirm
   const tq = Number(QS.get("t")), pq = Number(QS.get("p")), pay = Number(QS.get("pay"));
@@ -100,14 +101,24 @@ function pickMeeting(id) {
   const R = RECS.filter(r => r.meeting_id === CUR.id);
   // nobody is marked at the start: tap ✓ for the people in front of you
   ROSTER.forEach(p => { const r = R.find(x => x.roster_id === p.id); STATE[p.id] = r ? { status: r.status, arrived: (r.arrived || "").slice(0, 5), uniform: r.uniform, foulard: r.foulard !== false } : { status: "", arrived: "", uniform: true, foulard: p.owns_foulard !== false }; });
+  // marks tapped on this phone and not saved yet (a reload, a closed page, no internet) come back
+  RESTORED = false;
+  const d = BAS.draft.get("att-" + CUR.id);
+  if (d && d.state && (!CUR.taken_at || d.at > Date.parse(CUR.taken_at))) {
+    Object.keys(d.state).forEach(id => { if (STATE[id]) STATE[id] = d.state[id]; });
+    DIRTY = true; RESTORED = true; if (d.editing) EDITING = CUR.id;
+  } else if (d) BAS.draft.del("att-" + CUR.id);
 }
+let RESTORED = false;
+function keepDraft() { if (CUR) BAS.draft.set("att-" + CUR.id, { state: STATE, editing: EDITING === CUR.id, at: Date.now() }); }
+function dropDraft() { if (CUR) BAS.draft.del("att-" + CUR.id); RESTORED = false; }
 
 function render() {
   if (BAS.setUnit) BAS.setUnit(SEC && SEC.unit_style === "raht");
-  const tabs = [["take", "Take attendance"], ["sum", "Summary"], ["kada", "Kada"], ["people", "People & tali3as"], ["subs", "Subscription"], ["set", "Settings"]];
+  const tabs = [["take", "Take attendance"], ["sum", "Summary"], ["eft", "افتقاد"], ["kada", "Kada"], ["people", "People & tali3as"], ["subs", "Subscription"], ["set", "Settings"]];
   $("tabs").innerHTML = tabs.map(t => '<button class="tab' + (TAB === t[0] ? " on" : "") + '" data-t="' + t[0] + '">' + t[1] + "</button>").join("");
   $("tabs").querySelectorAll("[data-t]").forEach(b => b.onclick = () => { TAB = b.dataset.t; history.replaceState(null, "", location.search + "#" + TAB); render(); });
-  ({ take: takeView, sum: sumView, kada: kadaView, people: peopleView, subs: subsView, set: setView }[TAB] || takeView)();
+  ({ take: takeView, sum: sumView, eft: eftView, kada: kadaView, people: peopleView, subs: subsView, set: setView }[TAB] || takeView)();
 }
 
 // ---------- helpers ----------
@@ -159,6 +170,7 @@ function takeView() {
     "</div></div>";
   if (fut) { $("view").innerHTML = h + '<div class="empty">This meeting hasn\'t happened yet.</div>'; bindTake(); return; }
   if (!ROSTER.length) { $("view").innerHTML = h + '<div class="empty">Nobody in the stage\'s list yet. <a class="lnk" href="#people" data-go="people">Add names</a></div>'; bindTake(); return; }
+  if (RESTORED) h += '<div class="msg info restored">♻️ ' + esc(T("Your marks that weren't saved were brought back from this phone. Press Save draft or Finish.")) + ' <button class="linkbtn" id="aDropD">' + esc(T("Drop them")) + "</button></div>";
   h += '<input type="search" class="psearch" id="aq" placeholder="Search a name…" value="' + esc(Q) + '" autocomplete="off">' +
     '<div class="actions" style="margin:0 0 8px">' + sortSel() + (locked() ? "" : '<button class="btn line sm" id="allP">✓ Everyone present</button><button class="btn line sm" id="allU">👕🧣 Everyone in uniform + foulard</button>') + "</div>";
   ordered().forEach(g => {
@@ -201,14 +213,15 @@ function bindRows() {
     r.querySelectorAll("[data-st]").forEach(b => b.onclick = () => { const s = STATE[id], p = ROSTER.find(x => x.id === id);
       // tapping it again clears it; marking someone here ticks uniform and foulard
       if (s.status === b.dataset.st) s.status = ""; else { if (!isHere(s)) { s.uniform = true; s.foulard = p.owns_foulard !== false; } s.status = b.dataset.st; }
-      if (!isHere(s)) s.arrived = ""; DIRTY = true; redrawRow(id); });
-    const u = r.querySelector("[data-uni]"); if (u) u.onchange = () => { STATE[id].uniform = u.checked; DIRTY = true; counts(); };
-    const f = r.querySelector("[data-foul]"); if (f) f.onchange = () => { STATE[id].foulard = f.checked; DIRTY = true; counts(); };
+      if (!isHere(s)) s.arrived = ""; DIRTY = true; keepDraft(); redrawRow(id); });
+    const u = r.querySelector("[data-uni]"); if (u) u.onchange = () => { STATE[id].uniform = u.checked; DIRTY = true; keepDraft(); counts(); };
+    const f = r.querySelector("[data-foul]"); if (f) f.onchange = () => { STATE[id].foulard = f.checked; DIRTY = true; keepDraft(); counts(); };
   });
 }
 function bindTake() {
   document.querySelectorAll("[data-m]").forEach(b => b.onclick = () => {
     if (DIRTY && !confirm("You have attendance that isn't saved. Leave it?")) return;
+    if (DIRTY) dropDraft();
     EDITING = null; DIRTY = false;
     pickMeeting(Number(b.dataset.m)); history.replaceState(null, "", "?" + (BAS.allStages() ? "s=" + SECID + "&" : "") + "m=" + CUR.id + "#take"); takeView();
   });
@@ -219,17 +232,18 @@ function bindTake() {
     if (!confirm("Delete this meeting" + (RECS.some(r => r.meeting_id === CUR.id) ? " and its attendance" : "") + "?")) return;
     const { error } = await supabaseClient.rpc("delete_meeting", { p_id: CUR.id });
     if (error) return BAS.toast(BAS.errText(error), "err");
-    CUR = null; DIRTY = false; BAS.toast("Deleted"); load();
+    dropDraft(); CUR = null; DIRTY = false; BAS.toast(BAS.isAdmin() ? T("Deleted. It's in Team › Deleted if you need it back.") : "Deleted"); load();
   };
   if ($("aq")) $("aq").oninput = () => { Q = $("aq").value; filter(); };
-  if ($("allP")) $("allP").onclick = () => { ROSTER.forEach(p => { STATE[p.id].status = "present"; }); DIRTY = true; takeView(); };
-  if ($("allU")) $("allU").onclick = () => { ROSTER.forEach(p => { STATE[p.id].uniform = true; STATE[p.id].foulard = true; }); DIRTY = true; takeView(); };
+  if ($("allP")) $("allP").onclick = () => { ROSTER.forEach(p => { STATE[p.id].status = "present"; }); DIRTY = true; keepDraft(); takeView(); };
+  if ($("allU")) $("allU").onclick = () => { ROSTER.forEach(p => { STATE[p.id].uniform = true; STATE[p.id].foulard = true; }); DIRTY = true; keepDraft(); takeView(); };
   if ($("aFin")) $("aFin").onclick = () => save(true);
   if ($("aEdit")) $("aEdit").onclick = () => {
     if (!confirm(T("Change the attendance of") + " " + BAS.fmtDate(CUR.meet_date, true) + "? " + T("Nothing changes until you press Save changes."))) return;
     EDITING = CUR.id; takeView();
   };
-  if ($("aCancel")) $("aCancel").onclick = () => { if (DIRTY && !confirm(T("Drop your changes?"))) return; EDITING = null; DIRTY = false; load(CUR.id); };
+  if ($("aCancel")) $("aCancel").onclick = () => { if (DIRTY && !confirm(T("Drop your changes?"))) return; EDITING = null; DIRTY = false; dropDraft(); load(CUR.id); };
+  if ($("aDropD")) $("aDropD").onclick = () => { if (!confirm(T("Drop the marks saved on this phone?"))) return; dropDraft(); DIRTY = false; EDITING = null; pickMeeting(CUR.id); RESTORED = false; takeView(); };
   if ($("aSaveCh")) $("aSaveCh").onclick = () => save(true, true);
   if ($("aDraft")) $("aDraft").onclick = () => save(false);
   bindSort(takeView);
@@ -243,10 +257,17 @@ async function save(finish, change) {
   // a draft keeps only the people you marked; Finish saves the rest as absent
   const rows = ROSTER.filter(p => finish || STATE[p.id].status).map(p => ({ roster_id: p.id, status: STATE[p.id].status || "absent", uniform: STATE[p.id].uniform, foulard: STATE[p.id].foulard }));
   const bs = [$("aFin"), $("aDraft"), $("aSaveCh"), $("aCancel")].filter(Boolean); bs.forEach(b => { b.disabled = true; });
-  const { error } = await supabaseClient.rpc("save_attendance", { p_meeting: CUR.id, p_rows: rows, p_finish: finish });
+  const args = { p_meeting: CUR.id, p_rows: rows, p_finish: finish };
+  const { error } = await supabaseClient.rpc("save_attendance", args);
   bs.forEach(b => { b.disabled = false; });
+  if (error && BAS.isNetErr(error)) {
+    // no internet: it waits on this phone and sends by itself
+    BAS.offq.push("att-" + CUR.id, "save_attendance", args, SEC.name_ar + " · " + BAS.fmtDate(CUR.meet_date, true));
+    const L = BAS.offq.list(); L[L.length - 1].draft = "att-" + CUR.id; BAS.offq.put(L);
+    return BAS.toast(T("No internet. It's saved on this phone and sends by itself when you're online."), "err");
+  }
   if (error) return BAS.toast(BAS.errText(error), "err");
-  DIRTY = false; EDITING = null; BAS.toast(change ? T("Changes saved ✓") : finish ? "Attendance saved ✓" : "Draft saved"); load(CUR.id);
+  dropDraft(); DIRTY = false; EDITING = null; BAS.toast(change ? T("Changes saved ✓") : finish ? "Attendance saved ✓" : "Draft saved"); load(CUR.id);
 }
 function meetingSheet(m) {
   const o = $("sheet");
@@ -373,7 +394,8 @@ function peopleView() {
     '<button class="btn line sm" data-det>' + esc(T("Details")) + "</button></div>";
   const K = kadaSorted(), A = ROSTER.filter(p => p.role !== "kada");
   const kadaAcc = K.filter(p => p.profile_id);
-  let h = '<div class="ptools"><button class="btn ' + (PANEL === "add" ? "gold" : "line") + '" data-panel="add">+ ' + esc(T("Add names")) + '</button><button class="btn ' + (PANEL === "tal" ? "gold" : "line") + '" data-panel="tal">' + esc(T("Tali3as")) + " (" + TAL.length + ")</button></div>" +
+  const empty = K.filter(p => !p.profile_id && !p.phone && !p.national_id && !p.address && !p.birthday && !p.confession_father);
+  let h = '<div class="ptools">' + (BAS.isAdmin() && empty.length ? '<button class="btn danger" id="pEmpty">🗑 ' + esc(T("Delete the empty kada")) + " (" + empty.length + ")</button>" : "") + '<button class="btn ' + (PANEL === "add" ? "gold" : "line") + '" data-panel="add">+ ' + esc(T("Add names")) + '</button><button class="btn ' + (PANEL === "tal" ? "gold" : "line") + '" data-panel="tal">' + esc(T("Tali3as")) + " (" + TAL.length + ")</button></div>" +
     '<div class="cols' + (PANEL ? "" : " onecol") + '"><div' + (PANEL ? "" : " hidden") + '><div class="panel"' + (PANEL === "add" ? "" : " hidden") + '><h3>+ Add names</h3><p class="meta">One name per line. You can paste a whole list (numbers at the start are removed).</p>' +
     '<div class="field"><textarea id="pNames" rows="6" placeholder="Kiro Samy&#10;Mina Adel&#10;Bola Nabil"></textarea></div><div class="grid3">' +
     '<div class="field"><label>Kada or scout</label><select id="pRole"><option value="3ayel">Scout</option><option value="kada">Kada</option></select></div>' +
@@ -388,6 +410,13 @@ function peopleView() {
     '<div><div class="actions" style="margin:0 0 8px"><input type="search" class="psearch" id="pq" placeholder="Search a name…" autocomplete="off" style="flex:1;margin:0">' + sortSel() + "</div>" +
     (ROSTER.length ? ordered().map(g => '<div class="group-title">' + esc(T(g.title)) + " (" + g.list.length + ")</div>" + g.list.map(row).join("")).join("") : '<div class="empty">No scouts yet. Add them on the left.</div>') + "</div></div>";
   $("view").innerHTML = h;
+  if ($("pEmpty")) $("pEmpty").onclick = async () => {
+    const code = prompt(T("Delete the kada with no account, no details and no attendance in this stage") + " (" + empty.length + ")? " + T("Type the code to confirm."));
+    if (!code) return;
+    const { data, error } = await supabaseClient.rpc("purge_empty_kada", { p_section: SECID, p_code: code });
+    if (error) return BAS.toast(BAS.errText(error), "err");
+    BAS.toast("🗑 " + data + " " + T("deleted")); load(CUR && CUR.id);
+  };
   document.querySelectorAll("[data-panel]").forEach(b => b.onclick = () => { PANEL = PANEL === b.dataset.panel ? "" : b.dataset.panel; peopleView(); });
   $("pq").oninput = () => { const q = BAS.norm($("pq").value); document.querySelectorAll(".person[data-p]").forEach(el => { el.hidden = !!q && !BAS.norm(el.querySelector("b").textContent).includes(q); }); };
   document.querySelectorAll(".person[data-p]").forEach(el => { el.onclick = () => personSheet(ROSTER.find(x => x.id === Number(el.dataset.p))); });
@@ -541,7 +570,8 @@ async function personSheet(p) {
     "</div>" +
     (amt > 0 ? '<div class="panel"><b>💳 ' + esc(T("Yearly subscription")) + "</b> · " + (paid >= amt ? '<span class="pill ok">' + esc(T("PAID")) + "</span>" : paid > 0 ? BAS.money(paid) + " / " + BAS.money(amt) : '<span class="pill warn">' + esc(T("NOT PAID")) + "</span>") +
       ' <a class="lnk" href="#subs" data-gosubs>' + esc(T("Open")) + "</a></div>" : "") +
-    '<div id="dErr" class="msg err" hidden></div><div class="actions"><button class="btn gold" id="dGo">Save</button>' + (p.profile_id ? "" : '<button class="btn danger" id="dRm">' + esc(T("Archive")) + "</button>") + '<button class="btn line" id="dBack">Back</button></div></div>';
+    '<div id="dErr" class="msg err" hidden></div><div class="actions"><button class="btn gold" id="dGo">Save</button>' + (p.profile_id ? "" : '<button class="btn danger" id="dRm">' + esc(T("Archive")) + "</button>") +
+    (p.role === "kada" && BAS.isAdmin() ? '<button class="btn danger" id="dKill">🗑 ' + esc(T(p.profile_id ? "Remove the account" : "Delete forever")) + "</button>" : "") + '<button class="btn line" id="dBack">Back</button></div></div>';
   o.hidden = false;
   // a scout's details are changed only by the people chosen for Group records
   if (!kada && !BAS.can("records_edit")) {
@@ -588,6 +618,14 @@ async function personSheet(p) {
     if (!confirm("Remove the photo?")) return;
     supabaseClient.storage.from("people").remove([p.photo_path]).then(() => {});
     if (await save({ photo_path: "" })) { BAS.toast("Saved"); load(CUR && CUR.id).then(() => personSheet(ROSTER.find(x => x.id === p.id) || p)); }
+  };
+  if ($("dKill")) $("dKill").onclick = async () => {
+    let code = null;
+    if (p.profile_id) { if (!confirm(T("Remove") + " " + p.name + "? " + T("Their account goes to Deleted and they leave the kada list. Bring back undoes both."))) return; }
+    else { code = prompt(T("Delete") + " " + p.name + " " + T("forever? Type the code to confirm.")); if (!code) return; }
+    const { data, error } = await supabaseClient.rpc("remove_kada", { p_id: p.id, p_forever: !p.profile_id, p_code: code });
+    if (error) return BAS.toast(BAS.errText(error), "err");
+    o.hidden = true; BAS.toast(T(data)); load(CUR && CUR.id);
   };
   if ($("dRm")) $("dRm").onclick = async () => {
     if (!confirm(T("Archive") + " " + p.name + "? " + T("They leave the stage's lists, but everything about them stays saved in Group records."))) return;
@@ -640,10 +678,79 @@ function subsView() {
 }
 
 // ---------- settings for this stage ----------
+// ---------- end of year: choose who moves up to the next stage ----------
+function promoteSheet() {
+  const A = ROSTER.filter(p => p.role !== "kada").map(p => ({ p, st: stats(p) })).sort((a, b) => (b.st.total ? b.st.pct : -1) - (a.st.total ? a.st.pct : -1));
+  const others = BAS.sections.filter(x => x.id !== SECID), next = others.find(x => x.id > SECID) || others[0];
+  const o = $("sheet");
+  o.innerHTML = '<div class="sheet" style="max-width:560px"><h2>⬆ ' + esc(T("Move up to the next stage")) + '</h2><p class="meta">' + esc(T("Everyone is ticked except under 75%. Untick anyone who stays, tick anyone who moves anyway.")) + "</p>" +
+    '<div class="field"><label>' + esc(T("To")) + '</label><select id="prTo">' + others.map(x => '<option value="' + x.id + '"' + (next && x.id === next.id ? " selected" : "") + ">" + esc(x.name_ar) + "</option>").join("") + "</select></div>" +
+    '<div class="actions" style="margin:0 0 6px"><button class="btn line sm" id="prAll">' + esc(T("Tick all")) + '</button><button class="btn line sm" id="prNone">' + esc(T("Untick all")) + "</button></div>" +
+    '<div class="mvlist">' + A.map(({ p, st }) => { const low = st.total && st.pct < 75, on = !low;
+      return '<label class="pick' + (on ? " on" : "") + '" style="display:flex;gap:8px;align-items:center"><input type="checkbox" data-pr="' + p.id + '"' + (on ? " checked" : "") + '> <b dir="auto" style="flex:1">' + esc(p.name) + "</b>" +
+        (st.total ? '<span class="band ' + (st.pct >= 75 ? "g" : st.pct >= 50 ? "y" : "r") + '">' + st.pct + "%</span>" : '<span class="z">—</span>') + "</label>"; }).join("") + "</div>" +
+    '<div class="actions"><button class="btn gold" id="prGo">⬆ ' + esc(T("Move")) + ' (<span id="prN"></span>)</button><button class="btn line" id="prBk">' + esc(T("Back")) + "</button></div></div>";
+  o.hidden = false;
+  const boxes = [...o.querySelectorAll("[data-pr]")], cnt = () => { $("prN").textContent = boxes.filter(b => b.checked).length; boxes.forEach(b => b.closest(".pick").classList.toggle("on", b.checked)); };
+  boxes.forEach(b => b.onchange = cnt); cnt();
+  $("prAll").onclick = () => { boxes.forEach(b => b.checked = true); cnt(); };
+  $("prNone").onclick = () => { boxes.forEach(b => b.checked = false); cnt(); };
+  $("prBk").onclick = () => { o.hidden = true; };
+  $("prGo").onclick = async () => {
+    const ids = boxes.filter(b => b.checked).map(b => Number(b.dataset.pr)), to = Number($("prTo").value), toS = BAS.sections.find(x => x.id === to);
+    if (!ids.length) return;
+    if (!confirm(T("Move") + " " + ids.length + " → " + toS.name_ar + "? " + T("Their details, subscription and this year's attendance go with them. Their tali3a and 3arif role stay here."))) return;
+    const { error } = await supabaseClient.rpc("move_people", { p_ids: ids, p_section: to });
+    if (error) return BAS.toast(BAS.errText(error), "err");
+    o.hidden = true; BAS.toast("⬆ " + ids.length + " → " + toS.name_ar); load(CUR && CUR.id);
+  };
+}
+
+// ---------- افتقاد: after every meeting, each tali3a's leaders reach every scout (done ✓ or call 📞) ----------
+let EFT_M = null, EFT = [];
+async function eftView() {
+  const done = MEET.filter(m => m.status === "done").slice().sort((a, b) => b.meet_date.localeCompare(a.meet_date));
+  if (!done.length) { $("view").innerHTML = '<div class="empty">' + esc(T("The افتقاد list opens after a meeting's attendance is finished.")) + "</div>"; return; }
+  if (!EFT_M || !done.some(m => m.id === EFT_M)) EFT_M = done[0].id;
+  try { EFT = await BAS.q(supabaseClient.from("eftkad").select("*").eq("meeting_id", EFT_M)); } catch (e) { EFT = []; }
+  const me = BAS.profile.id, myRole = ROLES[me] || BAS.profile.stage_role, big = BAS.isAdmin() || !!BAS.groupRole() || ["head", "deputy", "assistant"].indexOf(myRole) >= 0;
+  const mine = t => TL.some(l => l.tali3a_id === t && l.profile_id === me);
+  const canMark = p => big || (p.tali3a_id && mine(p.tali3a_id));
+  const A = ROSTER.filter(p => p.role !== "kada");
+  const groups = talSorted().map(t => ({ t, list: A.filter(p => p.tali3a_id === t.id) })).concat([{ t: null, list: A.filter(p => !p.tali3a_id) }])
+    .filter(g => g.list.length && (big || (g.t && mine(g.t.id))));
+  let h = '<div class="actions" style="margin:0 0 10px;align-items:center"><label class="meta" style="margin:0">' + esc(T("After the meeting of")) + '</label><select id="eftM">' +
+    done.map(m => '<option value="' + m.id + '"' + (m.id === EFT_M ? " selected" : "") + ">" + esc(BAS.fmtDate(m.meet_date, true)) + (m.title ? " · " + esc(m.title) : "") + "</option>").join("") + "</select></div>";
+  if (!groups.length) h += '<div class="empty">' + esc(T("You're not a leader of a tali3a in this stage, so there's no افتقاد list for you.")) + "</div>";
+  groups.forEach(g => {
+    const n = g.list.filter(p => EFT.some(e => e.roster_id === p.id)).length;
+    h += '<div class="group-title">' + esc(g.t ? g.t.name : T("No tali3a")) + " · " + n + "/" + g.list.length + (n === g.list.length ? " ✅" : "") + '</div><div class="panel">' +
+      g.list.map(p => { const e = EFT.find(x => x.roster_id === p.id) || {}, ok = canMark(p), dis = ok ? "" : " disabled";
+        const r = RECS.find(x => x.meeting_id === EFT_M && x.roster_id === p.id), st = r ? { present: "✓", late: "⏰", half: "½", absent: "✗", excused: "📝" }[r.status] : "—";
+        return '<div class="eft-row" data-ef="' + p.id + '"><div class="nm"><b dir="auto">' + esc(p.name) + '</b> <small class="mut" title="' + esc(T("At the meeting")) + '">' + st + "</small></div>" +
+          '<span class="seg"><button type="button" data-ek="done" class="' + (e.kind === "done" ? "on" : "") + '"' + dis + ">✓ " + esc(T("Done")) + '</button><button type="button" data-ek="call" class="' + (e.kind === "call" ? "on" : "") + '"' + dis + ">📞 " + esc(T("Call")) + "</button></span>" +
+          '<input data-en dir="auto" placeholder="' + esc(T("Note (optional)")) + '" value="' + esc(e.note || "") + '"' + dis + ">" +
+          (e.by_name ? '<div class="by"><bdi>' + esc(e.by_name) + "</bdi> · " + esc(BAS.fmtDateTime(e.at)) + "</div>" : "") + "</div>"; }).join("") + "</div>";
+  });
+  $("view").innerHTML = h;
+  $("eftM").onchange = () => { EFT_M = Number($("eftM").value); eftView(); };
+  $("view").querySelectorAll("[data-ef]").forEach(row => {
+    const id = Number(row.dataset.ef), inp = row.querySelector("[data-en]");
+    const put = async kind => {
+      const { error } = await supabaseClient.rpc("save_eftkad", { p_meeting: EFT_M, p_roster: id, p_kind: kind, p_note: inp.value });
+      if (error) return BAS.toast(BAS.errText(error), "err");
+      eftView();
+    };
+    row.querySelectorAll("[data-ek]").forEach(b => b.onclick = () => { const cur = (EFT.find(x => x.roster_id === id) || {}).kind; put(cur === b.dataset.ek ? "" : b.dataset.ek); });
+    inp.onchange = () => { const cur = (EFT.find(x => x.roster_id === id) || {}).kind; if (cur) put(cur); };
+  });
+}
+
 function setView() {
   const roles = PROF.filter(p => p.stage_role && p.stage_role !== "leader");
   const w = (k, d) => num(SEC["att_w_" + k], d);
-  $("view").innerHTML = '<div class="panel" style="max-width:600px"><h3>' + esc(T("How attendance is counted")) + '</h3><p class="meta">' + esc(T("Every stage decides. Each mark is worth a number from 0 to 1 in the Final %.")) + "</p>" +
+  $("view").innerHTML = '<div class="panel" style="max-width:600px"><h3>⬆ ' + esc(T("End of the year")) + '</h3><p class="meta">' + esc(T("Choose who moves up to the next stage. Everyone above 75% is ticked; you decide the rest.")) + '</p><button class="btn gold" id="sPromo">⬆ ' + esc(T("Move up to the next stage")) + "</button></div>" +
+    '<div class="panel" style="max-width:600px"><h3>' + esc(T("How attendance is counted")) + '</h3><p class="meta">' + esc(T("Every stage decides. Each mark is worth a number from 0 to 1 in the Final %.")) + "</p>" +
     '<div class="grid3">' + [["present", "✓ Present", 1], ["late", "Late", 0], ["half", "½ Half", 0.5], ["excused", "Excused", 0.25], ["absent", "Absent", 0]].map(x => '<div class="field"><label>' + esc(T(x[1])) + '</label><input type="number" step="0.05" min="0" max="1" data-w="' + x[0] + '" value="' + w(x[0], x[2]) + '"></div>').join("") + "</div>" +
     '<div class="grid2"><div class="field"><label>' + esc(T("Does Excused count as \"came\" in the Attended %?")) + '</label><select id="sExc"><option value="0"' + (SEC.att_excused_came ? "" : " selected") + ">" + esc(T("No")) + '</option><option value="1"' + (SEC.att_excused_came ? " selected" : "") + ">" + esc(T("Yes")) + "</option></select></div>" +
     '<div class="field"><label>' + esc(T("Alert when a scout's Final % is (%) or less")) + '</label><input type="number" min="1" max="99" id="sAl" value="' + (SEC.att_alert_pct == null ? 25 : SEC.att_alert_pct) + '"></div></div>' +
@@ -664,6 +771,7 @@ function setView() {
     '<div class="panel" style="max-width:600px"><h3>📝 ' + esc(T("Meeting plans (تحضير)")) + '</h3><label class="pick' + (SEC.att_plan_only ? " on" : "") + '"><input type="checkbox" id="sPO"' + (SEC.att_plan_only ? " checked" : "") + (BAS.isAdmin() ? "" : " disabled") + "> " +
       esc(T("Meetings only come from the meeting plan")) + '</label><p class="meta">' + esc(T("When on, a meeting appears only when its plan is sent: no \"+ Meeting without items\", and bookings or calendar events don't make meetings. Only the warehouse team changes this.")) + "</p></div>" +
     '<div class="panel" style="max-width:600px"><h3>' + esc(T("Once a year")) + '</h3><p class="meta">' + esc(T("Move scouts or kada to another stage. Their details, subscription and this year's attendance go with them.")) + '</p><button class="btn line" id="sMove">⇪ ' + esc(T("Move to another stage")) + "</button></div>";
+  $("sPromo").onclick = promoteSheet;
   $("sSave").onclick = async () => {
     const W = {}; document.querySelectorAll("[data-w]").forEach(x => { W[x.dataset.w] = Number(x.value); });
     const al = Number($("sAl").value), ex = $("sExc").value === "1";

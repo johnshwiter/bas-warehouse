@@ -819,3 +819,10 @@ label.busy { opacity: .6; pointer-events: none; }
 /* v19: ✱ = details need checking */
 .chk { color: #E07A00; font-weight: 900; margin-inline-start: 3px; cursor: help; }
 .chkbox { border-inline-start: 4px solid #E07A00; }
+/* v22: saves waiting for internet */
+.offq { position: fixed; bottom: 12px; inset-inline-start: 12px; z-index: 60; background: #FFF6CC; color: #3A3D63; border: 1px solid #E6C200; border-radius: 12px; padding: 8px 12px; font-size: 14px; box-shadow: 0 4px 14px rgba(0,0,0,.12); cursor: pointer; max-width: 92vw; }
+.restored { border-inline-start: 4px solid #2A7; }
+.eft-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--line, #e6e6ee); }
+.eft-row .nm { flex: 1 1 160px; }
+.eft-row input { flex: 1 1 160px; min-width: 120px; }
+.eft-row .by { flex-basis: 100%; font-size: 12px; color: #8A8DAA; }

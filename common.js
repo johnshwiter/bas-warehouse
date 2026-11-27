@@ -108,6 +108,7 @@ const BAS = {
     this.header(active);
     if (this.isApproved()) {
       this.askName(); this.greet(); this.checkRecent();
+      if (active !== "profile") this.detailsNudge();
       supabaseClient.rpc("check_alerts").then(() => this.loadBell());
       supabaseClient.rpc("mark_delivered").then(() => {}); this._bd = setInterval(() => supabaseClient.rpc("mark_delivered").then(() => {}), 120000);
       if (this.profile.lang !== this.lang) supabaseClient.rpc("set_my_lang", { p_lang: this.lang }).then(() => {});
@@ -1109,3 +1110,61 @@ const BAS = {
     requestAnimationFrame(() => { q = false; const H = (BAS.ui.hide || []).some(h => h.k.startsWith("tx:")); if (H) BAS.applyUI(); else BAS.applyOrder(document.body); if (BAS.editMode() && !document.getElementById("uiBar")) BAS.editBar(); });
   }).observe(document.body, { childList: true, subtree: true });
 })();
+
+// ---------- attendance that doesn't get lost ----------
+// draft: marks kept on this phone as they're tapped (survives a reload). offq: saves that waited for internet.
+BAS.draft = {
+  get(k) { try { const v = localStorage.getItem("bas-d-" + k); return v ? JSON.parse(v) : null; } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem("bas-d-" + k, JSON.stringify(v)); } catch (e) {} },
+  del(k) { try { localStorage.removeItem("bas-d-" + k); } catch (e) {} },
+};
+BAS.isNetErr = e => (typeof navigator !== "undefined" && navigator.onLine === false) || /Failed to fetch|NetworkError|Load failed|network|fetch/i.test(String((e && (e.message || e.details)) || e || ""));
+BAS.offq = {
+  list() { try { return JSON.parse(localStorage.getItem("bas-offq") || "[]"); } catch (e) { return []; } },
+  put(L) { try { localStorage.setItem("bas-offq", JSON.stringify(L)); } catch (e) {} BAS.offqBadge(); },
+  // key: one entry per meeting (a newer save replaces an older one)
+  push(key, rpc, args, label) { const L = this.list().filter(x => x.key !== key); L.push({ key, rpc, args, label, at: Date.now() }); this.put(L); },
+  async flush() {
+    const L = this.list(); if (!L.length || this.busy || (typeof navigator !== "undefined" && navigator.onLine === false)) return;
+    this.busy = true; let sent = 0; const keep = [];
+    for (const x of L) {
+      const { error } = await supabaseClient.rpc(x.rpc, x.args);
+      if (!error) { sent++; if (x.draft) BAS.draft.del(x.draft); }
+      else if (BAS.isNetErr(error)) keep.push(x);
+      else { keep.push(Object.assign(x, { err: BAS.errText(error) })); }
+    }
+    this.busy = false; this.put(keep);
+    if (sent) { BAS.toast("✅ " + sent + " " + BAS.tr("saved now that there's internet")); if (BAS.onOffqSent) BAS.onOffqSent(); }
+  },
+};
+BAS.offqBadge = () => {
+  if (typeof document === "undefined") return;
+  const L = BAS.offq.list(); let b = document.getElementById("offqB");
+  if (!L.length) { if (b) b.remove(); return; }
+  if (!b) { b = document.createElement("div"); b.id = "offqB"; b.className = "offq"; document.body.appendChild(b); b.onclick = () => BAS.offq.flush(); }
+  const bad = L.filter(x => x.err);
+  b.textContent = bad.length ? "⚠️ " + BAS.tr("Couldn't save") + ": " + bad.map(x => x.label + " (" + x.err + ")").join(" · ")
+    : "⏳ " + L.length + " " + BAS.tr("waiting for internet. It sends by itself.");
+};
+if (typeof window !== "undefined") {
+  window.addEventListener("online", () => BAS.offq.flush());
+  window.addEventListener("load", () => { BAS.offqBadge(); setTimeout(() => BAS.offq.flush(), 1500); });
+  setInterval(() => BAS.offq.flush(), 30000);
+}
+
+// a kad with missing details sees a small card at the top of the page (not a pop-up); "Later" hides it for 3 days
+BAS.detailsNudge = async function () {
+  try {
+    if (!this.profile || !this.profile.section_id || this.isAdmin()) return;
+    const until = Number(localStorage.getItem("bas-dn-later") || 0); if (until > Date.now()) return;
+    const { data, error } = await supabaseClient.rpc("my_details");
+    if (error || !data || !data.missing || !data.missing.length) return;
+    const main = document.querySelector("main"); if (!main || document.getElementById("dnCard")) return;
+    const head = main.querySelector(".head");
+    const c = document.createElement("div"); c.id = "dnCard"; c.className = "msg info";
+    c.innerHTML = "📝 <b>" + BAS.esc(BAS.tr("Complete your details")) + "</b> (" + data.missing.length + " " + BAS.esc(BAS.tr("missing")) + ") " +
+      '<a class="btn gold sm" href="profile.html#details">' + BAS.esc(BAS.tr("Fill them now")) + '</a> <button class="linkbtn" id="dnLater">' + BAS.esc(BAS.tr("Later")) + "</button>";
+    if (head) head.after(c); else main.prepend(c);
+    document.getElementById("dnLater").onclick = () => { try { localStorage.setItem("bas-dn-later", String(Date.now() + 3 * 864e5)); } catch (e) {} c.remove(); };
+  } catch (e) {}
+};

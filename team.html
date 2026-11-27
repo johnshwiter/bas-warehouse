@@ -36,8 +36,9 @@
 "use strict";
 const $ = id => document.getElementById(id);
 const esc = s => BAS.esc(s);
+const T = s => (BAS.tr ? BAS.tr(s) : s);
 let TRASH = [], EMPTYOK = null;
-let STOCK = [], BY = {}, RES = [], LOSSES = [], PAYMENTS = [], PEOPLE = [], REMOVED = [], TRANSFERS = [], MAINT = [], WAIT = [], ANN = [], CHANGES = [], MSGS = [], THREAD = null, CHAT_T = null;
+let STOCK = [], BY = {}, RES = [], LOSSES = [], PAYMENTS = [], PEOPLE = [], REMOVED = [], KADA_ALL = [], TRANSFERS = [], MAINT = [], WAIT = [], ANN = [], CHANGES = [], MSGS = [], THREAD = null, CHAT_T = null;
 let TAB = "overview", SUB = "prepare", FORM = null, OPEN = null, ADDING = false, SQ = "", SCAT = "All", MSUB = "open";
 const TITLES = { trash: "Deleted", overview: "Overview of <em>all stages</em>", requests: "Requests", money: "Missing & <em>compensation</em>", stock: "Stock", maint: "Under <em>maintenance</em>",
   wait: "Waitlist", chat: "Messages", news: "Announcements", people: "Accounts", log: "Activity log", settings: "Settings" };
@@ -76,6 +77,7 @@ async function loadAll() {
     CHANGES = RES.filter(r => r.change);
     TRASH = await BAS.q(supabaseClient.from("trash").select("*").order("deleted_at", { ascending: false }));
     REMOVED = PEOPLE.filter(p => p.approval_status === "removed" && p.full_name !== "Removed account");
+    KADA_ALL = await BAS.q(supabaseClient.from("roster").select("id, name, section_id, profile_id, phone, birthday, address, confession_father, national_id").eq("role", "kada").eq("is_active", true).order("name"));
     PEOPLE = PEOPLE.filter(p => p.approval_status !== "removed");
     MSGS = await BAS.loadMessages();
     render();
@@ -721,6 +723,30 @@ function peopleView() {
     (REMOVED.length ? '<div class="group-title">Removed accounts</div><p class="meta">They can\'t log in. Bring one back and they can log in again with the same email and password.</p>' +
       REMOVED.map(p => '<div class="person"><div><h4>' + esc(p.full_name) + '</h4><div class="meta">' + esc(p.email || "") + (p.section_id ? " · " + esc(BAS.sectionName(p.section_id)) : "") + "</div></div>" +
         '<div class="actions" style="margin:0"><button class="btn ok sm" data-back="' + p.id + '">↩ Bring back</button></div></div>').join("") : "");
+  // kada: who hasn't signed up, and whose details are still missing
+  const MISS = [["phone", "phone"], ["birthday", "birthday"], ["address", "address"], ["confession_father", "أب الاعتراف"], ["national_id", "national ID"]];
+  const miss = k => MISS.filter(m => !k[m[0]]).map(m => m[1]);
+  const noAcc = KADA_ALL.filter(k => !k.profile_id), accMiss = KADA_ALL.filter(k => k.profile_id && miss(k).length);
+  const bySec = L => BAS.allSections.filter(x => L.some(k => k.section_id === x.id)).map(x => '<div class="meta" style="margin-top:8px"><b>' + esc(x.name_ar) + "</b></div>" +
+    L.filter(k => k.section_id === x.id).map(k => '<div class="person"><div><h4 dir="auto">' + esc(k.name) + '</h4><div class="meta">' + (miss(k).length === MISS.length ? "📝 " + esc(T("No details yet")) : miss(k).length ? "📝 " + esc(T("Missing")) + ": " + esc(miss(k).map(T).join("، ")) : "✅ " + esc(T("Details complete"))) + "</div></div>" +
+      (k.profile_id ? "" : '<div class="actions" style="margin:0"><button class="btn danger sm" data-kdel="' + k.id + '">🗑</button></div>') + "</div>").join("")).join("");
+  $("view").insertAdjacentHTML("beforeend",
+    '<div class="group-title">📝 ' + esc(T("Kada details")) + '</div><div class="panel"><p class="meta" style="margin-top:0">' + accMiss.length + " " + esc(T("kada with an account still have missing details. They see a card on their home page; you can also send them one notification.")) + "</p>" +
+      '<button class="btn gold sm" id="kdRem">📣 ' + esc(T("Remind them to complete their details")) + "</button>" + (accMiss.length ? '<details style="margin-top:8px"><summary class="meta">' + esc(T("Who")) + "</summary>" + bySec(accMiss) + "</details>" : "") + "</div>" +
+    '<div class="group-title">🔑 ' + esc(T("Kada without an account")) + " (" + noAcc.length + ')</div><div class="panel">' + (noAcc.length ? '<p class="meta" style="margin-top:0">' + esc(T("On a stage's kada list but haven't signed up. 🗑 deletes one forever (with the code); someone with attendance gets archived instead.")) + "</p>" + bySec(noAcc) : '<p class="meta">✅ ' + esc(T("Every kad on the lists has an account.")) + "</p>") + "</div>");
+  $("kdRem").onclick = async () => {
+    if (!confirm(T("Send one notification to every kad with missing details?"))) return;
+    const { data, error } = await supabaseClient.rpc("remind_kada_details");
+    if (error) return BAS.toast(BAS.errText(error), "err");
+    BAS.toast("📣 " + data);
+  };
+  $("view").querySelectorAll("[data-kdel]").forEach(b => b.onclick = async () => {
+    const k = KADA_ALL.find(x => x.id === Number(b.dataset.kdel));
+    const code = prompt(T("Delete") + " " + k.name + " " + T("forever? Type the code to confirm.")); if (!code) return;
+    const { data, error } = await supabaseClient.rpc("remove_kada", { p_id: k.id, p_forever: true, p_code: code });
+    if (error) return BAS.toast(BAS.errText(error), "err");
+    BAS.toast(T(data)); load();
+  });
   $("view").querySelectorAll("[data-back]").forEach(b => b.onclick = () => {
     const p = REMOVED.find(x => x.id === b.dataset.back);
     if (confirm("Bring back " + p.full_name + "'s account? They can log in again right away.")) rpc("restore_account", { p_id: p.id }, "Account brought back");
@@ -807,7 +833,7 @@ async function backupBox() {
 
 // ---------- deleted things ----------
 function trashView() {
-  const icon = { reservation: "📋", loss: "⚠️", payment: "💵", event: "📅", announcement: "📣", message: "💬", maintenance: "🔧", money: "💰", item: "📦", account: "👤", section: "🏕", service: "⛪" };
+  const icon = { att_meeting: "✅", kada_meeting: "👥", reservation: "📋", loss: "⚠️", payment: "💵", event: "📅", announcement: "📣", message: "💬", maintenance: "🔧", money: "💰", item: "📦", account: "👤", section: "🏕", service: "⛪" };
   $("view").innerHTML = '<div class="actions" style="margin:0 0 10px;align-items:center"><p class="meta" style="margin:0;flex:1">Only the warehouse team sees this. Restore puts it back exactly as it was. Delete forever can\'t be undone.</p>' +
     (TRASH.length ? '<button class="btn danger sm" id="pgAll">Empty Deleted (' + TRASH.length + ")</button>" : "") + "</div>" +
     (TRASH.length ? TRASH.map(t => '<div class="person"><div><h4 dir="auto">' + (icon[t.kind] || "🗑") + " " + esc(t.label || t.kind) + '</h4><div class="meta">Deleted ' + esc(BAS.fmtDateTime(t.deleted_at)) + " · " + esc(person(t.deleted_by)) + "</div></div>" +

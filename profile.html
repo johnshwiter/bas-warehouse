@@ -25,6 +25,11 @@
         <div class="panel" id="remBox" hidden><h3>⏰ Meeting reminder</h3><p class="meta" style="margin-bottom:10px">A notification before each meeting of your stage, at the meeting's start time.</p>
             <div class="grid2"><div class="field"><label>Remind me</label><select id="remMin"><option value="0">Off</option><option value="5">5 minutes before</option><option value="10">10 minutes before</option><option value="15">15 minutes before</option><option value="30">30 minutes before</option><option value="60">1 hour before</option></select></div><div></div></div>
             <button class="btn ok" id="remSave">Save</button></div>
+        <div class="panel" id="details" hidden><h3>📝 My details</h3><p class="meta">Your stage and the warehouse team see these in Group records. Only you and the team can change them here.</p>
+            <div class="grid2"><div class="field"><label>Phone</label><input id="mdPh" inputmode="tel" dir="ltr"></div><div class="field"><label>Birthday</label><input id="mdBd" type="date"></div></div>
+            <div class="field"><label>Address</label><input id="mdAd" dir="auto"></div>
+            <div class="grid2"><div class="field"><label>أب الاعتراف</label><input id="mdCf" dir="auto"></div><div class="field"><label>National ID</label><input id="mdId" inputmode="numeric" maxlength="14" dir="ltr" placeholder="14 numbers"></div></div>
+            <div id="mdErr" class="msg err" hidden></div><button class="btn gold" id="mdSave">Save</button></div>
         <div id="view"><div class="empty">Loading…</div></div>
     </main>
 
@@ -47,8 +52,24 @@
             $("remBox").hidden = false; $("remMin").value = String(r.error || r.data.meet_remind_min == null ? 10 : r.data.meet_remind_min);
             $("remSave").onclick = async () => { const { error } = await supabaseClient.rpc("set_meet_reminder", { p_min: Number($("remMin").value) }); BAS.toast(error ? BAS.errText(error) : (BAS.tr ? BAS.tr("Saved") : "Saved"), error ? "err" : ""); };
         }
+        await myDetails();
         await load();
     })();
+
+    // a kad fills in their own details (their entry on the stage's kada list)
+    async function myDetails() {
+        const { data, error } = await supabaseClient.rpc("my_details");
+        if (error || !data) return;
+        $("details").hidden = false;
+        $("mdPh").value = data.phone || ""; $("mdBd").value = data.birthday || ""; $("mdAd").value = data.address || ""; $("mdCf").value = data.confession_father || ""; $("mdId").value = data.national_id || "";
+        if (location.hash === "#details") setTimeout(() => $("details").scrollIntoView({ block: "start", behavior: "smooth" }), 300);
+        $("mdSave").onclick = async () => {
+            $("mdErr").hidden = true;
+            const { error } = await supabaseClient.rpc("save_my_details", { p: { phone: $("mdPh").value, birthday: $("mdBd").value, address: $("mdAd").value, confession_father: $("mdCf").value, national_id: $("mdId").value } });
+            if (error) { $("mdErr").textContent = BAS.errText(error); $("mdErr").hidden = false; return; }
+            BAS.toast(BAS.tr ? BAS.tr("Saved ✓") : "Saved ✓");
+        };
+    }
 
     async function load() {
         const t = await supabaseClient.from("transfer_requests").select("*").eq("profile_id", BAS.user.id).order("created_at", { ascending: false });
