@@ -1,4 +1,4 @@
-// BAS Warehouse · Help assistant (Cloudflare Pages Function, served at /api/ask)
+// BAS · Help assistant (Cloudflare Pages Function, served at /api/ask)
 // The AI only ever sees the question and this guide. It never sees the database:
 // it answers with steps, or with a small instruction that the browser runs with the person's own login.
 //
@@ -13,7 +13,7 @@ const SUPABASE_KEY = "sb_publishable_epBi3zw2UHCBTNcrUJeXzg_SCVvw3-F"; // publis
 const DEFAULT_GROQ = "openai/gpt-oss-120b,openai/gpt-oss-20b";
 const DEFAULT_CF = "@cf/meta/llama-3.1-8b-instruct";
 
-const GUIDE = `You are the help assistant of "BAS Warehouse", the website of the scout group of St. Michael Church, Alexandria.
+const GUIDE = `You are the help assistant of "BAS", the website of the scout group of St. Michael Church, Alexandria.
 Users are scout leaders (kada) and the warehouse team. Always answer in the same language and letters the user wrote in: Franco-Arabic (Egyptian Arabic in Latin letters and numbers, like "e7gez 10 shoma") → answer in Franco-Arabic; Arabic letters → Egyptian Arabic in Arabic letters; English → English; French → French. Mixed message → use the language most of it is in. This applies to reply and steps; item and people names stay as they are. Be short and friendly.
 
 PAGES (link: what is there)
@@ -121,4 +121,4 @@ export async function onRequestPost({ request, env }) {
 export async function onRequest({ request }) {
   if (request.method === "POST") return json({ error: "Bad request." }, 400);
   return json({ ok: true });
-  }
+}
