@@ -14,6 +14,11 @@
   // ---------- exact texts: "English": ["العربي", "Français"] ----------
   const D = {
     // v20
+    "No تحضير or kada meetings yet.": ["مفيش تحضير أو اجتماعات قادة لسه.", "Pas encore de préparation ni de réunion des chefs."], "No kada meetings yet.": ["مفيش اجتماعات قادة لسه.", "Pas encore de réunion des chefs."],
+    "Under 75%:": ["تحت 75٪:", "Sous 75 % :"], "Everyone left here is still in the group": ["كل اللي فاضلين هنا لسه في المجموعة", "Tous ceux qui restent ici sont toujours dans le groupe"],
+    "Archive the ones who left first. Then this clears “not in the 2026 registration” for the scouts left on this stage's list. Other reasons stay.": ["أرشف اللي سابوا الأول. بعدين ده هيشيل «مش في تسجيل 2026» من الكشافة اللي فاضلين في قايمة المرحلة دي. باقي الأسباب هتفضل.", "Archivez d'abord ceux qui sont partis. Ceci retire ensuite « pas dans l'inscription 2026 » pour les scouts restants. Les autres raisons restent."],
+    "Pick a stage to clear “not in the 2026 registration” for everyone left on its list in one tap.": ["اختار مرحلة علشان تشيل «مش في تسجيل 2026» من كل اللي فاضلين في قايمتها مرة واحدة.", "Choisissez une étape pour retirer « pas dans l'inscription 2026 » de tous ceux qui restent, en une fois."],
+    "Only the warehouse team, القائد العام and مساعد القائد العام can add a kada meeting for all stages.": ["فريق المخزن والقائد العام ومساعد القائد العام بس اللي يضيفوا اجتماع قادة لكل المراحل.", "Seuls l'équipe du dépôt, le chef de groupe et son adjoint peuvent ajouter une réunion des chefs."],
     "Kada meeting (all stages)": ["اجتماع قادة (كل المراحل)", "Réunion des chefs (toutes les étapes)"], "Date / time / title": ["التاريخ / الوقت / العنوان", "Date / heure / titre"],
     "One meeting for every stage. Each stage marks its own kada.": ["اجتماع واحد لكل المراحل. كل مرحلة بتعلّم على قادتها.", "Une réunion pour toutes les étapes. Chaque étape marque ses chefs."],
     "It shows in every stage's Kada tab.": ["هيظهر في تبويب القادة في كل المراحل.", "Elle apparaît dans l'onglet Chefs de chaque étape."],
