@@ -37,7 +37,7 @@
 const $ = id => document.getElementById(id);
 const esc = s => BAS.esc(s);
 let TRASH = [], EMPTYOK = null;
-let STOCK = [], BY = {}, RES = [], LOSSES = [], PAYMENTS = [], PEOPLE = [], TRANSFERS = [], MAINT = [], WAIT = [], ANN = [], CHANGES = [], MSGS = [], THREAD = null, CHAT_T = null;
+let STOCK = [], BY = {}, RES = [], LOSSES = [], PAYMENTS = [], PEOPLE = [], REMOVED = [], TRANSFERS = [], MAINT = [], WAIT = [], ANN = [], CHANGES = [], MSGS = [], THREAD = null, CHAT_T = null;
 let TAB = "overview", SUB = "prepare", FORM = null, OPEN = null, ADDING = false, SQ = "", SCAT = "All", MSUB = "open";
 const TITLES = { trash: "Deleted", overview: "Overview of <em>all stages</em>", requests: "Requests", money: "Missing & <em>compensation</em>", stock: "Stock", maint: "Under <em>maintenance</em>",
   wait: "Waitlist", chat: "Messages", news: "Announcements", people: "Accounts", log: "Activity log", settings: "Settings" };
@@ -75,6 +75,7 @@ async function loadAll() {
     BAS.setServices(await BAS.q(supabaseClient.from("services").select("*").order("id")));
     CHANGES = RES.filter(r => r.change);
     TRASH = await BAS.q(supabaseClient.from("trash").select("*").order("deleted_at", { ascending: false }));
+    REMOVED = PEOPLE.filter(p => p.approval_status === "removed" && p.full_name !== "Removed account");
     PEOPLE = PEOPLE.filter(p => p.approval_status !== "removed");
     MSGS = await BAS.loadMessages();
     render();
@@ -716,7 +717,14 @@ function peopleView() {
   $("view").innerHTML = (pend.length ? '<div class="group-title">New accounts waiting</div>' + pend.map(row).join("") : "") +
     (tr.length ? '<div class="group-title">Stage transfer requests</div>' + tr.map(t => '<div class="person"><div><h4>' + esc(person(t.profile_id)) + '</h4><div class="meta">' + BAS.secHTML(t.from_section) + " → <b>" + BAS.secHTML(t.to_section) + "</b> · " + esc(BAS.fmtDate(t.created_at)) + (t.note ? " · " + esc(t.note) : "") + "</div></div>" +
       '<div class="actions" style="margin:0"><button class="btn ok sm" data-tr="' + t.id + '" data-ok="1">Approve</button><button class="btn danger sm" data-tr="' + t.id + '" data-ok="0">Reject</button></div></div>').join("") : "") +
-    '<div class="group-title">Everyone else</div>' + rest.map(row).join("");
+    '<div class="group-title">Everyone else</div>' + rest.map(row).join("") +
+    (REMOVED.length ? '<div class="group-title">Removed accounts</div><p class="meta">They can\'t log in. Bring one back and they can log in again with the same email and password.</p>' +
+      REMOVED.map(p => '<div class="person"><div><h4>' + esc(p.full_name) + '</h4><div class="meta">' + esc(p.email || "") + (p.section_id ? " · " + esc(BAS.sectionName(p.section_id)) : "") + "</div></div>" +
+        '<div class="actions" style="margin:0"><button class="btn ok sm" data-back="' + p.id + '">↩ Bring back</button></div></div>').join("") : "");
+  $("view").querySelectorAll("[data-back]").forEach(b => b.onclick = () => {
+    const p = REMOVED.find(x => x.id === b.dataset.back);
+    if (confirm("Bring back " + p.full_name + "'s account? They can log in again right away.")) rpc("restore_account", { p_id: p.id }, "Account brought back");
+  });
   $("view").querySelectorAll(".person[data-p]").forEach(el => {
     const id = el.dataset.p;
     el.querySelectorAll("select").forEach(s => s.onchange = () => {
