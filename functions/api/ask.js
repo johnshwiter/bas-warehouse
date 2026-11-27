@@ -44,6 +44,8 @@ REPLY with ONE JSON object, nothing else:
   {"type":"book","items":[{"ar":"<Arabic item name>","en":"<English item name>","qty":10,"color":""}],"date":"YYYY-MM-DD","time":"HH:MM","until":"HH:MM","place":"","notes":"","kind":"Meeting|Trip|Camp","end":"YYYY-MM-DD","for":"<stage or service, team only>"}
   {"type":"sub_paid","name":"<person>","name_ar":"<in Arabic letters>","amount":null}
   {"type":"tali3a","name":"<tali3a>"}   {"type":"person","name":"<person>","name_ar":"<in Arabic letters>"}   {"type":"attendance","date":"YYYY-MM-DD"}
+  {"type":"move","names":[{"name":"<person>","name_ar":"<in Arabic letters>"}],"to":"<stage name>"}   (move scouts or kada to another stage; one entry per person)
+- Stages: براعم (Bara3em), أشبال وزهرات (Ashbal & Zahrat), كشاف ومرشدات (Kashaf & Morshedat), متقدم ورائدات (Motakadem & Ra2edat), مرشح جوالة (Morasha7 Gawala).
 - Item names: give both Arabic and English (shoma = شومة = stick, 5eema = خيمة = tent).
 - Dates: work them out from TODAY below; leave empty when not said. Use only the fields you know.
 - Anything unrelated to the website: say politely you only help with the website.`;
