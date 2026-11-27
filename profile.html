@@ -26,9 +26,9 @@
             <div class="grid2"><div class="field"><label>Remind me</label><select id="remMin"><option value="0">Off</option><option value="5">5 minutes before</option><option value="10">10 minutes before</option><option value="15">15 minutes before</option><option value="30">30 minutes before</option><option value="60">1 hour before</option></select></div><div></div></div>
             <button class="btn ok" id="remSave">Save</button></div>
         <div class="panel" id="details" hidden><h3>📝 My details</h3><p class="meta">Your stage and the warehouse team see these in Group records. Only you and the team can change them here.</p>
-            <div class="grid2"><div class="field"><label>Phone</label><input id="mdPh" inputmode="tel" dir="ltr"></div><div class="field"><label>Birthday</label><input id="mdBd" type="date"></div></div>
+            <div class="grid2"><div class="field"><label>Phone</label><input id="mdPh" type="tel" inputmode="numeric" maxlength="11" placeholder="01xxxxxxxxx" dir="ltr"></div><div class="field"><label>Birthday</label><input id="mdBd" type="date"></div></div>
             <div class="field"><label>Address</label><input id="mdAd" dir="auto"></div>
-            <div class="grid2"><div class="field"><label>أب الاعتراف</label><input id="mdCf" dir="auto"></div><div class="field"><label>National ID</label><input id="mdId" inputmode="numeric" maxlength="14" dir="ltr" placeholder="14 numbers"></div></div>
+            <div class="grid2"><div class="field"><label>أب الاعتراف</label><div id="mdCfBox"></div></div><div class="field"><label>National ID</label><input id="mdId" inputmode="numeric" maxlength="14" dir="ltr" placeholder="14 numbers"></div></div>
             <div id="mdErr" class="msg err" hidden></div><button class="btn gold" id="mdSave">Save</button></div>
         <div id="view"><div class="empty">Loading…</div></div>
     </main>
@@ -61,7 +61,7 @@
         const { data, error } = await supabaseClient.rpc("my_details");
         if (error || !data) return;
         $("details").hidden = false;
-        $("mdPh").value = data.phone || ""; $("mdBd").value = data.birthday || ""; $("mdAd").value = data.address || ""; $("mdCf").value = data.confession_father || ""; $("mdId").value = data.national_id || "";
+        $("mdPh").value = data.phone || ""; $("mdBd").value = data.birthday || ""; $("mdAd").value = data.address || ""; $("mdCfBox").innerHTML = BAS.fatherField("mdCf", data.confession_father || ""); $("mdId").value = data.national_id || "";
         if (location.hash === "#details") setTimeout(() => $("details").scrollIntoView({ block: "start", behavior: "smooth" }), 300);
         $("mdSave").onclick = async () => {
             $("mdErr").hidden = true;

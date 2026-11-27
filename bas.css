@@ -826,3 +826,6 @@ label.busy { opacity: .6; pointer-events: none; }
 .eft-row .nm { flex: 1 1 160px; }
 .eft-row input { flex: 1 1 160px; min-width: 120px; }
 .eft-row .by { flex-basis: 100%; font-size: 12px; color: #8A8DAA; }
+
+/* v22b: a phone that isn't 11 numbers yet */
+input[type=tel].bad { border-color: #D33 !important; background: #FFF1F1; }

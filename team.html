@@ -902,6 +902,8 @@ function settingsView() {
     '<div class="grid2"><div class="field"><label>Low stock warning (% of total)</label><input id="sLow" type="number" min="0" max="100" value="' + s.low_pct + '"></div>' +
     '<div class="field"><label>Meeting times (comma separated)</label><input id="sTimes" value="' + esc((s.times || []).join(", ")) + '"></div></div>' +
     '<div id="fErr" class="msg err" hidden></div><button class="btn ok" id="sSave">Save settings</button></div>' +
+    '<div class="group-title">أب الاعتراف</div><div class="panel" style="max-width:640px"><p class="meta" style="margin-top:0">The list everyone picks from in Group records and in My details. One name per line. Anyone else can still be written by hand.</p>' +
+    '<div class="field"><textarea id="sFa" rows="7" dir="auto">' + esc(BAS.fathers().join("\n")) + '</textarea></div><button class="btn ok" id="sFaSave">Save the list</button></div>' +
     '<div class="group-title">Scout stages</div><div class="panel" style="max-width:640px">' +
     BAS.sections.map(x => '<div class="person"><div><h4><bdi>' + esc(x.name_ar) + "</bdi> · " + esc(x.name_en) + '</h4><div class="meta">' + (x.has_3eyal ? "Kada + scouts in camps" : "Kada only in camps (and a number of kids)") + "</div></div>" +
       '<div class="actions" style="margin:0"><button class="btn line sm" data-sec="' + x.id + '">Edit</button><button class="btn danger sm" data-secdel="' + x.id + '">Delete</button></div></div>').join("") +
@@ -926,6 +928,12 @@ function settingsView() {
   $("rsGo").onclick = resetAll;
   backupBox();
   $("aiLimGo").onclick = async () => { const n = Number($("aiLim").value); const { error } = await supabaseClient.rpc("set_ai_limit", { p_n: n }); if (error) return BAS.toast(BAS.errText(error), "err"); BAS.settings.ai_daily_limit = n; BAS.toast("Saved"); };
+  $("sFaSave").onclick = async () => {
+    const L = $("sFa").value.split("\n").map(x => x.trim()).filter(Boolean);
+    const { error } = await supabaseClient.rpc("save_fathers", { p_list: L });
+    if (error) return BAS.toast(BAS.errText(error), "err");
+    BAS.settings.confession_fathers = L; BAS.toast("Saved ✓");
+  };
   $("sSave").onclick = async () => {
     const days = Number($("sDays").value), ret = Number($("sRet").value), low = Number($("sLow").value), times = $("sTimes").value.split(",").map(x => x.trim()).filter(Boolean);
     if (!Number.isInteger(days) || days < 0 || days > 30) return fail("Days before must be between 0 and 30.");

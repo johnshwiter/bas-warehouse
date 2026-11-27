@@ -42,7 +42,7 @@ const QS = new URLSearchParams(location.search);
 const YEARS = ["KG1", "KG2"].concat([1, 2, 3, 4, 5, 6].map(n => n + " ابتدائي"), [1, 2, 3].map(n => n + " إعدادي"), [1, 2, 3].map(n => n + " ثانوي"), [1, 2, 3, 4, 5].map(n => "جامعة " + n), ["خريج / بيشتغل"]);
 let ALL = [], TAL = [], CAN_EDIT = false;
 const FIELDS = [
-  ["national_id", "National ID", "nid"], ["scout_no", "Scout number"], ["birthday", "Birthday", "date"], ["school_year", "School year", "year"], ["school", "School"], ["address", "Address", "area"], ["confession_father", "أب الاعتراف"],
+  ["national_id", "National ID", "nid"], ["scout_no", "Scout number"], ["birthday", "Birthday", "date"], ["school_year", "School year", "year"], ["school", "School"], ["address", "Address", "area"], ["confession_father", "أب الاعتراف", "father"],
   ["phone", "Scout's phone", "tel"], ["father_name", "Father's name"], ["father_phone", "Father's phone", "tel"], ["father_job", "Father's job"],
   ["mother_name", "Mother's name"], ["mother_phone", "Mother's phone", "tel"], ["mother_job", "Mother's job"], ["mother_works", "Does the mother work?", "yn"],
   ["joined_on", "Joined the scouts on", "date"]];
@@ -248,7 +248,8 @@ async function personSheet(p) {
     else if (f[2] === "yn") inp = '<select id="' + id + '"><option value="">—</option><option value="true"' + (v === true ? " selected" : "") + ">" + esc(T("Yes")) + '</option><option value="false"' + (v === false ? " selected" : "") + ">" + esc(T("No")) + "</option></select>";
     else if (f[2] === "nid") inp = '<input id="' + id + '" inputmode="numeric" maxlength="14" placeholder="14 numbers" dir="ltr" value="' + esc(v || "") + '">';
     else if (f[2] === "area") inp = '<textarea id="' + id + '" rows="2" dir="auto">' + esc(v || "") + "</textarea>";
-    else inp = '<input id="' + id + '"' + (f[2] === "tel" ? ' type="tel" inputmode="tel" placeholder="01xxxxxxxxx"' : ' dir="auto"') + ' value="' + esc(v || "") + '">';
+    else if (f[2] === "father") inp = BAS.fatherField(id, v);
+    else inp = '<input id="' + id + '"' + (f[2] === "tel" ? ' type="tel" inputmode="numeric" maxlength="11" placeholder="01xxxxxxxxx"' : ' dir="auto"') + ' value="' + esc(v || "") + '">';
     return '<div class="field"><label>' + esc(T(f[1])) + "</label>" + (f[2] === "tel" ? '<div class="phrow">' + inp + tel(v) + "</div>" : inp) + "</div>";
   };
   o.innerHTML = '<div class="sheet" style="max-width:600px"><div class="pd-top"><div class="pd-photo" id="rPh">' + (p.photo_path ? "" : "<span>" + esc((p.name || "?").trim().charAt(0)) + "</span>") + "</div>" +

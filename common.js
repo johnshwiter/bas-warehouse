@@ -1168,3 +1168,32 @@ BAS.detailsNudge = async function () {
     document.getElementById("dnLater").onclick = () => { try { localStorage.setItem("bas-dn-later", String(Date.now() + 3 * 864e5)); } catch (e) {} c.remove(); };
   } catch (e) {}
 };
+
+// ---------- phones: 11 numbers ----------
+// every phone box: Arabic numbers become English, anything that isn't a number goes, at most 11
+BAS.normPhone = v => { let d = String(v || "").replace(/[٠-٩]/g, c => "٠١٢٣٤٥٦٧٨٩".indexOf(c)).replace(/[۰-۹]/g, c => "۰۱۲۳۴۵۶۷۸۹".indexOf(c)).replace(/[^0-9]/g, "");
+  if (/^0020/.test(d)) d = "0" + d.slice(4); else if (/^20\d{10}$/.test(d)) d = "0" + d.slice(2); return d; };
+if (typeof document !== "undefined") {
+  document.addEventListener("input", e => {
+    const el = e.target; if (!el || el.tagName !== "INPUT" || el.type !== "tel") return;
+    // +20 / 0020 at the start: let them finish typing, then it becomes 0…
+    const raw = String(el.value).replace(/[٠-٩]/g, c => "٠١٢٣٤٥٦٧٨٩".indexOf(c)).replace(/[^0-9]/g, ""), d = BAS.normPhone(el.value).slice(0, /^(00|2)/.test(raw) && raw.length < 12 ? 14 : 11);
+    if (d !== el.value) el.value = d;
+    el.classList.toggle("bad", d.length > 0 && d.length < 11);
+  }, true);
+  document.addEventListener("focusin", e => { const el = e.target; if (el && el.tagName === "INPUT" && el.type === "tel") { el.removeAttribute("maxlength"); el.inputMode = "numeric"; } }, true);
+}
+
+// ---------- أب الاعتراف: the church's list, or write it ----------
+BAS.fathers = () => (BAS.settings && BAS.settings.confession_fathers) || ["Fr. Athanasious", "Fr. Elia Naguib", "Fr. Augustinos", "Fr. Michael Youssef", "Fr. Mina Zaher", "Fr. Raphael"];
+BAS.fatherField = (id, v) => {
+  const L = BAS.fathers(), other = !!v && L.indexOf(v) < 0;
+  return '<select id="' + id + 'S" data-father="' + id + '"><option value="">—</option>' + L.map(n => '<option' + (n === v ? " selected" : "") + ">" + BAS.esc(n) + "</option>").join("") +
+    '<option value="__o"' + (other ? " selected" : "") + ">" + BAS.esc(BAS.tr("Someone else (write it)")) + "</option></select>" +
+    '<input id="' + id + '" dir="auto" placeholder="' + BAS.esc(BAS.tr("Write the name")) + '" value="' + BAS.esc(v || "") + '"' + (other ? "" : " hidden") + ' style="margin-top:6px">';
+};
+if (typeof document !== "undefined") document.addEventListener("change", e => {
+  const sel = e.target; if (!sel || !sel.dataset || !sel.dataset.father) return;
+  const inp = document.getElementById(sel.dataset.father); if (!inp) return;
+  if (sel.value === "__o") { inp.hidden = false; inp.value = ""; inp.focus(); } else { inp.hidden = true; inp.value = sel.value; }
+}, true);

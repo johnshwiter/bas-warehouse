@@ -13,6 +13,10 @@
 
   // ---------- exact texts: "English": ["العربي", "Français"] ----------
   const D = {
+    // v22b
+    "Someone else (write it)": ["حد تاني (اكتبه)", "Quelqu'un d'autre (l'écrire)"], "Write the name": ["اكتب الاسم", "Écrivez le nom"],
+    "The list everyone picks from in Group records and in My details. One name per line. Anyone else can still be written by hand.": ["القايمة اللي الكل بيختار منها في سجلات الكشافة وبياناتي. اسم في كل سطر. أي حد تاني ينكتب بالإيد.", "La liste proposée dans les registres et Mes informations. Un nom par ligne. Un autre nom peut toujours être écrit."],
+    "Save the list": ["احفظ القايمة", "Enregistrer la liste"], "A phone number has to be 11 numbers:": ["رقم الموبايل لازم يكون 11 رقم:", "Un numéro doit avoir 11 chiffres :"],
     // v22
     "Your marks that weren't saved were brought back from this phone. Press Save draft or Finish.": ["العلامات اللي ما اتحفظتش رجعت من الموبايل ده. دوس احفظ مسودة أو خلصت.", "Vos marques non enregistrées ont été récupérées sur ce téléphone. Appuyez sur Brouillon ou Terminer."],
     "Drop them": ["امسحهم", "Les abandonner"], "Drop the marks saved on this phone?": ["تمسح العلامات المحفوظة على الموبايل ده؟", "Abandonner les marques gardées sur ce téléphone ?"],
@@ -716,7 +720,7 @@
     [/ to (?=[^·]+($| · ))/g, " لـ ", " à "], [/ · return by( |$)/g, " · يرجع قبل$1", " · retour avant$1"], [/ · back /g, " · رجع ", " · rendu "], [/^back /, "رجع ", "rendu "], [/^by /, "قبل ", "avant "],
     [/^Available (\d+) of (\d+)/, "متاح $1 من $2", "Disponible $1 sur $2"], [/ · out (\d+)/g, " · برّه $1", " · sorti $1"], [/ · missing (\d+)/g, " · ناقص $1", " · manquant $1"],
     [/ · damaged (\d+)/g, " · بايظ $1", " · abîmé $1"], [/ · (\d+) colours/g, " · $1 ألوان", " · $1 couleurs"], [/ · signed up /g, " · سجّل ", " · inscrit le "],
-    [/^Since /, "من ", "Depuis "], [/ · back by /g, " · يرجع قبل ", " · retour avant "], [/ · count /g, " · العدد ", " · nombre "], [/ · repaired\/found /g, " · اتصلّح/اتلاقى ", " · réparé/retrouvé "],
+    [/^A phone number has to be 11 numbers: /, "رقم الموبايل لازم يكون 11 رقم: ", "Un numéro doit avoir 11 chiffres : "], [/^Since /, "من ", "Depuis "], [/ · back by /g, " · يرجع قبل ", " · retour avant "], [/ · count /g, " · العدد ", " · nombre "], [/ · repaired\/found /g, " · اتصلّح/اتلاقى ", " · réparé/retrouvé "],
     [/ · request #/g, " · طلب #", " · demande #"], [/^to /, "لـ ", "à "], [/ OK,/g, " سليم،", " OK,"], [/\(partly\)/g, "(جزء)", "(en partie)"], [/ · return by$/, " · يرجع قبل", " · retour avant"],
     [/ · cost /g, " · التكلفة ", " · coût "], [/^Was /, "كان ", "Était "], [/ was handed out/, " اتسلّم", " remis"], [/^(.*) \(warehouse\)$/, "$1 (المخزن)", "$1 (entrepôt)"]
   ];
