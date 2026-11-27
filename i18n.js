@@ -13,6 +13,9 @@
 
   // ---------- exact texts: "English": ["العربي", "Français"] ----------
   const D = {
+    // v21
+    "Group records are only for the warehouse team and the accounts it chooses.": ["سجلات الكشافة لفريق المخزن والحسابات اللي بيختارها بس.", "Les registres sont réservés à l'équipe du dépôt et aux comptes qu'elle choisit."],
+    "Open Group records (see everyone's details)": ["فتح سجلات الكشافة (يشوف بيانات الكل)", "Ouvrir les registres (voir les détails de tous)"],
     // v20
     "Open the move to": ["افتح النقل لـ", "Ouvrir le transfert vers"], "Check the names and press Move.": ["راجع الأسامي ودوس «انقل».", "Vérifiez les noms et appuyez sur Déplacer."],
     "Which stage should they move to?": ["ينتقلوا لأنهي مرحلة؟", "Vers quelle étape ?"], "They're already in that stage.": ["هما في المرحلة دي بالفعل.", "Ils sont déjà dans cette étape."],
@@ -719,10 +722,17 @@
     const p = n.parentElement;
     if (!p || p.closest("script,style,textarea,[data-noi18n],.bub-txt,.ann p,.ann h4,.bp-row div,#uiBar,.ui-dlg")) return;
     const cur = n.nodeValue, src = (n.__t !== undefined && cur === n.__t) ? n.__o : cur;
-    const x = tr(src), out = x == null ? src : x;
+    const x = tr(src); let out = x == null ? src : x;
+    if (BAS.unitSwap) out = swapUnit(out);
     n.__o = src; n.__t = out;
     if (out !== cur) n.nodeValue = out;
   }
+  // مرشح جوالة calls its groups رهط and their leader رائد رهط: the page sets BAS.unitSwap = true for that stage
+  const SW = [[/الطلائع/g, "الرهوط"], [/طلائع/g, "رهوط"], [/الطليعة/g, "الرهط"], [/طليعة/g, "رهط"], [/مساعد العريف/g, "مساعد رائد الرهط"], [/مساعد عريف/g, "مساعد رائد رهط"],
+    [/العريف/g, "رائد الرهط"], [/عريف/g, "رائد رهط"], [/Tali3as/g, "Rahts"], [/tali3as/g, "rahts"], [/Tali3a/g, "Raht"], [/tali3a/g, "raht"], [/3arif/g, "Ra2ed raht"],
+    [/Patrouilles/g, "Rahts"], [/patrouilles/g, "rahts"], [/Chef de patrouille/g, "Ra2ed raht"], [/Second de patrouille/g, "Second du raht"], [/Patrouille/g, "Raht"], [/patrouille/g, "raht"]];
+  function swapUnit(t) { for (const [r, to] of SW) t = t.replace(r, to); return t; }
+  BAS.setUnit = on => { if (!!BAS.unitSwap === !!on) return; BAS.unitSwap = !!on; run(document.body); };
   BAS.retr = () => run(document.body);
   run(document.body);
   document.title = BAS.tr(document.title.split(" | ")[0]) + " | " + BAS.tr("BAS Warehouse");

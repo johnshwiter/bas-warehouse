@@ -42,6 +42,8 @@ const BAS = {
   // access the warehouse team gives an account: all_stages, records_edit, group_money, announce, book_any
   can(k) { return this.isAdmin() || !!(this.isApproved() && this.profile.access && this.profile.access[k]); },
   allStages() { return this.can("all_stages"); },
+  // Group records: the warehouse team and accounts it ticks ("Open Group records" or "Change the details")
+  canRecords() { return this.can("records") || this.can("records_edit"); },
   groupRole() { return (this.profile && this.profile.group_role) || ""; },
 
   allSections: [],
@@ -73,7 +75,7 @@ const BAS = {
     if (!this.user) return "auth.html";
     if (!this.isApproved()) return "auth.html?pending=1";
     if (this.isAdmin()) return "team.html";
-    if (!this.profile.section_id) return this.allStages() ? "attendance.html" : "records.html";
+    if (!this.profile.section_id) return this.allStages() ? "attendance.html" : this.canRecords() ? "records.html" : "profile.html";
     return "section.html";
   },
 
@@ -133,15 +135,15 @@ const BAS = {
       if (this.allStages()) grp.push(["attendance", "attendance.html", "Attendance"]);
       if (this.allStages() || this.groupRole()) grp.push(["kada", "kada.html", "Kada attendance"]);
       if (this.allStages() || this.can("plans_all")) grp.push(["plan", "plan.html", "Meeting plans"]);
-      grp.push(["records", "records.html", "Group records"]);
+      if (this.canRecords()) grp.push(["records", "records.html", "Group records"]);
       if (this.can("group_money")) grp.push(["group", "mizania.html?fund=group", "Group money"]);
       if (this.can("announce")) grp.push(["news", "news.html", "Announcements"]);
       if (this.can("plans_all") && !this.groupRole() && !this.allStages()) grp.push(["plan", "plan.html", "Meeting plans"]);
       if (this.groupRole() || this.allStages() || this.can("plans_all")) G.push({ t: this.groupRole() === "kada_3am" ? "القائد العام" : this.groupRole() === "mosa3ed_3am" ? "مساعد القائد العام" : "Group", items: grp });
-      if (!mine) { G.push({ t: "More", items: [["profile", "profile.html", "Profile"], ["help", "help.html", "Help"]].concat(this.groupRole() || this.allStages() ? [] : [["records", "records.html", "Group records"]]) }); return G; }
+      if (!mine) { G.push({ t: "More", items: [["profile", "profile.html", "Profile"], ["help", "help.html", "Help"]].concat(this.groupRole() || this.allStages() || !this.canRecords() ? [] : [["records", "records.html", "Group records"]]) }); return G; }
       G.push({ t: "My stage", items: [["s-dash", "section.html#dash", "Dashboard"], ["s-requests", "section.html#requests", "Requests"], ["s-history", "section.html#history", "History & search"],
         ["s-equipment", "section.html#equipment", "Equipment out / back"], ["s-money", "section.html#money", "Missing & compensation"], ["s-chat", "section.html#chat", "Messages"], ["s-wait", "section.html#wait", "Waitlist"]] });
-      G.push({ t: "", items: [["plan", "plan.html", "Meeting plans"], ["ohda", "ohda.html", "Camps & 3ohda"]].concat(this.allStages() ? [] : [["attendance", "attendance.html", "Attendance"]]).concat(this.groupRole() || this.allStages() ? [] : [["records", "records.html", "Group records"]]) });
+      G.push({ t: "", items: [["plan", "plan.html", "Meeting plans"], ["ohda", "ohda.html", "Camps & 3ohda"]].concat(this.allStages() ? [] : [["attendance", "attendance.html", "Attendance"]]).concat(this.groupRole() || this.allStages() || !this.canRecords() ? [] : [["records", "records.html", "Group records"]]) });
       G.push({ t: "More", items: [["s-news", "section.html#news", "Announcements"], ["profile", "profile.html", "Profile"], ["help", "help.html", "Help"]] });
     }
     return G;

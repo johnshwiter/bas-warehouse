@@ -126,6 +126,7 @@ function list() {
 }
 
 function draw() {
+  if (BAS.setUnit) BAS.setUnit((BAS.allSections.find(x => x.id === (Number($("fSec").value) || (!BAS.allStages() && BAS.profile.section_id))) || {}).unit_style === "raht");
   if ($("fState").value === "dup") return drawDoubles();
   const L = list(), arch = $("fState").value === "arch";
   const nChk = ALL.filter(p => p.is_active && p.check_note).length;
@@ -337,6 +338,7 @@ function download() {
 (async function () {
   await BAS.init("records");
   if (!BAS.requireApproved()) return;
+  if (!BAS.canRecords()) { $("view").innerHTML = '<div class="msg err">' + esc(T("Group records are only for the warehouse team and the accounts it chooses.")) + "</div>"; $("count").textContent = ""; return; }
   CAN_EDIT = BAS.can("records_edit");
   if (CAN_EDIT) $("fDup").hidden = false;
   if (BAS.allStages()) {

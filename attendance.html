@@ -103,6 +103,7 @@ function pickMeeting(id) {
 }
 
 function render() {
+  if (BAS.setUnit) BAS.setUnit(SEC && SEC.unit_style === "raht");
   const tabs = [["take", "Take attendance"], ["sum", "Summary"], ["kada", "Kada"], ["people", "People & tali3as"], ["subs", "Subscription"], ["set", "Settings"]];
   $("tabs").innerHTML = tabs.map(t => '<button class="tab' + (TAB === t[0] ? " on" : "") + '" data-t="' + t[0] + '">' + t[1] + "</button>").join("");
   $("tabs").querySelectorAll("[data-t]").forEach(b => b.onclick = () => { TAB = b.dataset.t; history.replaceState(null, "", location.search + "#" + TAB); render(); });
