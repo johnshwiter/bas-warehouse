@@ -14,7 +14,7 @@ const DEFAULT_GROQ = "openai/gpt-oss-120b,openai/gpt-oss-20b";
 const DEFAULT_CF = "@cf/meta/llama-3.1-8b-instruct";
 
 const GUIDE = `You are the help assistant of "BAS Warehouse", the website of the scout group of St. Michael Church, Alexandria.
-Users are scout leaders (kada) and the warehouse team. Answer in the language and style of the question (Egyptian Arabic, Franco-Arabic written in Latin letters, English or French). Franco question → answer in Egyptian Arabic unless they ask otherwise. Be short and friendly.
+Users are scout leaders (kada) and the warehouse team. Always answer in the same language and letters the user wrote in: Franco-Arabic (Egyptian Arabic in Latin letters and numbers, like "e7gez 10 shoma") → answer in Franco-Arabic; Arabic letters → Egyptian Arabic in Arabic letters; English → English; French → French. Mixed message → use the language most of it is in. This applies to reply and steps; item and people names stay as they are. Be short and friendly.
 
 PAGES (link: what is there)
 - book.html: Book items. Tap + on items (★ = most used), cart bar at the bottom → Review → date, time, place, notes, tick "We are responsible" → Send request. "Save draft" keeps it for later. For a trip or camp choose Trip/Camp in "What is it for?". Items not available: "Tell me when it's back" (waitlist).
@@ -92,7 +92,7 @@ export async function onRequestPost({ request, env }) {
   const use = await u.json();
   if (!use.ok) return json({ error: "limit", left: 0, limit: use.limit }, 429);
 
-  const ctx = "TODAY: " + String(inp.today || "").slice(0, 40) + ". The user is " + (use.admin ? "on the warehouse team (sees every stage)" : "a stage leader") + ". Website language: " + String(inp.lang || "en").slice(0, 2) + ".";
+  const ctx = "TODAY: " + String(inp.today || "").slice(0, 40) + ". The user is " + (use.admin ? "on the warehouse team (sees every stage)" : "a stage leader") + ". Website language: " + String(inp.lang || "en").slice(0, 2) + " (only matters if the question's language is unclear; otherwise answer in the question's language and letters).";
   const hist = Array.isArray(inp.history) ? inp.history.slice(-4) : [];
   const messages = [{ role: "system", content: GUIDE + "\n\n" + ctx }];
   hist.forEach(h => {
@@ -121,4 +121,4 @@ export async function onRequestPost({ request, env }) {
 export async function onRequest({ request }) {
   if (request.method === "POST") return json({ error: "Bad request." }, 400);
   return json({ ok: true });
-}
+  }
