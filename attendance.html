@@ -296,6 +296,7 @@ function sumView() {
   const pctCell = s => "<td>" + (s.total ? s.apct + "%" : '<span class="z">—</span>') + "</td><td>" + (s.total ? '<span class="band ' + s.band + '">' + s.pct + "%</span>" : '<span class="z">—</span>') + "</td>";
   const krow = p => { const s = stats(p); return "<tr>" + nm(p, s.unexcused >= 2) + pctCell(s) + c(s.total) + c(s.present) + c(s.late) + c(s.half) + c(s.unexcused, s.unexcused >= 2) + c(s.excused) + c(s.noUni) + c(s.noFoul, s.noFoul >= 2) + "</tr>"; };
   const th = x => "<th>" + esc(T(x)) + "</th>";
+  h += '<div class="actions" style="margin:0 0 8px"><button class="btn line sm" id="xlsGo">📥 ' + esc(T("Download as Excel")) + "</button></div>";
   h += '<div class="stab-legend">👕 = ' + esc(T("no uniform")) + " · 🧣 = " + esc(T("no foulard")) + "</div>";
   h += '<div class="group-title">Kada</div><div class="panel tscroll stabw"><table class="stab"><tr>' + th("Name") + th("Attended %") + th("Final %") + th("Meetings") + th("Present") + th("Late") + th("½ Half") + th("Absent") + th("Excused") + "<th>👕</th><th>🧣</th></tr>" +
     (K.length ? K.map(krow).join("") : '<tr><td colspan="11" class="mut">—</td></tr>') + "</table></div>";
@@ -315,7 +316,47 @@ function sumView() {
   }
   $("view").innerHTML = h;
   document.querySelectorAll("[data-g]").forEach(b => b.onclick = () => { GROUP = b.dataset.g; sumView(); });
+  $("xlsGo").onclick = downloadXlsx;
   bindSort(sumView);
+}
+
+// ---------- Excel: a summary sheet and a meeting-by-meeting sheet ----------
+const XLSX_URL = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+function loadXlsx() {
+  if (window.XLSX) return Promise.resolve();
+  return new Promise((ok, bad) => { const sc = document.createElement("script"); sc.src = XLSX_URL; sc.onload = ok; sc.onerror = () => bad(new Error(T("Couldn't load the Excel maker. Check the internet and try again."))); document.head.appendChild(sc); });
+}
+async function downloadXlsx() {
+  const b = $("xlsGo"); b.disabled = true;
+  try {
+    await loadXlsx();
+    const K = kadaSorted(), A = ordered().filter(g => g.title !== "Kada").flatMap(g => g.list.map(p => [p, g.title]));
+    const people = K.map(p => [p, "Kada"]).concat(A);
+    const role = p => ({ ar: p.role === "kada" ? "قائد" : "كشاف", fr: p.role === "kada" ? "Chef" : "Scout" }[BAS.lang] || (p.role === "kada" ? "Kada" : "Scout"));
+    const sum = [[T("Kada or scout"), T("Name"), T("Arabic name"), T("Tali3a"), T("Attended %"), T("Final %"), T("Meetings"), T("Present"), T("Late"), T("½ Half"), T("Absent"), T("Excused"), T("No uniform"), T("No foulard")]];
+    people.forEach(([p]) => { const st = stats(p);
+      sum.push([role(p), p.name, p.name_ar && p.name_ar !== p.name ? p.name_ar : "", p.role === "kada" ? "" : tName(p.tali3a_id) || "",
+        st.total ? st.apct / 100 : "", st.total ? st.pct / 100 : "", st.total, st.present, st.late, st.half, p.role === "kada" ? Math.round(st.unexcused * 100) / 100 : st.absent, st.excused, st.noUni, st.noFoul]); });
+    // one column per finished meeting, oldest first
+    const M = MEET.filter(m => m.status === "done").slice().sort((a, b) => a.meet_date.localeCompare(b.meet_date));
+    const W = { present: T("Present"), late: T("Late"), half: T("½ Half"), absent: T("Absent"), excused: T("Excused") };
+    const grid = [[T("Kada or scout"), T("Name"), T("Tali3a")].concat(M.map(m => m.meet_date + (m.title ? " · " + m.title : "")))];
+    people.forEach(([p]) => grid.push([role(p), p.name, p.role === "kada" ? "" : tName(p.tali3a_id) || ""].concat(M.map(m => {
+      const r = RECS.find(x => x.meeting_id === m.id && x.roster_id === p.id);
+      return r ? W[r.status] + (r.status !== "absent" && r.status !== "excused" ? (r.uniform === false ? " 👕✗" : "") + (r.foulard === false && p.owns_foulard !== false ? " 🧣✗" : "") : "") : "";
+    }))));
+    const wb = XLSX.utils.book_new(), rtl = BAS.lang === "ar";
+    const ws1 = XLSX.utils.aoa_to_sheet(sum), ws2 = XLSX.utils.aoa_to_sheet(grid);
+    for (let r = 1; r < sum.length; r++) ["E", "F"].forEach(c => { const cell = ws1[c + (r + 1)]; if (cell && cell.t === "n") cell.z = "0%"; });
+    ws1["!cols"] = [{ wch: 10 }, { wch: 26 }, { wch: 26 }, { wch: 14 }].concat(Array(10).fill({ wch: 11 }));
+    ws2["!cols"] = [{ wch: 10 }, { wch: 26 }, { wch: 14 }].concat(M.map(() => ({ wch: 12 })));
+    XLSX.utils.book_append_sheet(wb, ws1, T("Summary").slice(0, 31));
+    XLSX.utils.book_append_sheet(wb, ws2, T("Meetings").slice(0, 31));
+    if (rtl) wb.Workbook = { Views: [{ RTL: true }] };   // Excel shows it right-to-left where the writer supports it
+    const nameEn = (SEC.name_en || "stage").replace(/[^\w&]+/g, "-");
+    XLSX.writeFile(wb, "BAS-attendance-" + nameEn + "-" + BAS.todayISO() + ".xlsx");
+  } catch (e) { BAS.toast(BAS.errText(e), "err"); }
+  b.disabled = false;
 }
 
 // ---------- people and tali3as ----------
