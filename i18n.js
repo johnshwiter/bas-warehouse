@@ -14,6 +14,8 @@
   // ---------- exact texts: "English": ["العربي", "Français"] ----------
   const D = {
     // v26
+    "Paste the parents' message, check the boxes, add the papers, then Save.": ["الصق رسالة الأهل، راجع الخانات، ضيف الأوراق، وبعدين احفظ.", "Collez le message des parents, vérifiez les cases, ajoutez les papiers, puis Enregistrer."],
+    "on file": ["موجودة", "enregistré"], "Only the warehouse team can do this.": ["فريق المخزن بس اللي يقدر يعمل كده.", "Seule l'équipe de l'entrepôt peut faire ça."],
     "Paste the parents' message": ["الصق رسالة الأهل", "Collez le message des parents"], "Fill the boxes from it": ["املى الخانات منها", "Remplir les cases"],
     "boxes filled. Check them, add the photos, then press Save.": ["خانة اتملت. راجعها، ضيف الصور، وبعدين دوس حفظ.", "cases remplies. Vérifiez, ajoutez les photos, puis Enregistrer."],
     "I couldn't read anything from it. Paste the whole message as it came.": ["ما عرفتش أقرا حاجة منها. الصق الرسالة كلها زي ما جت.", "Je n'ai rien pu lire. Collez tout le message tel quel."],

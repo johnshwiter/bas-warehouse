@@ -407,7 +407,7 @@ function peopleView() {
   const tOpts = sel => '<option value="">No tali3a</option>' + TAL.map(t => '<option value="' + t.id + '"' + (t.id === sel ? " selected" : "") + ">" + esc(t.name) + "</option>").join("");
   const role = p => { const r = p.profile_id && ROLES[p.profile_id]; return r ? ' <span class="pill info">' + esc({ head: "قائد المرحلة", deputy: "نائب قائد المرحلة", assistant: "مساعد قائد المرحلة" }[r]) + "</span>" : ""; };
   // just the name; tap it (or Details) for everything else
-  const row = p => '<div class="person prow" data-p="' + p.id + '"><div><b>' + gTag(p.gender) + " " + esc(p.name) + "</b>" + chk(p) + star(p) + cake(p) + (p.role !== "kada" && regMissing(p) ? ' <span class="pill mut" title="' + esc(T("Registration details missing")) + '">📝 ' + regMissing(p) + "</span>" : "") + (p.profile_id ? ' <span class="pill mut">ACCOUNT</span>' : "") + role(p) +
+  const row = p => '<div class="person prow" data-p="' + p.id + '"><div><b>' + gTag(p.gender) + " " + esc(p.name) + "</b>" + chk(p) + star(p) + cake(p) + (p.profile_id ? ' <span class="pill mut">ACCOUNT</span>' : "") + role(p) +
     (p.role !== "kada" && p.tali3a_id ? ' <small class="mut">' + esc(tName(p.tali3a_id)) + "</small>" : "") + (p.gender ? "" : ' <span class="pill warn">' + esc(T("boy / girl?")) + "</span>") + "</div>" +
     '<button class="btn line sm" data-det>' + esc(T("Details")) + "</button></div>";
   const K = kadaSorted(), A = ROSTER.filter(p => p.role !== "kada");
@@ -606,7 +606,6 @@ async function personSheet(p) {
     (amt > 0 ? '<div class="panel"><b>💳 ' + esc(T("Yearly subscription")) + "</b> · " + (paid >= amt ? '<span class="pill ok">' + esc(T("PAID")) + "</span>" : paid > 0 ? BAS.money(paid) + " / " + BAS.money(amt) : '<span class="pill warn">' + esc(T("NOT PAID")) + "</span>") +
       ' <a class="lnk" href="#subs" data-gosubs>' + esc(T("Open")) + "</a></div>" : "") +
     '<div id="dErr" class="msg err" hidden></div><div class="actions"><button class="btn gold" id="dGo">Save</button>' + (p.profile_id ? "" : '<button class="btn danger" id="dRm">' + esc(T("Archive")) + "</button>") +
-    (p.role !== "kada" && regMissing(p) ? '<button class="btn gold" id="dReg">📝 ' + esc(T("Registration details")) + " (" + regMissing(p) + " " + esc(T("missing")) + ")</button>" : "") +
     (p.role === "kada" && BAS.isAdmin() ? '<button class="btn danger" id="dKill">🗑 ' + esc(T(p.profile_id ? "Remove the account" : "Delete forever")) + "</button>" : "") + '<button class="btn line" id="dBack">Back</button></div></div>';
   o.hidden = false;
   // a scout's details are changed only by the people chosen for Group records
@@ -655,7 +654,6 @@ async function personSheet(p) {
     supabaseClient.storage.from("people").remove([p.photo_path]).then(() => {});
     if (await save({ photo_path: "" })) { BAS.toast("Saved"); load(CUR && CUR.id).then(() => personSheet(ROSTER.find(x => x.id === p.id) || p)); }
   };
-  if ($("dReg")) $("dReg").onclick = () => regSheet(p);
   if ($("dKill")) $("dKill").onclick = async () => {
     let code = null;
     if (p.profile_id) { if (!confirm(T("Remove") + " " + p.name + "? " + T("Their account goes to Deleted and they leave the kada list. Bring back undoes both."))) return; }
@@ -674,157 +672,6 @@ async function personSheet(p) {
 }
 // Egyptian numbers for WhatsApp: 01xxxxxxxxx → 201xxxxxxxxx
 const waNum = n => { let d = String(n).replace(/\D/g, ""); if (d.startsWith("00")) d = d.slice(2); if (d.startsWith("0")) d = "2" + d; return d; };
-// ---------- registration details: the form sent to parents, filled by the stage's kada ----------
-// Only what's still empty can be filled here. Once saved, the kada see "✓ saved" (not the value); Group records changes it.
-const REG = [
-  ["h", "The scout"], ["name_ar", "Arabic name"], ["phone", "Scout's phone (if they have one)", "tel"], ["school", "School"], ["school_year", "School year", "year"], ["birthday", "Birthday", "date"], ["national_id", "National ID", "nid"], ["job", "Their work (if they work)"],
-  ["h", "Father"], ["father_name", "Father's full name"], ["father_job", "Father's job"], ["father_phone", "Father's phone", "tel"], ["father_call_ok", "OK to call the father? (busy most of the time → No)", "yn"], ["father_national_id", "Father's national ID", "nid"],
-  ["h", "Mother"], ["mother_name", "Mother's full name"], ["mother_job", "Mother's job (if she works)"], ["mother_phone", "Mother's phone", "tel"], ["mother_national_id", "Mother's national ID", "nid"],
-  ["h", "Other"], ["joined_on", "Joined the scouts on (if known)", "date"], ["notes", "Notes on dealing with the scout", "area"], ["confession_father", "Confession father", "father"],
-  ["h", "Papers"], ["photo_path", "A recent face photo (4×6, white background is fine)", "file"], ["birth_cert_path", "Birth certificate", "file"], ["id_front_path", "ID card: front", "file"], ["id_back_path", "ID card: back", "file"]];
-const regFilled = (p, k) => p[k] !== null && p[k] !== undefined && p[k] !== "";
-// how many are still missing (their work, the mother's job, notes and the join date are optional; papers: birth certificate, or both sides of the ID)
-const REG_OPT = ["job", "mother_job", "notes", "joined_on", "phone"];
-const regMissing = p => REG.filter(f => f[0] !== "h" && f[2] !== "file" && REG_OPT.indexOf(f[0]) < 0 && !regFilled(p, f[0])).length +
-  (regFilled(p, "photo_path") ? 0 : 1) + (regFilled(p, "birth_cert_path") || (regFilled(p, "id_front_path") && regFilled(p, "id_back_path")) ? 0 : 1);
-function shrinkTo(file, max) {
-  return new Promise((ok, bad) => {
-    const rd = new FileReader(), img = new Image();
-    rd.onload = () => { img.onload = () => {
-      const k = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement("canvas");
-      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
-      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-      c.toBlob(b => b ? ok(b) : bad(new Error("That file is not a photo.")), "image/jpeg", 0.85);
-    }; img.onerror = () => bad(new Error("That file is not a photo.")); img.src = rd.result; };
-    rd.readAsDataURL(file);
-  });
-}
-// ---------- reading the parents' WhatsApp message (the form sent to the groups) ----------
-const AR_D = t => String(t || "").replace(/[٠-٩]/g, c => "٠١٢٣٤٥٦٧٨٩".indexOf(c)).replace(/[۰-۹]/g, c => "۰۱۲۳۴۵۶۷۸۹".indexOf(c));
-const AR_N = t => AR_D(t).replace(/[ً-ْـ]/g, "").replace(/[أإآ]/g, "ا").replace(/ى/g, "ي").replace(/ة/g, "ه");
-const PP_LABELS = [   // checked in this order, so "الرقم القومي للأب" wins over "الرقم القومي"
-  ["father_national_id", /^الرقم القومي للاب/], ["mother_national_id", /^الرقم القومي للام/], ["national_id", /^الرقم القومي/],
-  ["father_name", /^اسم الاب/], ["mother_name", /^اسم الام/], ["names", /^اسم الكشاف/],
-  ["father_job", /^مهنه الاب/], ["mother_job", /^مهنه الام/], ["father_phone", /^رقم الاب/], ["mother_phone", /^رقم الام/], ["phone", /^رقم الكشاف/],
-  ["father_call_ok", /^\(?يحبذ الاتصال/], ["school", /^المدرسه/], ["school_year", /^السنه الدراسيه/], ["birthday", /^تاريخ الميلاد/],
-  ["joined_on", /^تاريخ الالتحاق/], ["notes", /^ملاحظات/], ["confession_father", /^اب الاعتراف/], ["_end", /^برجاء ارسال|^صوره حديثه/]];
-const AR_MON = ["يناير", "فبراير", "مارس", "ابريل", "مايو", "يونيو", "يوليو", "اغسطس", "سبتمبر", "اكتوبر", "نوفمبر", "ديسمبر"];
-function ppDate(v) {
-  const t = AR_N(v).toLowerCase(); let m;
-  if ((m = t.match(/(\d{4})\s*[\/\-.]\s*(\d{1,2})\s*[\/\-.]\s*(\d{1,2})/))) return m[1] + "-" + m[2].padStart(2, "0") + "-" + m[3].padStart(2, "0");
-  if ((m = t.match(/(\d{1,2})\s*[\/\-.\\]\s*(\d{1,2})\s*[\/\-.\\]\s*(\d{2,4})/))) { let y = m[3]; if (y.length === 2) y = (Number(y) > 40 ? "19" : "20") + y; return y + "-" + m[2].padStart(2, "0") + "-" + m[1].padStart(2, "0"); }
-  const mi = AR_MON.findIndex(x => t.includes(x));
-  if (mi >= 0 && (m = t.match(/(\d{1,2})\D+(\d{4})/))) return m[2] + "-" + String(mi + 1).padStart(2, "0") + "-" + m[1].padStart(2, "0");
-  if ((m = t.match(/^\s*(\d{4})\s*$/))) return "";
-  return "";
-}
-function ppYear(v) {
-  const t = AR_N(v).toLowerCase().replace(/\s+/g, " ");
-  if (/kg ?1|كي جي ?1|حضانه ?1/.test(t)) return "KG1"; if (/kg ?2|كي جي ?2|حضانه ?2/.test(t)) return "KG2";
-  if (/خريج|بيشتغل|يعمل/.test(t)) return "خريج / بيشتغل";
-  const W = [[1, /\b1\b|اول|الاولي/], [2, /\b2\b|ثاني|تاني|الثانيه|تانيه/], [3, /\b3\b|ثالث|تالت|ثالثه|تالته/], [4, /\b4\b|رابع|رابعه/], [5, /\b5\b|خامس|خامسه/], [6, /\b6\b|سادس|سادسه|ساتت/]];
-  const n = (W.find(w => w[1].test(t.replace(/(ابتدائي|اعدادي|ثانوي|جامعه|كليه)/g, " "))) || [])[0];
-  if (!n) return "";
-  if (/ابتدائ/.test(t)) return n + " ابتدائي"; if (/اعداد/.test(t)) return n <= 3 ? n + " إعدادي" : ""; if (/ثانو/.test(t)) return n <= 3 ? n + " ثانوي" : "";
-  if (/جامع|كليه/.test(t)) return n <= 5 ? "جامعة " + n : "";
-  return "";
-}
-const FR_AR = [["اثناسيوس", "Athanas"], ["ايليا", "Elia"], ["اغسطينوس", "Augustin"], ["ميخائيل", "Michael"], ["مينا", "Mina"], ["رافائيل", "Raphael"]];
-function ppFather(v) {
-  const t = AR_N(v), L = BAS.fathers();
-  for (const [a, e] of FR_AR) if (t.includes(a) || new RegExp(e, "i").test(v)) { const hit = L.find(n => new RegExp(e, "i").test(n)); if (hit) return hit; }
-  return String(v).trim();
-}
-// Arabic part / English part of "اسم الكشاف" (written in both)
-const ppAr = v => (String(v).match(/[؀-ۿ][؀-ۿ\s]*[؀-ۿ]/g) || []).sort((a, b) => b.length - a.length)[0] || "";
-const ppEn = v => (String(v).match(/[A-Za-z][A-Za-z\s.'-]*[A-Za-z]/g) || []).sort((a, b) => b.length - a.length)[0] || "";
-function parseParents(text) {
-  const raw = {}; let cur = null;
-  for (let line of String(text || "").replace(/\*/g, "").split(/\r?\n/)) {
-    const n = AR_N(line.trim()), lab = PP_LABELS.find(l => l[1].test(n));
-    if (lab) {
-      if (lab[0] === "_end") { cur = null; continue; }
-      cur = lab[0]; raw[cur] = raw[cur] || [];
-      const i = line.indexOf("/"); if (i >= 0 && lab[0] !== "father_call_ok") raw[cur].push(line.slice(i + 1));
-      continue;
-    }
-    if (cur && line.trim()) raw[cur].push(line);
-  }
-  const out = {}, j = k => (raw[k] || []).join(" ").replace(/\s+/g, " ").trim();
-  if (j("names")) { const a = ppAr(j("names")).trim(); if (a) out.name_ar = a; }
-  ["father_name", "mother_name"].forEach(k => { const v = j(k); if (v) out[k] = (ppAr(v) || v).trim(); });
-  ["school", "father_job", "mother_job", "notes"].forEach(k => { const v = j(k); if (v && !/^(لا|لا يوجد|لايوجد|-|—|no|none)$/i.test(AR_N(v))) out[k] = v; });
-  ["national_id", "father_national_id", "mother_national_id"].forEach(k => { const v = AR_D(j(k)).replace(/\D/g, ""); if (v) out[k] = v; });
-  ["phone", "father_phone", "mother_phone"].forEach(k => { const v = BAS.normPhone(j(k)); if (v.length === 11) out[k] = v; });
-  ["birthday", "joined_on"].forEach(k => { const v = ppDate(j(k)); if (v) out[k] = v; });
-  const y = ppYear(j("school_year")); if (y) out.school_year = y;
-  const c = AR_N(j("father_call_ok")).toLowerCase();
-  if (/^(نعم|اه|ايوه|ايوا|yes|ok|ممكن)/.test(c)) out.father_call_ok = "true"; else if (/^(لا|لأ|no|مش)/.test(c)) out.father_call_ok = "false";
-  const cf = j("confession_father"); if (cf && !/^(لا|لا يوجد|-)$/.test(AR_N(cf))) out.confession_father = ppFather(cf);
-  return out;
-}
-function regSheet(p) {
-  const o = $("sheet"), saved = '<span class="pill ok">✓ ' + esc(T("saved")) + "</span>";
-  const inp = f => {
-    const id = "rg_" + f[0];
-    if (regFilled(p, f[0])) return saved;
-    if (f[2] === "date") return '<input type="date" id="' + id + '">';
-    if (f[2] === "tel") return '<input type="tel" inputmode="numeric" maxlength="11" placeholder="01xxxxxxxxx" id="' + id + '">';
-    if (f[2] === "nid") return '<input id="' + id + '" inputmode="numeric" maxlength="14" dir="ltr" placeholder="' + esc(T("14 numbers")) + '">';
-    if (f[2] === "yn") return '<select id="' + id + '"><option value="">—</option><option value="true">' + esc(T("Yes")) + '</option><option value="false">' + esc(T("No")) + "</option></select>";
-    if (f[2] === "year") return '<select id="' + id + '"><option value="">—</option>' + YEARS.map(y => "<option>" + esc(y) + "</option>").join("") + "</select>";
-    if (f[2] === "area") return '<textarea id="' + id + '" rows="2" dir="auto"></textarea>';
-    if (f[2] === "file") return '<input type="file" accept="image/*" id="' + id + '">';
-    if (f[2] === "father") return BAS.fatherField(id, "");
-    return '<input id="' + id + '" dir="auto">';
-  };
-  o.innerHTML = '<div class="sheet" style="max-width:600px"><h2>📝 ' + esc(p.name) + '</h2><p class="meta">' + esc(T("Fill in what the parents sent. What's already saved shows ✓ and can only be changed from Group records.")) + "</p>" +
-    ('<div class="panel" style="margin:10px 0"><label for="rgPaste" style="display:block;margin-bottom:6px"><b>📋 ' + esc(T("Paste the parents' message")) + '</b></label><textarea id="rgPaste" rows="4" dir="auto" style="width:100%;box-sizing:border-box" placeholder="اسم الكشاف/ …"></textarea><button class="btn line sm mt" id="rgParse">' + esc(T("Fill the boxes from it")) + '</button><p class="meta" id="rgPm"></p></div>') +
-    REG.map(f => f[0] === "h" ? '<div class="group-title" style="margin-top:14px">' + esc(T(f[1])) + "</div>" : '<div class="field"><label>' + esc(T(f[1])) + "</label>" + inp(f) + "</div>").join("") +
-    '<div id="rgErr" class="msg err" hidden></div><div class="actions"><button class="btn gold" id="rgGo">' + esc(T("Save")) + '</button><button class="btn line" id="rgBk">' + esc(T("Back")) + "</button></div></div>";
-  o.hidden = false; o.scrollTop = 0;
-  $("rgBk").onclick = () => personSheet(p);
-  $("rgParse").onclick = () => {
-    const got = parseParents($("rgPaste").value); let n = 0;
-    for (const k in got) {
-      const el = $("rg_" + k); if (!el || el.type === "file") continue;
-      if (k === "confession_father") { const sel = $("rg_" + k + "S"), L = BAS.fathers(), hit = L.indexOf(got[k]) >= 0; if (sel) { sel.value = hit ? got[k] : "__o"; } el.hidden = hit; el.value = got[k]; n++; continue; }
-      if (el.tagName === "SELECT" && ![...el.options].some(o => o.value === String(got[k]))) continue;
-      el.value = String(got[k]); el.style.outline = "2px solid var(--gold, #e3b31c)"; n++;
-    }
-    $("rgPm").textContent = n ? "✓ " + n + " " + T("boxes filled. Check them, add the photos, then press Save.") : T("I couldn't read anything from it. Paste the whole message as it came.");
-  };
-  $("rgGo").onclick = async () => {
-    $("rgErr").hidden = true; $("rgGo").disabled = true;
-    try {
-      const d = {}, AD = t => String(t).replace(/[٠-٩]/g, c => "٠١٢٣٤٥٦٧٨٩".indexOf(c)).replace(/[۰-۹]/g, c => "۰۱۲۳۴۵۶۷۸۹".indexOf(c)).replace(/\s/g, "");
-      for (const f of REG) {
-        const el = $("rg_" + f[0]); if (!el || f[0] === "h" || f[2] === "file") continue;
-        const v = String(el.value).trim(); if (!v) continue;
-        if (f[2] === "nid" && !/^[23][0-9]{13}$/.test(AD(v))) throw new Error("A national ID should be 14 numbers: " + v);
-        if (f[2] === "tel" && BAS.normPhone(v).length !== 11) throw new Error("A phone number has to be 11 numbers: " + v);
-      }
-      for (const f of REG) {
-        const el = $("rg_" + f[0]); if (!el || f[0] === "h") continue;
-        if (f[2] === "file") {
-          const file = el.files[0]; if (!file) continue;
-          const face = f[0] === "photo_path", blob = await shrinkTo(file, face ? 800 : 1800);
-          const path = SECID + "/" + p.id + (face ? "-" : "/" + f[0].replace("_path", "") + "-") + Date.now() + ".jpg";
-          const up = await supabaseClient.storage.from(face ? "people" : "docs").upload(path, blob, { contentType: "image/jpeg" });
-          if (up.error) throw up.error;
-          d[f[0]] = path;
-        } else if (String(el.value).trim()) d[f[0]] = el.value.trim();
-      }
-      if (!Object.keys(d).length) { $("rgGo").disabled = false; return BAS.toast(T("Nothing new to save.")); }
-      const { data, error } = await supabaseClient.rpc("fill_scout", { p_id: p.id, p: d });
-      if (error) throw error;
-      BAS.toast("✓ " + (data || []).length + " " + T("saved"));
-      o.hidden = true; await load(CUR && CUR.id);
-    } catch (e) { $("rgErr").textContent = BAS.errText(e); $("rgErr").hidden = false; }
-    $("rgGo").disabled = false;
-  };
-}
-
 function shrink(file) {
   return new Promise((ok, bad) => {
     const rd = new FileReader(), img = new Image();

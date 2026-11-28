@@ -237,6 +237,76 @@ function joinPick(p) {
   $("jNo").onclick = () => personSheet(p);
 }
 
+// ---------- 📝 Registration details (warehouse team): paste the parents' message, check, add the papers, save ----------
+function regSheet(p) {
+  const o = $("sheet"), F = BAS.REG.filter(f => f[0] === "h" || f[2] !== "file");
+  const val = k => k === "father_call_ok" ? (p[k] === true ? "true" : p[k] === false ? "false" : "") : (p[k] == null ? "" : String(p[k]));
+  const inp = f => {
+    const id = "g_" + f[0], v = val(f[0]);
+    if (f[2] === "date") return '<input type="date" id="' + id + '" value="' + esc(v) + '">';
+    if (f[2] === "tel") return '<input type="tel" inputmode="numeric" maxlength="11" placeholder="01xxxxxxxxx" id="' + id + '" value="' + esc(v) + '">';
+    if (f[2] === "nid") return '<input id="' + id + '" inputmode="numeric" maxlength="14" dir="ltr" placeholder="14 numbers" value="' + esc(v) + '">';
+    if (f[2] === "yn") return '<select id="' + id + '"><option value="">—</option><option value="true"' + (v === "true" ? " selected" : "") + ">" + esc(T("Yes")) + '</option><option value="false"' + (v === "false" ? " selected" : "") + ">" + esc(T("No")) + "</option></select>";
+    if (f[2] === "year") return '<select id="' + id + '"><option value="">—</option>' + YEARS.concat(v && YEARS.indexOf(v) < 0 ? [v] : []).map(y => "<option" + (y === v ? " selected" : "") + ">" + esc(y) + "</option>").join("") + "</select>";
+    if (f[2] === "area") return '<textarea id="' + id + '" rows="2" dir="auto">' + esc(v) + "</textarea>";
+    if (f[2] === "father") return BAS.fatherField(id, v);
+    return '<input id="' + id + '" dir="auto" value="' + esc(v) + '">';
+  };
+  const PAP = BAS.REG.filter(f => f[2] === "file");
+  o.innerHTML = '<div class="sheet" style="max-width:640px"><h2 dir="auto">📝 ' + esc(arN(p)) + '</h2><p class="meta">' + esc(T("Paste the parents' message, check the boxes, add the papers, then Save.")) + "</p>" +
+    '<div class="panel" style="margin:10px 0"><label for="gPaste" style="display:block;margin-bottom:6px"><b>📋 ' + esc(T("Paste the parents' message")) + '</b></label><textarea id="gPaste" rows="5" dir="auto" style="width:100%;box-sizing:border-box" placeholder="اسم الكشاف/ …"></textarea>' +
+    '<button class="btn line sm mt" id="gParse">' + esc(T("Fill the boxes from it")) + '</button><p class="meta" id="gPm"></p></div>' +
+    '<div class="field"><label>' + esc(T("English name (shows in attendance)")) + '</label><input id="g_name" dir="auto" value="' + esc(p.name || "") + '"></div>' +
+    F.map(f => f[0] === "h" ? '<div class="group-title" style="margin-top:14px">' + esc(T(f[1])) + "</div>" : '<div class="field"><label>' + esc(T(f[1])) + "</label>" + inp(f) + "</div>").join("") +
+    '<div class="group-title" style="margin-top:14px">' + esc(T("Papers")) + "</div>" +
+    PAP.map(f => '<div class="field"><label>' + esc(T(f[1])) + (p[f[0]] ? ' <span class="pill ok">✓ ' + esc(T("on file")) + "</span>" : "") + '</label><input type="file" accept="image/*" id="g_' + f[0] + '"></div>').join("") +
+    '<div id="gErr" class="msg err" hidden></div><div class="actions"><button class="btn gold" id="gGo">' + esc(T("Save")) + '</button><button class="btn line" id="gBk">' + esc(T("Back")) + "</button></div></div>";
+  o.hidden = false; o.scrollTop = 0;
+  $("gBk").onclick = () => personSheet(p);
+  $("gParse").onclick = () => {
+    const got = BAS.parseParents($("gPaste").value); let n = 0, mark = el => { el.style.outline = "2px solid var(--gold, #e3b31c)"; n++; };
+    for (const k in got) {
+      if (k === "mother_works") continue;
+      if (k === "name") { if (!/[A-Za-z]/.test(p.name || "") && $("g_name")) { $("g_name").value = got[k]; mark($("g_name")); } continue; }
+      const el = $("g_" + k); if (!el) continue;
+      if (k === "confession_father") { const sel = $("g_" + k + "S"), hit = BAS.fathers().indexOf(got[k]) >= 0; if (sel) sel.value = hit ? got[k] : "__o"; el.hidden = hit; el.value = got[k]; mark(sel || el); continue; }
+      if (el.tagName === "SELECT" && ![...el.options].some(x => x.value === String(got[k]))) continue;
+      el.value = String(got[k]); mark(el);
+    }
+    $("gPm").textContent = n ? "✓ " + n + " " + T("boxes filled. Check them, add the photos, then press Save.") : T("I couldn't read anything from it. Paste the whole message as it came.");
+  };
+  $("gGo").onclick = async () => {
+    $("gErr").hidden = true; $("gGo").disabled = true;
+    try {
+      const d = { name: $("g_name").value.trim() || p.name }, AD = t => String(t).replace(/[٠-٩]/g, c => "٠١٢٣٤٥٦٧٨٩".indexOf(c)).replace(/[۰-۹]/g, c => "۰۱۲۳۴۵۶۷۸۹".indexOf(c)).replace(/\s/g, "");
+      for (const f of F) {
+        if (f[0] === "h") continue;
+        const el = $("g_" + f[0]); if (!el) continue; const v = String(el.value).trim();
+        if (v && f[2] === "nid" && !/^[23][0-9]{13}$/.test(AD(v))) throw new Error("A national ID should be 14 numbers: " + v);
+        if (v && f[2] === "tel" && BAS.normPhone(v).length !== 11) throw new Error("A phone number has to be 11 numbers: " + v);
+        d[f[0]] = f[2] === "nid" ? AD(v) : v;
+      }
+      if (d.mother_job && p.mother_works == null) d.mother_works = "true";
+      const papers = {}, old = [];
+      for (const f of PAP) {
+        const file = $("g_" + f[0]).files[0]; if (!file) continue;
+        const face = f[0] === "photo_path", blob = await BAS.shrinkTo(file, face ? 800 : 1800);
+        const path = p.section_id + "/" + p.id + (face ? "-" : "/" + f[0].replace("_path", "") + "-") + Date.now() + ".jpg";
+        const up = await supabaseClient.storage.from(face ? "people" : "docs").upload(path, blob, { contentType: "image/jpeg" });
+        if (up.error) throw up.error;
+        if (face) { d.photo_path = path; if (p.photo_path) old.push(["people", p.photo_path]); } else papers[f[0]] = path;
+      }
+      const r = await supabaseClient.rpc("save_person", { p_id: p.id, p: d }); if (r.error) throw r.error;
+      if (Object.keys(papers).length) {
+        const q = await supabaseClient.rpc("set_scout_papers", { p_id: p.id, p: papers }); if (q.error) throw q.error;
+        (q.data || []).forEach(x => old.push(["docs", x]));
+      }
+      old.forEach(x => supabaseClient.storage.from(x[0]).remove([x[1]]).then(() => {}));
+      BAS.toast(T("Saved")); await load(); personSheet(ALL.find(x => x.id === p.id));
+    } catch (e) { $("gErr").textContent = BAS.errText(e); $("gErr").hidden = false; }
+    if ($("gGo")) $("gGo").disabled = false;
+  };
+}
 async function personSheet(p) {
   const o = $("sheet"), ed = CAN_EDIT && p.is_active;
   const tel = n => n ? ' <a class="btn line sm" href="tel:' + esc(n.replace(/[^\d+]/g, "")) + '">📞</a><a class="btn line sm" target="_blank" rel="noopener" href="https://wa.me/' + esc(waNum(n)) + '">💬</a>' : "";
@@ -264,6 +334,7 @@ async function personSheet(p) {
     (p.notes ? '<p class="meta">📝 ' + esc(p.notes) + "</p>" : "") +
     (CAN_EDIT ? "" : '<p class="meta">🔒 ' + esc(T("Only the people chosen by the warehouse team can change these details.")) + "</p>") + "</div>" +
     '<div id="rErr" class="msg err" hidden></div><div class="actions">' + (ed ? '<button class="btn gold" id="rGo">' + esc(T("Save")) + "</button>" : "") +
+    (ed && BAS.isAdmin() && p.role !== "kada" ? '<button class="btn line" id="rReg">📝 ' + esc(T("Registration details")) + "</button>" : "") +
     (p.is_active ? '<a class="btn line" href="attendance.html?' + (BAS.allStages() ? "s=" + p.section_id + "&" : "") + "p=" + p.id + '#people">' + esc(T("Open in Attendance")) + "</a>" : "") +
     (ed && p.role !== "kada" ? '<button class="btn line" id="rJoin">👥 ' + esc(T("Join with…")) + "</button>" : "") +
     (p.role === "kada" ? "" : p.is_active ? '<button class="btn danger" id="rArch">' + esc(T("Archive")) + "</button>" : '<button class="btn ok" id="rBack">' + esc(T("Bring back")) + "</button>") +
@@ -272,6 +343,7 @@ async function personSheet(p) {
     '<div class="panel"><h3>🕘 ' + esc(T("Changes")) + '</h3><div id="rHist" class="meta">…</div></div></div>';
   o.hidden = false;
   $("rClose").onclick = () => { o.hidden = true; };
+  if ($("rReg")) $("rReg").onclick = () => regSheet(p);
   o.onclick = e => { if (e.target === o) o.hidden = true; };
   // papers: birth certificate / ID card (only Group records can open them)
   const papers = [["birth_cert_path", "Birth certificate"], ["id_front_path", "ID card: front"], ["id_back_path", "ID card: back"]].filter(x => p[x[0]]);

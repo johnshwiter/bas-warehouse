@@ -1236,3 +1236,90 @@ BAS.codeWorked = async function () {
     this.toast("👆 " + this.tr("Done. Next time it asks for your fingerprint."));
   } catch (e) {}
 };
+
+// ---------- Registration details: the form sent to the parents' groups (filled in Group records by the warehouse team) ----------
+(function () {
+const REG = [
+  ["h", "The scout"], ["name_ar", "Arabic name"], ["phone", "Scout's phone (if they have one)", "tel"], ["school", "School"], ["school_year", "School year", "year"], ["birthday", "Birthday", "date"], ["national_id", "National ID", "nid"], ["job", "Their work (if they work)"],
+  ["h", "Father"], ["father_name", "Father's full name"], ["father_job", "Father's job"], ["father_phone", "Father's phone", "tel"], ["father_call_ok", "OK to call the father? (busy most of the time → No)", "yn"], ["father_national_id", "Father's national ID", "nid"],
+  ["h", "Mother"], ["mother_name", "Mother's full name"], ["mother_job", "Mother's job (if she works)"], ["mother_phone", "Mother's phone", "tel"], ["mother_national_id", "Mother's national ID", "nid"],
+  ["h", "Other"], ["joined_on", "Joined the scouts on (if known)", "date"], ["notes", "Notes on dealing with the scout", "area"], ["confession_father", "Confession father", "father"],
+  ["h", "Papers"], ["photo_path", "A recent face photo (4×6, white background is fine)", "file"], ["birth_cert_path", "Birth certificate", "file"], ["id_front_path", "ID card: front", "file"], ["id_back_path", "ID card: back", "file"]];
+function shrinkTo(file, max) {
+  return new Promise((ok, bad) => {
+    const rd = new FileReader(), img = new Image();
+    rd.onload = () => { img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement("canvas");
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      c.toBlob(b => b ? ok(b) : bad(new Error("That file is not a photo.")), "image/jpeg", 0.85);
+    }; img.onerror = () => bad(new Error("That file is not a photo.")); img.src = rd.result; };
+    rd.readAsDataURL(file);
+  });
+}
+const AR_D = t => String(t || "").replace(/[٠-٩]/g, c => "٠١٢٣٤٥٦٧٨٩".indexOf(c)).replace(/[۰-۹]/g, c => "۰۱۲۳۴۵۶۷۸۹".indexOf(c));
+const AR_N = t => AR_D(t).replace(/[ً-ْـ]/g, "").replace(/[أإآ]/g, "ا").replace(/ى/g, "ي").replace(/ة/g, "ه");
+const PP_LABELS = [   // checked in this order, so "الرقم القومي للأب" wins over "الرقم القومي"
+  ["father_national_id", /^الرقم القومي للاب/], ["mother_national_id", /^الرقم القومي للام/], ["national_id", /^الرقم القومي/],
+  ["father_name", /^اسم الاب/], ["mother_name", /^اسم الام/], ["names", /^اسم الكشاف/],
+  ["father_job", /^مهنه الاب/], ["mother_job", /^مهنه الام/], ["father_phone", /^رقم الاب/], ["mother_phone", /^رقم الام/], ["phone", /^رقم الكشاف/],
+  ["father_call_ok", /^\(?يحبذ الاتصال/], ["school", /^المدرسه/], ["school_year", /^السنه الدراسيه/], ["birthday", /^تاريخ الميلاد/],
+  ["joined_on", /^تاريخ الالتحاق/], ["notes", /^ملاحظات/], ["confession_father", /^اب الاعتراف/], ["_end", /^برجاء ارسال|^صوره حديثه/]];
+const AR_MON = ["يناير", "فبراير", "مارس", "ابريل", "مايو", "يونيو", "يوليو", "اغسطس", "سبتمبر", "اكتوبر", "نوفمبر", "ديسمبر"];
+function ppDate(v) {
+  const t = AR_N(v).toLowerCase(); let m;
+  if ((m = t.match(/(\d{4})\s*[\/\-.]\s*(\d{1,2})\s*[\/\-.]\s*(\d{1,2})/))) return m[1] + "-" + m[2].padStart(2, "0") + "-" + m[3].padStart(2, "0");
+  if ((m = t.match(/(\d{1,2})\s*[\/\-.\\]\s*(\d{1,2})\s*[\/\-.\\]\s*(\d{2,4})/))) { let y = m[3]; if (y.length === 2) y = (Number(y) > 40 ? "19" : "20") + y; return y + "-" + m[2].padStart(2, "0") + "-" + m[1].padStart(2, "0"); }
+  const mi = AR_MON.findIndex(x => t.includes(x));
+  if (mi >= 0 && (m = t.match(/(\d{1,2})\D+(\d{4})/))) return m[2] + "-" + String(mi + 1).padStart(2, "0") + "-" + m[1].padStart(2, "0");
+  if ((m = t.match(/^\s*(\d{4})\s*$/))) return "";
+  return "";
+}
+function ppYear(v) {
+  const t = AR_N(v).toLowerCase().replace(/\s+/g, " ");
+  if (/kg ?1|كي جي ?1|حضانه ?1/.test(t)) return "KG1"; if (/kg ?2|كي جي ?2|حضانه ?2/.test(t)) return "KG2";
+  if (/خريج|بيشتغل|يعمل/.test(t)) return "خريج / بيشتغل";
+  const W = [[1, /\b1\b|اول|الاولي/], [2, /\b2\b|ثاني|تاني|الثانيه|تانيه/], [3, /\b3\b|ثالث|تالت|ثالثه|تالته/], [4, /\b4\b|رابع|رابعه/], [5, /\b5\b|خامس|خامسه/], [6, /\b6\b|سادس|سادسه|ساتت/]];
+  const n = (W.find(w => w[1].test(t.replace(/(ابتدائي|اعدادي|ثانوي|جامعه|كليه)/g, " "))) || [])[0];
+  if (!n) return "";
+  if (/ابتدائ/.test(t)) return n + " ابتدائي"; if (/اعداد/.test(t)) return n <= 3 ? n + " إعدادي" : ""; if (/ثانو/.test(t)) return n <= 3 ? n + " ثانوي" : "";
+  if (/جامع|كليه/.test(t)) return n <= 5 ? "جامعة " + n : "";
+  return "";
+}
+const FR_AR = [["اثناسيوس", "Athanas"], ["ايليا", "Elia"], ["اغسطينوس", "Augustin"], ["ميخائيل", "Michael"], ["مينا", "Mina"], ["رافائيل", "Raphael"]];
+function ppFather(v) {
+  const t = AR_N(v), L = BAS.fathers();
+  for (const [a, e] of FR_AR) if (t.includes(a) || new RegExp(e, "i").test(v)) { const hit = L.find(n => new RegExp(e, "i").test(n)); if (hit) return hit; }
+  return String(v).trim();
+}
+// Arabic part / English part of "اسم الكشاف" (written in both)
+const ppAr = v => (String(v).match(/[؀-ۿ][؀-ۿ\s]*[؀-ۿ]/g) || []).sort((a, b) => b.length - a.length)[0] || "";
+const ppEn = v => (String(v).match(/[A-Za-z][A-Za-z\s.'-]*[A-Za-z]/g) || []).sort((a, b) => b.length - a.length)[0] || "";
+function parseParents(text) {
+  const raw = {}; let cur = null;
+  for (let line of String(text || "").replace(/\*/g, "").split(/\r?\n/)) {
+    const n = AR_N(line.trim()), lab = PP_LABELS.find(l => l[1].test(n));
+    if (lab) {
+      if (lab[0] === "_end") { cur = null; continue; }
+      cur = lab[0]; raw[cur] = raw[cur] || [];
+      const i = line.indexOf("/"); if (i >= 0 && lab[0] !== "father_call_ok") raw[cur].push(line.slice(i + 1));
+      continue;
+    }
+    if (cur && line.trim()) raw[cur].push(line);
+  }
+  const out = {}, j = k => (raw[k] || []).join(" ").replace(/\s+/g, " ").trim();
+  if (j("names")) { const a = ppAr(j("names")).trim(), e = ppEn(j("names")).trim(); if (a) out.name_ar = a; if (e) out.name = e; }
+  ["father_name", "mother_name"].forEach(k => { const v = j(k); if (v) out[k] = (ppAr(v) || v).trim(); });
+  ["school", "father_job", "mother_job", "notes"].forEach(k => { const v = j(k); if (v && !/^(لا|لا يوجد|لايوجد|-|—|no|none)$/i.test(AR_N(v))) out[k] = v; });
+  ["national_id", "father_national_id", "mother_national_id"].forEach(k => { const v = AR_D(j(k)).replace(/\D/g, ""); if (v) out[k] = v; });
+  ["phone", "father_phone", "mother_phone"].forEach(k => { const v = BAS.normPhone(j(k)); if (v.length === 11) out[k] = v; });
+  ["birthday", "joined_on"].forEach(k => { const v = ppDate(j(k)); if (v) out[k] = v; });
+  if (out.mother_job) out.mother_works = "true";
+  const y = ppYear(j("school_year")); if (y) out.school_year = y;
+  const c = AR_N(j("father_call_ok")).toLowerCase();
+  if (/^(نعم|اه|ايوه|ايوا|yes|ok|ممكن)/.test(c)) out.father_call_ok = "true"; else if (/^(لا|لأ|no|مش)/.test(c)) out.father_call_ok = "false";
+  const cf = j("confession_father"); if (cf && !/^(لا|لا يوجد|-)$/.test(AR_N(cf))) out.confession_father = ppFather(cf);
+  return out;
+}
+BAS.REG = REG; BAS.shrinkTo = shrinkTo; BAS.parseParents = parseParents;
+})();
