@@ -21,6 +21,8 @@
         <div class="head"><div><p class="eyebrow">Your account</p><h1>My <em>profile</em></h1></div></div>
         <div class="panel"><h3>Language</h3><p class="meta">Every screen is shown in the language you pick.</p><div class="langs" style="margin:10px 0 0" id="langs">
             <button type="button" data-lang="ar">العربية</button><button type="button" data-lang="en">English</button><button type="button" data-lang="fr">Français</button></div></div>
+        <div class="panel" id="iconBox"><h3>📱 App icon</h3><p class="meta">Pick one, then add BAS to your home screen. The name stays BAS. Already added it? Delete it from the home screen and add it again: you stay logged in.</p>
+          <div style="display:flex;gap:16px;margin-top:10px"><button type="button" class="btn line" data-icon="navy" style="padding:8px"><img src="apple-touch-icon.png" alt="" width="64" height="64" style="border-radius:14px;display:block"></button><button type="button" class="btn line" data-icon="white" style="padding:8px"><img src="apple-touch-icon-white.png" alt="" width="64" height="64" style="border-radius:14px;display:block;border:1px solid #ddd"></button></div></div>
         <div class="panel"><h3>Phone notifications</h3><p class="meta" style="margin-bottom:10px">Get a pop-up on this phone when your request is ready, a message arrives, or something is due back. Turn it on once on each phone you use.</p><div id="pushBox"></div></div>
         <div class="panel" id="remBox" hidden><h3>⏰ Meeting reminder</h3><p class="meta" style="margin-bottom:10px">A notification before each meeting of your stage, at the meeting's start time.</p>
             <div class="grid2"><div class="field"><label>Remind me</label><select id="remMin"><option value="0">Off</option><option value="5">5 minutes before</option><option value="10">10 minutes before</option><option value="15">15 minutes before</option><option value="30">30 minutes before</option><option value="60">1 hour before</option></select></div><div></div></div>
@@ -53,6 +55,8 @@
             $("remBox").hidden = false; $("remMin").value = String(r.error || r.data.meet_remind_min == null ? 10 : r.data.meet_remind_min);
             $("remSave").onclick = async () => { const { error } = await supabaseClient.rpc("set_meet_reminder", { p_min: Number($("remMin").value) }); BAS.toast(error ? BAS.errText(error) : (BAS.tr ? BAS.tr("Saved") : "Saved"), error ? "err" : ""); };
         }
+        const iconOn = v => document.querySelectorAll("[data-icon]").forEach(b => { b.classList.toggle("gold", b.dataset.icon === v); b.classList.toggle("line", b.dataset.icon !== v); });
+        iconOn(BAS.appIcon()); document.querySelectorAll("[data-icon]").forEach(b => b.onclick = () => { iconOn(BAS.appIcon(b.dataset.icon)); BAS.toast(BAS.tr ? BAS.tr("Now add BAS to your home screen.") : "Now add BAS to your home screen."); });
         $("nfList").innerHTML = BAS.notifBoxes(BAS.profile.notif_off, BAS.isAdmin());
         $("nfSave").onclick = async () => {
             const off = BAS.notifRead($("nfList")), { error } = await supabaseClient.rpc("set_notif", { p_id: BAS.profile.id, p_off: off });

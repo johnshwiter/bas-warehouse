@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تسجيل كشاف | BAS</title>
+<link rel="icon" href="logo.png">
+<meta name="theme-color" content="#17196A">
+<meta name="robots" content="noindex, nofollow">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<meta name="color-scheme" content="only light">
+<link rel="stylesheet" href="bas.css">
+<style>
+  body { font-family: Cairo, sans-serif; }
+  .rg { max-width: 560px; margin: 0 auto; padding: 18px 14px 60px; }
+  .rg h1 { font-size: 22px; margin: 8px 0 2px; text-align: center; }
+  .rg .logo { display: block; margin: 0 auto; width: 70px; }
+  .rg .field label { display: block; font-weight: 700; margin-bottom: 4px; }
+  .rg .field input, .rg .field select, .rg .field textarea { width: 100%; box-sizing: border-box; }
+  .rg .req { color: #c0392b; }
+  .rg .group-title { margin-top: 18px; }
+  .rg .yn { display: flex; gap: 10px; } .rg .yn label { font-weight: 600; display: flex; gap: 6px; align-items: center; }
+  .rg .thumb { width: 60px; height: 60px; object-fit: cover; border-radius: 8px; margin-top: 6px; }
+  .rg .big { width: 100%; padding: 14px; font-size: 18px; }
+</style>
+</head>
+<body data-noi18n>
+<div class="rg">
+  <img class="logo" src="logo.png" alt="">
+  <h1>تسجيل بيانات الكشاف</h1>
+  <p class="meta" style="text-align:center" id="stage">…</p>
+  <div id="box"></div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="common.js"></script>
+<script>
+const $ = id => document.getElementById(id), esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const TOKEN = new URLSearchParams(location.search).get("k") || "";
+const YEARS = ["KG1", "KG2"].concat([1, 2, 3, 4, 5, 6].map(n => n + " ابتدائي"), [1, 2, 3].map(n => n + " إعدادي"), [1, 2, 3].map(n => n + " ثانوي"), [1, 2, 3, 4, 5].map(n => "جامعة " + n), ["خريج / بيشتغل"]);
+const AD = t => String(t || "").replace(/[٠-٩]/g, c => "٠١٢٣٤٥٦٧٨٩".indexOf(c)).replace(/[۰-۹]/g, c => "۰۱۲۳۴۵۶۷۸۹".indexOf(c));
+// [key, label, type, required]
+const F = [
+  ["h", "الكشاف"],
+  ["name_ar", "اسم الكشاف بالعربي", "text", 1], ["name", "اسم الكشاف بالإنجليزي", "en", 1],
+  ["phone", "رقم موبايل الكشاف (لو عنده)", "tel"], ["school", "المدرسة", "text"], ["school_year", "السنة الدراسية", "year", 1],
+  ["birthday", "تاريخ الميلاد", "date", 1], ["national_id", "الرقم القومي للكشاف", "nid"],
+  ["h", "الأب"],
+  ["father_name", "اسم الأب كامل", "text", 1], ["father_job", "مهنة الأب", "text"], ["father_phone", "رقم الأب", "tel", 1],
+  ["father_call_ok", "يحبذ الاتصال بالأب؟ (لو مشغول معظم الوقت اختار لا)", "yn", 1], ["father_national_id", "الرقم القومي للأب", "nid"],
+  ["h", "الأم"],
+  ["mother_name", "اسم الأم كامل", "text", 1], ["mother_job", "مهنة الأم (لو بتشتغل)", "text"], ["mother_national_id", "الرقم القومي للأم", "nid"], ["mother_phone", "رقم الأم", "tel"],
+  ["h", "تاني"],
+  ["joined_on", "تاريخ الالتحاق بالكشافة (لو معروف)", "date"], ["notes", "ملاحظات للتعامل مع الكشاف (لو فيه)", "area"], ["confession_father", "أب الاعتراف", "text"],
+  ["h", "الصور"],
+  ["photo_path", "صورة حديثة لوش الكشاف (٤×٦ خلفية بيضا، أو سيلفي الوش باين فيها)", "file", 1],
+  ["birth_cert_path", "صورة واضحة لشهادة الميلاد", "file"], ["id_front_path", "أو صورة البطاقة: وش", "file"], ["id_back_path", "صورة البطاقة: ضهر", "file"]
+];
+function input(f) {
+  const id = "f_" + f[0];
+  if (f[2] === "year") return '<select id="' + id + '"><option value="">اختار…</option>' + YEARS.map(y => "<option>" + esc(y) + "</option>").join("") + "</select>";
+  if (f[2] === "yn") return '<div class="yn"><label><input type="radio" name="' + id + '" value="true"> نعم</label><label><input type="radio" name="' + id + '" value="false"> لا</label></div>';
+  if (f[2] === "date") return '<input type="date" id="' + id + '">';
+  if (f[2] === "tel") return '<input type="tel" inputmode="tel" id="' + id + '" placeholder="01xxxxxxxxx" dir="ltr">';
+  if (f[2] === "nid") return '<input id="' + id + '" inputmode="numeric" maxlength="20" placeholder="١٤ رقم" dir="ltr">';
+  if (f[2] === "area") return '<textarea id="' + id + '" rows="3"></textarea>';
+  if (f[2] === "file") return '<input type="file" accept="image/*" id="' + id + '"><img class="thumb" id="' + id + 'T" hidden alt="">';
+  if (f[2] === "en") return '<input id="' + id + '" dir="ltr" autocapitalize="words">';
+  return '<input id="' + id + '">';
+}
+function form() {
+  $("box").innerHTML = F.map(f => f[0] === "h" ? '<div class="group-title">' + esc(f[1]) + "</div>" :
+      '<div class="field"><label for="f_' + f[0] + '">' + esc(f[1]) + (f[3] ? ' <b class="req">*</b>' : "") + "</label>" + input(f) + "</div>").join("") +
+    '<p class="meta">لازم صورة الوش، ومعاها شهادة الميلاد أو البطاقة وش وضهر.</p>' +
+    '<div id="err" class="msg err" hidden></div><button class="btn gold big" id="go">إرسال</button><p class="meta" id="prog"></p>';
+  F.filter(f => f[2] === "file").forEach(f => $("f_" + f[0]).onchange = e => { const t = $("f_" + f[0] + "T"), x = e.target.files[0]; t.hidden = !x; if (x) t.src = URL.createObjectURL(x); });
+  $("go").onclick = send;
+}
+function val(f) {
+  if (f[2] === "yn") { const r = document.querySelector('input[name="f_' + f[0] + '"]:checked'); return r ? r.value : ""; }
+  return String($("f_" + f[0]).value || "").trim();
+}
+async function send() {
+  const err = m => { $("err").textContent = m; $("err").hidden = false; $("err").scrollIntoView({ block: "center" }); };
+  $("err").hidden = true;
+  const d = {};
+  for (const f of F) {
+    if (f[0] === "h" || f[2] === "file") continue;
+    let v = val(f);
+    if (f[3] && !v) return err("ناقص: " + f[1]);
+    if (!v) continue;
+    if (f[2] === "nid") { v = AD(v).replace(/\D/g, ""); if (!/^[23][0-9]{13}$/.test(v)) return err(f[1] + ": لازم ١٤ رقم."); }
+    if (f[2] === "tel") { v = BAS.normPhone(v); if (v.length !== 11) return err(f[1] + ": لازم ١١ رقم ويبدأ بـ 01."); }
+    if (f[2] === "en" && !/^[A-Za-z][A-Za-z .'-]+$/.test(v)) return err("الاسم بالإنجليزي يتكتب بحروف إنجليزي.");
+    d[f[0]] = v;
+  }
+  const file = k => $("f_" + k).files[0];
+  if (!file("photo_path")) return err("ناقص: صورة الوش.");
+  if (!file("birth_cert_path") && !(file("id_front_path") && file("id_back_path"))) return err("ابعت شهادة الميلاد، أو البطاقة وش وضهر.");
+  $("go").disabled = true;
+  try {
+    const files = {}, dir = TOKEN + "/" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+    const kinds = F.filter(f => f[2] === "file" && file(f[0]));
+    for (let i = 0; i < kinds.length; i++) {
+      const k = kinds[i][0]; $("prog").textContent = "بيرفع الصور… " + (i + 1) + " / " + kinds.length;
+      const blob = await BAS.shrinkTo(file(k), k === "photo_path" ? 1200 : 1400, 0.82);
+      const path = dir + "/" + k.replace("_path", "") + ".jpg";
+      const up = await supabaseClient.storage.from("intake").upload(path, blob, { contentType: "image/jpeg" });
+      if (up.error) throw up.error;
+      files[k] = path;
+    }
+    $("prog").textContent = "بيبعت…";
+    const r = await supabaseClient.rpc("reg_submit", { p_token: TOKEN, p_data: d, p_files: files });
+    if (r.error) throw r.error;
+    $("box").innerHTML = '<div class="panel" style="text-align:center;margin-top:20px"><div style="font-size:48px">✅</div><h2>تم الإرسال، شكراً</h2><p class="meta">البيانات وصلت لفريق الكشافة.</p>' +
+      '<button class="btn line mt" id="again">تسجيل أخ أو أخت تاني</button></div>';
+    $("again").onclick = () => { form(); window.scrollTo(0, 0); };
+    window.scrollTo(0, 0);
+  } catch (e) {
+    const m = String(e && e.message || e);
+    err(/closed/i.test(m) ? "الاستمارة اتقفلت." : /Too many/i.test(m) ? "في ناس كتير بتبعت دلوقتي. جرب كمان كام دقيقة." : "ما اتبعتش. اتأكد من النت وجرب تاني.");
+    $("go").disabled = false; $("prog").textContent = "";
+  }
+}
+(async () => {
+  const { data } = await supabaseClient.rpc("reg_form_info", { p_token: TOKEN });
+  if (!data) { $("stage").textContent = ""; $("box").innerHTML = '<div class="msg err">الرابط ده مش شغال. اطلب الرابط الصح من القادة.</div>'; return; }
+  $("stage").textContent = "مرحلة " + data.stage;
+  if (!data.open) { $("box").innerHTML = '<div class="msg err">الاستمارة مقفولة دلوقتي.</div>'; return; }
+  form();
+})();
+</script>
+</body>
+</html>

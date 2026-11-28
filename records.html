@@ -19,7 +19,7 @@
 <body>
 <main class="page">
   <div class="head"><div><p class="eyebrow" id="eyebrow">Every scout's details, kept for good</p><h1 data-ar="سجلات <em>الكشافة</em>">Group <em>records</em></h1></div>
-    <div class="actions" style="margin:0"><button class="btn line sm" id="dl" hidden>⬇ Download (Excel)</button></div></div>
+    <div class="actions" style="margin:0"><button class="btn gold sm" id="intake" hidden>📥 Parents' forms</button><button class="btn line sm" id="dl" hidden>⬇ Download (Excel)</button></div></div>
   <div class="toolbar">
     <input id="q" type="search" placeholder="Search a name, parent, phone, school, address…" autocomplete="off" dir="auto">
     <select id="fSec" hidden aria-label="Stage"></select>
@@ -238,6 +238,86 @@ function joinPick(p) {
 }
 
 // ---------- 📝 Registration details (warehouse team): paste the parents' message, check, add the papers, save ----------
+// ---------- 📥 the parents' form: one link per stage (open/close it here), and what parents sent ----------
+async function intakeCount() {
+  const { count } = await supabaseClient.from("reg_submissions").select("id", { count: "exact", head: true }).eq("status", "new");
+  $("intake").textContent = "📥 " + T("Parents' forms") + (count ? " (" + count + ")" : "");
+}
+const formUrl = tk => location.origin + location.pathname.replace(/[^/]*$/, "") + "register.html?k=" + tk;
+async function intakeSheet() {
+  const o = $("sheet");
+  o.innerHTML = '<div class="sheet" style="max-width:720px"><div class="empty">' + esc(T("Loading…")) + "</div></div>"; o.hidden = false;
+  const [lq, sq] = await Promise.all([supabaseClient.from("reg_links").select("*"), supabaseClient.from("reg_submissions").select("*").eq("status", "new").order("created_at")]);
+  if (lq.error || sq.error) { o.innerHTML = '<div class="sheet"><div class="msg err">' + esc(BAS.errText(lq.error || sq.error)) + '</div><button class="btn line" onclick="document.getElementById(\'sheet\').hidden=true">' + esc(T("Close")) + "</button></div>"; return; }
+  const L = {}; (lq.data || []).forEach(x => L[x.section_id] = x);
+  const SUBS = sq.data || [];
+  const secs = BAS.sections.filter(x => x.is_active !== false);
+  o.innerHTML = '<div class="sheet" style="max-width:720px"><h2>📥 ' + esc(T("Parents' forms")) + "</h2>" +
+    '<p class="meta">' + esc(T("One link per stage. Send it in the stage's parents group. What they send waits here until you save it to the scout.")) + "</p>" +
+    '<div class="group-title">🔗 ' + esc(T("Links")) + "</div>" +
+    secs.map(x => { const l = L[x.id], on = l && l.is_open;
+      return '<div class="row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--line,#eee)"><b style="min-width:120px" dir="auto">' + esc(x.name_ar) + "</b>" +
+        '<span class="pill ' + (on ? "ok" : "mut") + '">' + esc(T(on ? "Open" : "Closed")) + "</span>" +
+        '<button class="btn sm ' + (on ? "danger" : "gold") + '" data-lk="' + x.id + '" data-on="' + (on ? 0 : 1) + '">' + esc(T(on ? "Close it" : "Open it")) + "</button>" +
+        (l ? '<button class="btn line sm" data-cp="' + esc(l.token) + '">📋 ' + esc(T("Copy link")) + '</button><a class="btn line sm" target="_blank" rel="noopener" href="https://wa.me/?text=' + encodeURIComponent("برجاء تسجيل بيانات الكشاف من الرابط ده (مرحلة " + x.name_ar + "):\n" + formUrl(l.token)) + '">WhatsApp</a>' : "") + "</div>"; }).join("") +
+    '<div class="group-title" style="margin-top:16px">📨 ' + esc(T("Waiting to be saved")) + " (" + SUBS.length + ")</div>" +
+    (SUBS.length ? SUBS.map(x => '<div class="row" style="display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line,#eee)"><div style="flex:1"><b dir="auto">' + esc(x.data.name_ar || x.data.name || "?") + "</b>" + (x.data.name ? ' <span class="meta" dir="ltr">' + esc(x.data.name) + "</span>" : "") +
+        '<div class="meta">' + esc(secName(x.section_id)) + " · " + esc(BAS.fmtDate(x.created_at)) + " · 📎 " + Object.keys(x.files || {}).length + '</div></div><button class="btn gold sm" data-sub="' + x.id + '">' + esc(T("Open")) + "</button></div>").join("")
+      : '<p class="meta">' + esc(T("Nothing new.")) + "</p>") +
+    '<div class="actions"><button class="btn line" id="iClose">' + esc(T("Close")) + "</button></div></div>";
+  $("iClose").onclick = () => { o.hidden = true; };
+  o.querySelectorAll("[data-lk]").forEach(b => b.onclick = async () => {
+    const r = await supabaseClient.rpc("set_reg_link", { p_section: Number(b.dataset.lk), p_open: b.dataset.on === "1" });
+    if (r.error) return BAS.toast(BAS.errText(r.error), "err");
+    intakeSheet();
+  });
+  o.querySelectorAll("[data-cp]").forEach(b => b.onclick = async () => { try { await navigator.clipboard.writeText(formUrl(b.dataset.cp)); BAS.toast(T("Copied")); } catch (e) { prompt(T("Copy link"), formUrl(b.dataset.cp)); } });
+  o.querySelectorAll("[data-sub]").forEach(b => b.onclick = () => subSheet(SUBS.find(x => x.id === Number(b.dataset.sub))));
+}
+// whose form is it? the stage's scouts, closest names first
+function subSheet(sub) {
+  const o = $("sheet"), d = sub.data || {};
+  const nw = n => BAS.norm(n || "").replace(/عبد\s+/g, "عبد").replace(/[ً-ْـ]/g, "").split(/\s+/).filter(Boolean);
+  const sa = nw(d.name_ar), se = skName(d.name || "");
+  const score = p => {
+    const pa = nw(p.name_ar || (isAr(p.name) ? p.name : "")), pe = skName(isAr(p.name) ? "" : p.name);
+    let s = 0; sa.forEach((w, i) => { if (pa[i] === w) s += i < 2 ? 3 : 1; else if (pa.includes(w)) s += 1; });
+    se.forEach((w, i) => { if (pe[i] === w) s += i < 2 ? 3 : 1; });
+    if (d.national_id && p.national_id === d.national_id) s += 20;
+    if (d.birthday && p.birthday === d.birthday) s += 2;
+    return s;
+  };
+  const C = ALL.filter(p => p.section_id === sub.section_id && p.role !== "kada" && p.is_active).map(p => [p, score(p)]).sort((a, b) => b[1] - a[1]);
+  const best = C.filter(x => x[1] >= 4).slice(0, 5);
+  o.innerHTML = '<div class="sheet" style="max-width:560px"><h2 dir="auto">📥 ' + esc(d.name_ar || d.name || "?") + "</h2>" +
+    '<p class="meta">' + esc(secName(sub.section_id)) + (d.name ? " · " + esc(d.name) : "") + (d.birthday ? " · 🎂 " + esc(BAS.fmtDate(d.birthday)) : "") + (d.father_name ? " · " + esc(d.father_name) : "") + "</p>" +
+    '<div class="group-title">' + esc(T("Which scout is this?")) + "</div>" +
+    (best.length ? best.map(x => '<button class="btn line" style="display:block;width:100%;text-align:start;margin:4px 0" data-pick="' + x[0].id + '" dir="auto">' + esc(arN(x[0])) + (enN(x[0]) ? " · " + esc(enN(x[0])) : "") + (x[0].school_year ? ' <span class="meta">' + esc(x[0].school_year) + "</span>" : "") + "</button>").join("")
+      : '<p class="meta">' + esc(T("No close name in this stage.")) + "</p>") +
+    '<div class="field mt"><label>' + esc(T("Or pick from the stage")) + '</label><select id="sPick"><option value="">—</option>' + C.map(x => '<option value="' + x[0].id + '">' + esc(arN(x[0])) + "</option>").join("") + "</select></div>" +
+    '<div class="actions"><button class="btn gold" id="sNew">➕ ' + esc(T("New scout")) + '</button><button class="btn danger" id="sDrop">🗑 ' + esc(T("Throw it away")) + '</button><button class="btn line" id="sBk">' + esc(T("Back")) + "</button></div></div>";
+  o.scrollTop = 0;
+  const go = id => { const p = ALL.find(x => x.id === id); if (p) regSheet(p, sub); };
+  o.querySelectorAll("[data-pick]").forEach(b => b.onclick = () => go(Number(b.dataset.pick)));
+  $("sPick").onchange = () => { if ($("sPick").value) go(Number($("sPick").value)); };
+  $("sBk").onclick = intakeSheet;
+  $("sNew").onclick = async () => {
+    const nm = (d.name || d.name_ar || "").trim(); if (!nm) return;
+    if (!confirm(T("Add") + " " + nm + " " + T("as a new scout in") + " " + secName(sub.section_id) + "?")) return;
+    const r = await supabaseClient.rpc("add_names", { p_section: sub.section_id, p_names: nm, p_gender: null, p_role: "3ayel", p_tali3a: null });
+    if (r.error) return BAS.toast(BAS.errText(r.error), "err");
+    await load();
+    const p = ALL.filter(x => x.section_id === sub.section_id && x.name === nm).sort((a, b) => b.id - a.id)[0];
+    if (p) regSheet(p, sub);
+  };
+  $("sDrop").onclick = async () => {
+    if (!confirm(T("Throw this form away? Its photos are deleted."))) return;
+    const r = await supabaseClient.rpc("reg_done", { p_id: sub.id, p_roster: null, p_saved: false });
+    if (r.error) return BAS.toast(BAS.errText(r.error), "err");
+    const fl = Object.values(sub.files || {}); if (fl.length) await supabaseClient.storage.from("intake").remove(fl);
+    intakeCount(); intakeSheet();
+  };
+}
 // a private copy of the papers in Google Drive ("BAS Backups/Scout papers/<stage>/<name>"), in the background
 async function driveCopy(p, list) {
   const tok = (await supabaseClient.auth.getSession()).data.session?.access_token; if (!tok) return;
@@ -250,7 +330,7 @@ async function driveCopy(p, list) {
     } catch (e) { return; }
   }
 }
-function regSheet(p) {
+function regSheet(p, sub) {   // sub: what a parent sent through the form (optional)
   const o = $("sheet"), F = BAS.REG.filter(f => f[0] === "h" || f[2] !== "file");
   const val = k => k === "father_call_ok" ? (p[k] === true ? "true" : p[k] === false ? "false" : "") : (p[k] == null ? "" : String(p[k]));
   const inp = f => {
@@ -276,18 +356,18 @@ function regSheet(p) {
   o.hidden = false; o.scrollTop = 0;
   let face = null;   // the cropped 4×6 face photo
   $("g_photo_path").insertAdjacentHTML("afterend", '<div id="gFace" class="meta"></div>');
-  $("g_photo_path").onchange = async () => {
-    const file = $("g_photo_path").files[0]; if (!file) return;
+  const cropFace = async file => {
     try {
       if (!window.BASPhoto) await new Promise((ok, bad) => { const sc = document.createElement("script"); sc.src = "photo.js"; sc.onload = ok; sc.onerror = bad; document.head.appendChild(sc); });
       const b = await BASPhoto.open(file);
-      if (!b) { $("g_photo_path").value = ""; face = null; $("gFace").innerHTML = ""; return; }
+      if (!b) { face = null; $("gFace").innerHTML = ""; return; }
       face = b; $("gFace").innerHTML = '<img src="' + URL.createObjectURL(b) + '" alt="" style="width:80px;height:120px;object-fit:cover;border-radius:6px;margin-top:6px"> ✓ ' + esc(T("4×6, ready to save"));
     } catch (e) { face = null; $("gFace").textContent = T("The photo tool didn't open. The photo will be saved as it is."); }
   };
+  $("g_photo_path").onchange = () => { const file = $("g_photo_path").files[0]; if (file) cropFace(file); };
   $("gBk").onclick = () => personSheet(p);
-  $("gParse").onclick = () => {
-    const got = BAS.parseParents($("gPaste").value); let n = 0, mark = el => { el.style.outline = "2px solid var(--gold, #e3b31c)"; n++; };
+  const fill = got => {
+    let n = 0, mark = el => { el.style.outline = "2px solid var(--gold, #e3b31c)"; n++; };
     for (const k in got) {
       if (k === "mother_works") continue;
       if (k === "name") { if (!/[A-Za-z]/.test(p.name || "") && $("g_name")) { $("g_name").value = got[k]; mark($("g_name")); } continue; }
@@ -296,8 +376,30 @@ function regSheet(p) {
       if (el.tagName === "SELECT" && ![...el.options].some(x => x.value === String(got[k]))) continue;
       el.value = String(got[k]); mark(el);
     }
+    return n;
+  };
+  $("gParse").onclick = () => {
+    const n = fill(BAS.parseParents($("gPaste").value));
     $("gPm").textContent = n ? "✓ " + n + " " + T("boxes filled. Check them, add the photos, then press Save.") : T("I couldn't read anything from it. Paste the whole message as it came.");
   };
+  // from the parents' form: fill the boxes and bring its photos
+  const PRE = {};
+  if (sub) {
+    const d = Object.assign({}, sub.data); if (d.confession_father) d.confession_father = BAS.ppFather(d.confession_father);
+    if (d.name && /[A-Za-z]/.test(p.name || "") && p.name !== d.name) d.name = undefined;
+    const n = fill(Object.fromEntries(Object.entries(d).filter(x => x[1] != null && x[1] !== "")));
+    $("gPm").textContent = "📥 " + T("From the parents' form") + ": " + n + " " + T("boxes filled. Check them, then press Save.");
+    $("gPaste").closest(".panel").querySelector("textarea").hidden = true; $("gParse").hidden = true;
+    for (const [k, path] of Object.entries(sub.files || {})) {
+      supabaseClient.storage.from("intake").download(path).then(r => {
+        if (r.error || !r.data) return; PRE[k] = r.data;
+        const el = $("g_" + k); if (!el) return;
+        el.insertAdjacentHTML("afterend", '<div class="meta" id="gPre_' + k + '"><img src="' + URL.createObjectURL(r.data) + '" alt="" style="width:70px;height:70px;object-fit:cover;border-radius:6px;margin-top:6px"> 📎 ' + esc(T("from the parents' form")) +
+          (k === "photo_path" ? ' <button type="button" class="btn line sm" id="gCrop">✂️ ' + esc(T("Crop the face")) + "</button>" : "") + "</div>");
+        if (k === "photo_path") $("gCrop").onclick = () => cropFace(r.data);
+      });
+    }
+  }
   $("gGo").onclick = async () => {
     $("gErr").hidden = true; $("gGo").disabled = true;
     try {
@@ -312,7 +414,7 @@ function regSheet(p) {
       if (d.mother_job && p.mother_works == null) d.mother_works = "true";
       const papers = {}, old = [], backups = [];
       for (const f of PAP) {
-        const file = $("g_" + f[0]).files[0]; if (!file) continue;
+        const file = $("g_" + f[0]).files[0] || PRE[f[0]] || (f[0] === "photo_path" && face); if (!file) continue;
         const isFace = f[0] === "photo_path", blob = isFace ? (face || await BAS.shrinkTo(file, 800)) : await BAS.shrinkTo(file, 1400, 0.8);
         const path = p.section_id + "/" + p.id + (isFace ? "-" : "/" + f[0].replace("_path", "") + "-") + Date.now() + ".jpg";
         const up = await supabaseClient.storage.from(isFace ? "people" : "docs").upload(path, blob, { contentType: "image/jpeg" });
@@ -327,6 +429,7 @@ function regSheet(p) {
       }
       old.forEach(x => supabaseClient.storage.from(x[0]).remove([x[1]]).then(() => {}));
       if (backups.length) driveCopy(p, backups);
+      if (sub) { intakeCount(); await supabaseClient.rpc("reg_done", { p_id: sub.id, p_roster: p.id, p_saved: true }); const fl = Object.values(sub.files || {}); if (fl.length) supabaseClient.storage.from("intake").remove(fl).then(() => {}); }
       BAS.toast(T("Saved")); await load(); personSheet(ALL.find(x => x.id === p.id));
     } catch (e) { $("gErr").textContent = BAS.errText(e); $("gErr").hidden = false; }
     if ($("gGo")) $("gGo").disabled = false;
@@ -466,6 +569,7 @@ function download() {
   } else if (CAN_EDIT) $("dl").hidden = false;
   $("q").oninput = draw; $("fSec").onchange = draw; $("fState").onchange = draw; $("fWho").onchange = draw; $("dl").onclick = download;
   await load();
+  if (BAS.isAdmin()) { $("intake").hidden = false; $("intake").onclick = intakeSheet; intakeCount(); if (location.hash === "#intake") intakeSheet(); }
   const pq = Number(QS.get("p"));
   if (pq) { const p = ALL.find(x => x.id === pq); if (p) { if (!p.is_active) { $("fState").value = "arch"; draw(); } personSheet(p); } history.replaceState(null, "", "records.html"); }
 })();

@@ -803,9 +803,15 @@ const BAS = {
   },
   // a whole chat box; target = {section, service, reservation}
   EMOJI: ["👍", "❤️", "😂", "✅", "🙏"],
+  // my quick five: the ones I used last come first
+  myEmoji() {
+    let L = []; try { L = JSON.parse(localStorage.getItem("basEmoji") || "[]"); } catch (e) {}
+    return [...new Set(L.concat(this.EMOJI))].slice(0, 5);
+  },
+  usedEmoji(e) { try { const L = [e].concat(JSON.parse(localStorage.getItem("basEmoji") || "[]").filter(x => x !== e)).slice(0, 5); localStorage.setItem("basEmoji", JSON.stringify(L)); } catch (x) {} },
   reactsHTML(m) {
     const R = m.reacts || []; if (!R.length) return "";
-    return '<div class="reacts">' + this.EMOJI.filter(e => R.some(x => x.e === e)).map(e => { const L = R.filter(x => x.e === e), on = L.some(x => x.p === this.user.id);
+    return '<div class="reacts">' + [...new Set(R.map(x => x.e))].map(e => { const L = R.filter(x => x.e === e), on = L.some(x => x.p === this.user.id);
       return '<button type="button" class="rc' + (on ? " on" : "") + '" data-react="' + m.id + "|" + e + '" title="' + this.esc(L.map(x => x.n || "").join("، ")) + '">' + e + " " + L.length + "</button>"; }).join("") + "</div>";
   },
   // ✓ sent · ✓✓ delivered · ✓✓ (gold) seen; tap to see who
@@ -891,6 +897,7 @@ const BAS = {
       const r = mine ? await supabaseClient.from("message_reactions").delete().eq("message_id", id).eq("profile_id", this.user.id).eq("emoji", e)
                      : await supabaseClient.from("message_reactions").insert({ message_id: id, emoji: e });
       if (r.error) return this.toast(this.errText(r.error), "err");
+      if (!mine) this.usedEmoji(e);
       reload();
     };
     box.querySelectorAll("[data-react]").forEach(b => b.onclick = () => { const [id, e] = b.dataset.react.split("|"); react(Number(id), e); });
@@ -898,8 +905,16 @@ const BAS = {
       const bub = b.closest(".bub"), old = bub.querySelector(".rpick"); if (old) { old.remove(); return; }
       box.querySelectorAll(".rpick").forEach(x => x.remove());
       const d = document.createElement("div"); d.className = "rpick";
-      d.innerHTML = this.EMOJI.map(e => '<button type="button" data-e="' + e + '">' + e + "</button>").join("");
+      d.innerHTML = this.myEmoji().map(e => '<button type="button" data-e="' + e + '">' + e + "</button>").join("") +
+        '<button type="button" data-more title="Any emoji">➕</button><input class="rmore" hidden inputmode="text" enterkeyhint="done" placeholder="🙂" style="width:64px;font-size:20px;text-align:center">';
       bub.appendChild(d); d.querySelectorAll("[data-e]").forEach(x => x.onclick = () => react(Number(b.dataset.mreact), x.dataset.e));
+      // ➕ opens the phone's keyboard: switch to emoji and pick any one
+      const more = d.querySelector(".rmore");
+      d.querySelector("[data-more]").onclick = () => { more.hidden = false; more.value = ""; more.focus(); };
+      more.oninput = () => {
+        const g = (more.value.match(/\p{Extended_Pictographic}(\uFE0F|\u200D\p{Extended_Pictographic}|\p{Emoji_Modifier})*/u) || [])[0];
+        if (g) { more.blur(); react(Number(b.dataset.mreact), g); }
+      };
     });
     box.querySelectorAll("[data-rcpt]").forEach(b => b.onclick = () => {
       const bub = b.closest(".bub"), old = bub.querySelector(".rcpt"); if (old) { old.remove(); return; }
@@ -1321,5 +1336,15 @@ function parseParents(text) {
   const cf = j("confession_father"); if (cf && !/^(لا|لا يوجد|-)$/.test(AR_N(cf))) out.confession_father = ppFather(cf);
   return out;
 }
-BAS.REG = REG; BAS.shrinkTo = shrinkTo; BAS.parseParents = parseParents;
+BAS.REG = REG; BAS.shrinkTo = shrinkTo; BAS.parseParents = parseParents; BAS.ppFather = ppFather;
 })();
+
+// ---------- the home-screen icon: navy (default) or white; the name is always BAS ----------
+BAS.appIcon = function (v) {
+  try { if (v) localStorage.setItem("basIcon", v); v = localStorage.getItem("basIcon") || "navy"; } catch (e) { v = "navy"; }
+  const w = v === "white", a = document.querySelector('link[rel="apple-touch-icon"]'), m = document.querySelector('link[rel="manifest"]');
+  if (a) a.href = w ? "apple-touch-icon-white.png" : "apple-touch-icon.png";
+  if (m) m.href = w ? "manifest-white.json" : "manifest.json";
+  return v;
+};
+BAS.appIcon();

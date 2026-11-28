@@ -13,6 +13,17 @@
 
   // ---------- exact texts: "English": ["العربي", "Français"] ----------
   const D = {
+    // v28
+    "Now add BAS to your home screen.": ["دلوقتي ضيف BAS على الشاشة الرئيسية.", "Ajoutez maintenant BAS à l'écran d'accueil."],
+    "Parents' forms": ["استمارات الأهل", "Formulaires des parents"], "Links": ["الروابط", "Liens"], "Open": ["مفتوح", "Ouvert"], "Closed": ["مقفول", "Fermé"],
+    "Open it": ["افتحه", "Ouvrir"], "Close it": ["اقفله", "Fermer"], "Copy link": ["انسخ الرابط", "Copier le lien"], "Copied": ["اتنسخ", "Copié"],
+    "One link per stage. Send it in the stage's parents group. What they send waits here until you save it to the scout.": ["رابط لكل مرحلة. ابعته في جروب أهالي المرحلة. اللي بيبعتوه بيستنى هنا لحد ما تحفظه على الكشاف.", "Un lien par étape. Envoyez-le au groupe des parents. Ce qu'ils envoient attend ici jusqu'à ce que vous l'enregistriez."],
+    "Waiting to be saved": ["مستني يتحفظ", "En attente"], "Nothing new.": ["مفيش جديد.", "Rien de nouveau."], "Which scout is this?": ["ده أنهي كشاف؟", "Quel scout est-ce ?"],
+    "No close name in this stage.": ["مفيش اسم قريب في المرحلة دي.", "Aucun nom proche dans cette étape."], "Or pick from the stage": ["أو اختار من المرحلة", "Ou choisissez dans l'étape"],
+    "New scout": ["كشاف جديد", "Nouveau scout"], "Throw it away": ["ارميها", "Jeter"], "as a new scout in": ["ككشاف جديد في", "comme nouveau scout dans"],
+    "Throw this form away? Its photos are deleted.": ["ترمي الاستمارة دي؟ صورها هتتمسح.", "Jeter ce formulaire ? Ses photos seront supprimées."],
+    "From the parents' form": ["من استمارة الأهل", "Du formulaire des parents"], "from the parents' form": ["من استمارة الأهل", "du formulaire des parents"],
+    "boxes filled. Check them, then press Save.": ["خانة اتملت. راجعها وبعدين احفظ.", "cases remplies. Vérifiez, puis Enregistrer."], "Crop the face": ["قص الوش", "Recadrer le visage"],
     // v27
     "Their attendance goes with them to Team › Deleted.": ["الحضور بتاعه هيروح معاه في الفريق › المحذوفات.", "Leurs présences partent avec eux dans Équipe › Supprimés."],
     "Deleted. They are in Team › Deleted if you need them back.": ["اتمسح. موجود في الفريق › المحذوفات لو احتجته تاني.", "Supprimé. Dans Équipe › Supprimés si besoin."],
