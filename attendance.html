@@ -600,12 +600,12 @@ async function personSheet(p) {
       : '<div class="grid2"><div class="field"><label>Father\'s name</label><input id="dFn" value="' + esc(p.father_name || "") + '"></div>' + ph("dFp", "Father\'s phone", p.father_phone) + "</div>" +
         '<div class="grid2"><div class="field"><label>Mother\'s name</label><input id="dMn" value="' + esc(p.mother_name || "") + '"></div>' + ph("dMp", "Mother\'s phone", p.mother_phone) + "</div>" +
         '<p class="meta">' + esc(T("All optional. Only the stage's leaders and the warehouse team see these.")) + "</p>") +
-    '<div class="field"><label>' + esc(T("Notes")) + '</label><textarea id="dNo" rows="3">' + esc(p.notes || "") + "</textarea></div>" +
+    (p.profile_id ? "" : '<div class="field"><label>' + esc(T("Notes")) + '</label><textarea id="dNo" rows="3">' + esc(p.notes || "") + "</textarea></div>") +
     "</div>" +
     (amt > 0 ? '<div class="panel"><b>💳 ' + esc(T("Yearly subscription")) + "</b> · " + (paid >= amt ? '<span class="pill ok">' + esc(T("PAID")) + "</span>" : paid > 0 ? BAS.money(paid) + " / " + BAS.money(amt) : '<span class="pill warn">' + esc(T("NOT PAID")) + "</span>") +
       ' <a class="lnk" href="#subs" data-gosubs>' + esc(T("Open")) + "</a></div>" : "") +
     '<div id="dErr" class="msg err" hidden></div><div class="actions"><button class="btn gold" id="dGo">Save</button>' + (p.profile_id ? "" : '<button class="btn danger" id="dRm">' + esc(T("Archive")) + "</button>") +
-    (p.role !== "kada" ? '<button class="btn gold" id="dReg">📝 ' + esc(T("Registration details")) + (regMissing(p) ? " (" + regMissing(p) + " " + esc(T("missing")) + ")" : " ✓") + "</button>" : "") +
+    (p.role !== "kada" && regMissing(p) ? '<button class="btn gold" id="dReg">📝 ' + esc(T("Registration details")) + " (" + regMissing(p) + " " + esc(T("missing")) + ")</button>" : "") +
     (p.role === "kada" && BAS.isAdmin() ? '<button class="btn danger" id="dKill">🗑 ' + esc(T(p.profile_id ? "Remove the account" : "Delete forever")) + "</button>" : "") + '<button class="btn line" id="dBack">Back</button></div></div>';
   o.hidden = false;
   // a scout's details are changed only by the people chosen for Group records

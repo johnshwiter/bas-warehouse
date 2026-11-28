@@ -38,7 +38,7 @@ const $ = id => document.getElementById(id);
 const esc = s => BAS.esc(s);
 const T = s => (BAS.tr ? BAS.tr(s) : s);
 let TRASH = [], EMPTYOK = null;
-let STOCK = [], BY = {}, RES = [], LOSSES = [], PAYMENTS = [], PEOPLE = [], REMOVED = [], KADA_ALL = [], TRANSFERS = [], MAINT = [], WAIT = [], ANN = [], CHANGES = [], MSGS = [], THREAD = null, CHAT_T = null;
+let STOCK = [], BY = {}, RES = [], LOSSES = [], PAYMENTS = [], PEOPLE = [], PICKED = {}, REMOVED = [], KADA_ALL = [], TRANSFERS = [], MAINT = [], WAIT = [], ANN = [], CHANGES = [], MSGS = [], THREAD = null, CHAT_T = null;
 let TAB = "overview", SUB = "prepare", FORM = null, OPEN = null, ADDING = false, SQ = "", SCAT = "All", MSUB = "open";
 const TITLES = { trash: "Deleted", overview: "Overview of <em>all stages</em>", requests: "Requests", money: "Missing & <em>compensation</em>", stock: "Stock", maint: "Under <em>maintenance</em>",
   wait: "Waitlist", chat: "Messages", news: "Announcements", people: "Accounts", log: "Activity log", settings: "Settings" };
@@ -66,9 +66,12 @@ async function loadAll() {
     RES = await BAS.loadReservations(BY);
     LOSSES = await BAS.q(supabaseClient.from("loss_status").select("*").order("created_at", { ascending: false })); await BAS.loadLossWho(LOSSES);
     PAYMENTS = await BAS.q(supabaseClient.from("payments").select("*").order("paid_on", { ascending: false }));
-    let pq = await supabaseClient.from("profiles").select("id, full_name, email, role, approval_status, section_id, created_at, stage_role, group_role, access, notif_off").order("created_at");
+    let pq = await supabaseClient.from("profiles").select("id, full_name, email, role, approval_status, section_id, created_at, stage_role, group_role, access, notif_off, picked_roster_id").order("created_at");
     if (pq.error) pq = await supabaseClient.from("profiles").select("id, full_name, email, role, approval_status, section_id, created_at, stage_role").order("created_at");
     if (pq.error) throw pq.error; PEOPLE = pq.data || [];
+    const pk = PEOPLE.filter(p => p.picked_roster_id && p.approval_status === "pending").map(p => p.picked_roster_id);
+    PICKED = {};
+    if (pk.length) { const r = await supabaseClient.from("roster").select("id, name, profile_id").in("id", pk); (r.data || []).forEach(x => PICKED[x.id] = x); }
     TRANSFERS = await BAS.q(supabaseClient.from("transfer_requests").select("*").order("created_at", { ascending: false }));
     MAINT = await BAS.q(supabaseClient.from("maintenance").select("*").order("created_at", { ascending: false }));
     WAIT = await BAS.q(supabaseClient.from("waitlist").select("*").in("status", ["Waiting", "Available"]).order("created_at"));
@@ -709,7 +712,8 @@ function peopleView() {
   const secOpts = sel => '<option value="">No stage</option>' + BAS.sections.map(s => '<option value="' + s.id + '"' + (s.id === sel ? " selected" : "") + ">" + esc(s.name_ar) + "</option>").join("");
   const GR = { kada_3am: "القائد العام", mosa3ed_3am: "مساعد القائد العام" }, ACC = p => Object.keys(p.access || {}).filter(k => p.access[k]);
   const row = p => '<div class="person" data-p="' + p.id + '"><div><h4>' + esc(p.full_name) + (p.id === BAS.user.id ? " (you)" : "") + (p.group_role ? ' <span class="pill gold">' + esc(GR[p.group_role]) + "</span>" : "") + '</h4><div class="meta">' + esc(p.email || "") + " · signed up " + esc(BAS.fmtDate(p.created_at)) + " · " +
-    '<span class="pill ' + (p.approval_status === "approved" ? "paid" : p.approval_status === "pending" ? "low" : "late") + '">' + esc(p.approval_status.toUpperCase()) + "</span></div></div>" +
+    '<span class="pill ' + (p.approval_status === "approved" ? "paid" : p.approval_status === "pending" ? "low" : "late") + '">' + esc(p.approval_status.toUpperCase()) + "</span>" +
+    (p.approval_status === "pending" && PICKED[p.picked_roster_id] ? '<div class="mt">👤 ' + esc(T("Says he is")) + ' <b>' + esc(PICKED[p.picked_roster_id].name) + "</b> · " + esc(T("approving gives him that person's old details")) + ' <button class="btn line sm" data-unpick>' + esc(T("Not him")) + "</button></div>" : "") + "</div></div>" +
     '<div class="actions" style="margin:0"><select data-f="section_id" aria-label="Stage">' + secOpts(p.section_id) + '</select><select data-f="role" aria-label="Role"><option value="leader"' + (p.role === "leader" ? " selected" : "") +
     '>Leader</option><option value="admin"' + (p.role === "admin" ? " selected" : "") + ">Warehouse team</option></select>" +
     (p.section_id && p.approval_status === "approved" ? '<select data-f="stage_role" aria-label="Role in the stage">' + [["leader", "Leader"], ["head", "قائد المرحلة"], ["deputy", "نائب قائد المرحلة"], ["assistant", "مساعد قائد المرحلة"]]
@@ -761,6 +765,7 @@ function peopleView() {
       updatePerson(id, { [s.dataset.f]: v });
     });
     el.querySelectorAll("[data-ap]").forEach(b => b.onclick = () => updatePerson(id, { approval_status: b.dataset.ap }));
+    el.querySelectorAll("[data-unpick]").forEach(b => b.onclick = () => updatePerson(id, { picked_roster_id: null }));
     el.querySelectorAll("[data-acc]").forEach(b => b.onclick = () => accessSheet(PEOPLE.find(x => x.id === id)));
     el.querySelectorAll("[data-nfp]").forEach(b => b.onclick = () => {
       const p = PEOPLE.find(x => x.id === id), o = $("sheet");

@@ -157,7 +157,7 @@ async function personCard(p, want) {
   const all = !want || !want.length || want.indexOf("all") >= 0, W = all ? FIELDS.map(f => f[0]) : want;
   const rows = [];
   for (const f of FIELDS) {
-    if (W.indexOf(f[0]) < 0) continue;
+    if (W.indexOf(f[0]) < 0 || (f[0] === "notes" && p.profile_id)) continue;
     let v;
     if (/phone/.test(f[0])) v = phone(p[f[0]]);
     else if (f[0] === "birthday") v = p.birthday ? esc(BAS.fmtDate(p.birthday)) : "—";

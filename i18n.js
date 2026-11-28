@@ -13,6 +13,8 @@
 
   // ---------- exact texts: "English": ["العربي", "Français"] ----------
   const D = {
+    // v25
+    "Says he is": ["بيقول إنه", "Dit être"], "approving gives him that person's old details": ["الموافقة بتديله بيانات الشخص ده القديمة", "approuver lui donne les anciennes informations de cette personne"], "Not him": ["مش هو", "Pas lui"],
     // v24
     "Registration details": ["بيانات التسجيل", "Informations d'inscription"], "Registration details missing": ["بيانات التسجيل ناقصة", "Informations d'inscription manquantes"],
     "Fill in what the parents sent. What's already saved shows ✓ and can only be changed from Group records.": ["املى اللي الأهل بعتوه. اللي اتحفظ قبل كده بيظهر ✓ وبيتغير من سجلات الكشافة بس.", "Remplissez ce que les parents ont envoyé. Ce qui est déjà enregistré montre ✓ et ne se change que depuis les registres."],
