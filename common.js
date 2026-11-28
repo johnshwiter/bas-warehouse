@@ -1245,14 +1245,14 @@ const REG = [
   ["h", "Mother"], ["mother_name", "Mother's full name"], ["mother_job", "Mother's job (if she works)"], ["mother_phone", "Mother's phone", "tel"], ["mother_national_id", "Mother's national ID", "nid"],
   ["h", "Other"], ["joined_on", "Joined the scouts on (if known)", "date"], ["notes", "Notes on dealing with the scout", "area"], ["confession_father", "Confession father", "father"],
   ["h", "Papers"], ["photo_path", "A recent face photo (4×6, white background is fine)", "file"], ["birth_cert_path", "Birth certificate", "file"], ["id_front_path", "ID card: front", "file"], ["id_back_path", "ID card: back", "file"]];
-function shrinkTo(file, max) {
+function shrinkTo(file, max, q) {
   return new Promise((ok, bad) => {
     const rd = new FileReader(), img = new Image();
     rd.onload = () => { img.onload = () => {
       const k = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement("canvas");
       c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
       c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-      c.toBlob(b => b ? ok(b) : bad(new Error("That file is not a photo.")), "image/jpeg", 0.85);
+      c.toBlob(b => b ? ok(b) : bad(new Error("That file is not a photo.")), "image/jpeg", q || 0.85);
     }; img.onerror = () => bad(new Error("That file is not a photo.")); img.src = rd.result; };
     rd.readAsDataURL(file);
   });

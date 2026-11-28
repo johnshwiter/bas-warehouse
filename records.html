@@ -238,6 +238,18 @@ function joinPick(p) {
 }
 
 // ---------- 📝 Registration details (warehouse team): paste the parents' message, check, add the papers, save ----------
+// a private copy of the papers in Google Drive ("BAS Backups/Scout papers/<stage>/<name>"), in the background
+async function driveCopy(p, list) {
+  const tok = (await supabaseClient.auth.getSession()).data.session?.access_token; if (!tok) return;
+  for (const [label, blob] of list) {
+    const b64 = await new Promise(ok => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1]); r.readAsDataURL(blob); });
+    try {
+      const r = await fetch("/api/upload", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + tok },
+        body: JSON.stringify({ action: "paper", section_id: p.section_id, scout: (p.name_ar || p.name) + " #" + p.id, name: label.replace(/[^\w\u0600-\u06FF ()×.-]/g, "") + ".jpg", mime: "image/jpeg", b64 }) });
+      if (!r.ok) { BAS.toast(T("Saved, but the Drive copy didn't go. It's still safe on the site."), "warn"); return; }
+    } catch (e) { return; }
+  }
+}
 function regSheet(p) {
   const o = $("sheet"), F = BAS.REG.filter(f => f[0] === "h" || f[2] !== "file");
   const val = k => k === "father_call_ok" ? (p[k] === true ? "true" : p[k] === false ? "false" : "") : (p[k] == null ? "" : String(p[k]));
@@ -262,6 +274,17 @@ function regSheet(p) {
     PAP.map(f => '<div class="field"><label>' + esc(T(f[1])) + (p[f[0]] ? ' <span class="pill ok">✓ ' + esc(T("on file")) + "</span>" : "") + '</label><input type="file" accept="image/*" id="g_' + f[0] + '"></div>').join("") +
     '<div id="gErr" class="msg err" hidden></div><div class="actions"><button class="btn gold" id="gGo">' + esc(T("Save")) + '</button><button class="btn line" id="gBk">' + esc(T("Back")) + "</button></div></div>";
   o.hidden = false; o.scrollTop = 0;
+  let face = null;   // the cropped 4×6 face photo
+  $("g_photo_path").insertAdjacentHTML("afterend", '<div id="gFace" class="meta"></div>');
+  $("g_photo_path").onchange = async () => {
+    const file = $("g_photo_path").files[0]; if (!file) return;
+    try {
+      if (!window.BASPhoto) await new Promise((ok, bad) => { const sc = document.createElement("script"); sc.src = "photo.js"; sc.onload = ok; sc.onerror = bad; document.head.appendChild(sc); });
+      const b = await BASPhoto.open(file);
+      if (!b) { $("g_photo_path").value = ""; face = null; $("gFace").innerHTML = ""; return; }
+      face = b; $("gFace").innerHTML = '<img src="' + URL.createObjectURL(b) + '" alt="" style="width:80px;height:120px;object-fit:cover;border-radius:6px;margin-top:6px"> ✓ ' + esc(T("4×6, ready to save"));
+    } catch (e) { face = null; $("gFace").textContent = T("The photo tool didn't open. The photo will be saved as it is."); }
+  };
   $("gBk").onclick = () => personSheet(p);
   $("gParse").onclick = () => {
     const got = BAS.parseParents($("gPaste").value); let n = 0, mark = el => { el.style.outline = "2px solid var(--gold, #e3b31c)"; n++; };
@@ -287,14 +310,15 @@ function regSheet(p) {
         d[f[0]] = f[2] === "nid" ? AD(v) : v;
       }
       if (d.mother_job && p.mother_works == null) d.mother_works = "true";
-      const papers = {}, old = [];
+      const papers = {}, old = [], backups = [];
       for (const f of PAP) {
         const file = $("g_" + f[0]).files[0]; if (!file) continue;
-        const face = f[0] === "photo_path", blob = await BAS.shrinkTo(file, face ? 800 : 1800);
-        const path = p.section_id + "/" + p.id + (face ? "-" : "/" + f[0].replace("_path", "") + "-") + Date.now() + ".jpg";
-        const up = await supabaseClient.storage.from(face ? "people" : "docs").upload(path, blob, { contentType: "image/jpeg" });
+        const isFace = f[0] === "photo_path", blob = isFace ? (face || await BAS.shrinkTo(file, 800)) : await BAS.shrinkTo(file, 1400, 0.8);
+        const path = p.section_id + "/" + p.id + (isFace ? "-" : "/" + f[0].replace("_path", "") + "-") + Date.now() + ".jpg";
+        const up = await supabaseClient.storage.from(isFace ? "people" : "docs").upload(path, blob, { contentType: "image/jpeg" });
         if (up.error) throw up.error;
-        if (face) { d.photo_path = path; if (p.photo_path) old.push(["people", p.photo_path]); } else papers[f[0]] = path;
+        backups.push([{ photo_path: "Face photo", birth_cert_path: "Birth certificate", id_front_path: "ID card front", id_back_path: "ID card back" }[f[0]], blob]);
+        if (isFace) { d.photo_path = path; if (p.photo_path) old.push(["people", p.photo_path]); } else papers[f[0]] = path;
       }
       const r = await supabaseClient.rpc("save_person", { p_id: p.id, p: d }); if (r.error) throw r.error;
       if (Object.keys(papers).length) {
@@ -302,6 +326,7 @@ function regSheet(p) {
         (q.data || []).forEach(x => old.push(["docs", x]));
       }
       old.forEach(x => supabaseClient.storage.from(x[0]).remove([x[1]]).then(() => {}));
+      if (backups.length) driveCopy(p, backups);
       BAS.toast(T("Saved")); await load(); personSheet(ALL.find(x => x.id === p.id));
     } catch (e) { $("gErr").textContent = BAS.errText(e); $("gErr").hidden = false; }
     if ($("gGo")) $("gGo").disabled = false;

@@ -1,0 +1,2 @@
+vendor/fd and vendor/ss are Google MediaPipe Solutions (@mediapipe/face_detection 0.4, @mediapipe/selfie_segmentation 0.1),
+Apache License 2.0 — https://www.apache.org/licenses/LICENSE-2.0 — Copyright Google LLC. Unchanged.

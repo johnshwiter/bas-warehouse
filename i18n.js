@@ -14,6 +14,14 @@
   // ---------- exact texts: "English": ["العربي", "Français"] ----------
   const D = {
     // v26
+    "Face photo": ["صورة الوش", "Photo du visage"], "Finding the face…": ["بيدور على الوش…", "Recherche du visage…"], "Zoom": ["تكبير", "Zoom"],
+    "Drag the photo to move it.": ["اسحب الصورة عشان تحركها.", "Glissez la photo pour la déplacer."], "White background": ["خلفية بيضا", "Fond blanc"], "Original background": ["الخلفية الأصلية", "Fond d'origine"],
+    "Use this photo": ["استخدم الصورة دي", "Utiliser cette photo"], "Check it, then press Use this photo.": ["راجعها، وبعدين دوس استخدم الصورة دي.", "Vérifiez, puis Utiliser cette photo."],
+    "I couldn't find a face. Move and zoom it yourself.": ["ما لقيتش وش. حركها وكبّرها بنفسك.", "Aucun visage trouvé. Déplacez et zoomez vous-même."],
+    "Making the background white…": ["بيخلي الخلفية بيضا…", "Fond blanc en cours…"], "Check the edges (hair, ears). If it looks bad, go back to the original.": ["بص على الأطراف (الشعر، الودان). لو شكلها وحش ارجع للأصلية.", "Vérifiez les bords (cheveux, oreilles). Si c'est raté, revenez à l'original."],
+    "That didn't work on this photo. Keep the original.": ["ما نفعش مع الصورة دي. خليها الأصلية.", "Ça n'a pas marché sur cette photo. Gardez l'original."],
+    "4×6, ready to save": ["٤×٦، جاهزة تتحفظ", "4×6, prête"], "The photo tool didn't open. The photo will be saved as it is.": ["أداة الصور ما فتحتش. الصورة هتتحفظ زي ما هي.", "L'outil photo ne s'est pas ouvert. La photo sera enregistrée telle quelle."],
+    "Saved, but the Drive copy didn't go. It's still safe on the site.": ["اتحفظ، بس النسخة على درايف ما راحتش. هي في أمان على الموقع.", "Enregistré, mais la copie Drive n'est pas partie. Elle est en sécurité sur le site."],
     "Paste the parents' message, check the boxes, add the papers, then Save.": ["الصق رسالة الأهل، راجع الخانات، ضيف الأوراق، وبعدين احفظ.", "Collez le message des parents, vérifiez les cases, ajoutez les papiers, puis Enregistrer."],
     "on file": ["موجودة", "enregistré"], "Only the warehouse team can do this.": ["فريق المخزن بس اللي يقدر يعمل كده.", "Seule l'équipe de l'entrepôt peut faire ça."],
     "Paste the parents' message": ["الصق رسالة الأهل", "Collez le message des parents"], "Fill the boxes from it": ["املى الخانات منها", "Remplir les cases"],

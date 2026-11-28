@@ -58,6 +58,8 @@ window.addEventListener("hashchange", () => { readHash(); FORM = null; OPEN = nu
   if (!BAS.requireAdmin()) return;
   document.querySelector(".head .eyebrow").textContent = BAS.welcomeText();
   await loadAll();
+  // once a day: warn when the files are 80% full
+  try { const d = new Date().toISOString().slice(0, 10); if (localStorage.getItem("basStoreChk") !== d) { localStorage.setItem("basStoreChk", d); const u = await storageUse(); if (u && u.pct >= 80) BAS.toast("📦 Files storage is " + u.pct.toFixed(0) + "% full. See Settings.", "err"); } } catch (e) {}
 })();
 
 async function loadAll() {
@@ -909,9 +911,26 @@ async function resetAll() {
 }
 
 // ---------- settings ----------
+// how full the free 1 GB of files is (photos, papers, receipts…)
+const LIMIT_GB = 1;
+async function storageUse() {
+  const { data, error } = await supabaseClient.rpc("storage_usage"); if (error) return null;
+  const used = (data || []).reduce((t, r) => t + Number(r.bytes), 0);
+  return { rows: data || [], used, pct: used / (LIMIT_GB * 1024 ** 3) * 100 };
+}
+async function storageBox() {
+  const el = $("stUse"); if (!el) return; const u = await storageUse();
+  if (!u) { el.innerHTML = '<p class="meta">Run the v26 SQL to see this.</p>'; return; }
+  const mb = b => (b / 1024 ** 2).toFixed(b < 10 * 1024 ** 2 ? 1 : 0) + " MB", NM = { people: "Faces", docs: "Scout papers", "item-photos": "Item photos", receipts: "Receipts", chat: "Chat photos" };
+  const col = u.pct >= 80 ? "var(--red, #c0392b)" : u.pct >= 60 ? "var(--gold, #e3b31c)" : "var(--green, #2e8b57)";
+  el.innerHTML = '<h3>📦 Files storage</h3><p class="meta">' + mb(u.used) + " of " + LIMIT_GB + " GB used (" + u.pct.toFixed(1) + "%)</p>" +
+    '<div style="height:12px;border-radius:6px;background:var(--line,#ddd);overflow:hidden"><div style="height:100%;width:' + Math.min(100, u.pct).toFixed(1) + "%;background:" + col + '"></div></div>' +
+    '<table class="tbl mt"><tbody>' + u.rows.map(r => "<tr><td>" + esc(NM[r.bucket] || r.bucket) + "</td><td>" + r.files + " files</td><td>" + mb(Number(r.bytes)) + "</td></tr>").join("") + "</tbody></table>" +
+    (u.pct >= 80 ? '<div class="msg err mt">Almost full. Tell Claude: it is time to move the photos to Cloudflare R2 (10 GB free).</div>' : '<p class="meta mt">A scout with a face photo and papers is about 0.4–0.8 MB, so 400 scouts ≈ 250 MB.</p>');
+}
 function settingsView() {
   const s = BAS.settings;
-  $("view").innerHTML = '<div class="panel" style="max-width:640px">' +
+  $("view").innerHTML = '<div class="panel" style="max-width:640px" id="stUse"><h3>📦 Files storage</h3><p class="meta">…</p></div><div class="panel" style="max-width:640px">' +
     '<div class="grid2"><div class="field"><label>Minimum days before a request</label><input id="sDays" type="number" min="0" max="30" value="' + s.min_days + '"></div>' +
     '<div class="field"><label>Days to return after the meeting</label><input id="sRet" type="number" min="0" max="60" value="' + (s.return_days == null ? 7 : s.return_days) + '"></div></div>' +
     '<div class="grid2"><div class="field"><label>Low stock warning (% of total)</label><input id="sLow" type="number" min="0" max="100" value="' + s.low_pct + '"></div>' +
@@ -942,6 +961,7 @@ function settingsView() {
     if (confirm("Start the new scout year on " + BAS.fmtDate(d, true) + "? Attendance before this day stops counting (it stays saved). Everyone's school year goes up by one, and the yearly subscription starts again.")) rpc("new_scout_year", { p_start: d }, "New scout year started").then(() => location.reload()); };
   $("rsGo").onclick = resetAll;
   backupBox();
+  storageBox();
   $("aiLimGo").onclick = async () => { const n = Number($("aiLim").value); const { error } = await supabaseClient.rpc("set_ai_limit", { p_n: n }); if (error) return BAS.toast(BAS.errText(error), "err"); BAS.settings.ai_daily_limit = n; BAS.toast("Saved"); };
   $("sFaSave").onclick = async () => {
     const L = $("sFa").value.split("\n").map(x => x.trim()).filter(Boolean);
