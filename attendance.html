@@ -606,7 +606,8 @@ async function personSheet(p) {
     (amt > 0 ? '<div class="panel"><b>💳 ' + esc(T("Yearly subscription")) + "</b> · " + (paid >= amt ? '<span class="pill ok">' + esc(T("PAID")) + "</span>" : paid > 0 ? BAS.money(paid) + " / " + BAS.money(amt) : '<span class="pill warn">' + esc(T("NOT PAID")) + "</span>") +
       ' <a class="lnk" href="#subs" data-gosubs>' + esc(T("Open")) + "</a></div>" : "") +
     '<div id="dErr" class="msg err" hidden></div><div class="actions"><button class="btn gold" id="dGo">Save</button>' + (p.profile_id ? "" : '<button class="btn danger" id="dRm">' + esc(T("Archive")) + "</button>") +
-    (p.role === "kada" && BAS.isAdmin() ? '<button class="btn danger" id="dKill">🗑 ' + esc(T(p.profile_id ? "Remove the account" : "Delete forever")) + "</button>" : "") + '<button class="btn line" id="dBack">Back</button></div></div>';
+    (p.role === "kada" && BAS.isAdmin() ? '<button class="btn danger" id="dKill">🗑 ' + esc(T(p.profile_id ? "Remove the account" : "Delete forever")) + "</button>" : "") +
+    (p.role !== "kada" && !p.profile_id && BAS.isAdmin() ? '<button class="btn danger" id="dDelS">🗑 ' + esc(T("Delete forever")) + "</button>" : "") + '<button class="btn line" id="dBack">Back</button></div></div>';
   o.hidden = false;
   // a scout's details are changed only by the people chosen for Group records
   if (!kada && !BAS.can("records_edit")) {
@@ -662,6 +663,13 @@ async function personSheet(p) {
     if (error) return BAS.toast(BAS.errText(error), "err");
     if (code) BAS.codeWorked();
     o.hidden = true; BAS.toast(T(data)); load(CUR && CUR.id);
+  };
+  if ($("dDelS")) $("dDelS").onclick = async () => {
+    const code = await BAS.askCode(T("Delete") + " " + p.name + " " + T("forever?") + " " + T("Their attendance goes with them to Team › Deleted."));
+    if (!code) return;
+    const { data, error } = await supabaseClient.rpc("delete_scout", { p_id: p.id, p_code: code });
+    if (error) return BAS.toast(BAS.errText(error), "err");
+    BAS.codeWorked(); o.hidden = true; BAS.toast(T(data)); load(CUR && CUR.id);
   };
   if ($("dRm")) $("dRm").onclick = async () => {
     if (!confirm(T("Archive") + " " + p.name + "? " + T("They leave the stage's lists, but everything about them stays saved in Group records."))) return;

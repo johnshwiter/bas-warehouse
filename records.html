@@ -360,6 +360,7 @@ async function personSheet(p) {
     (CAN_EDIT ? "" : '<p class="meta">🔒 ' + esc(T("Only the people chosen by the warehouse team can change these details.")) + "</p>") + "</div>" +
     '<div id="rErr" class="msg err" hidden></div><div class="actions">' + (ed ? '<button class="btn gold" id="rGo">' + esc(T("Save")) + "</button>" : "") +
     (ed && BAS.isAdmin() && p.role !== "kada" ? '<button class="btn line" id="rReg">📝 ' + esc(T("Registration details")) + "</button>" : "") +
+    (BAS.isAdmin() && p.role !== "kada" && !p.profile_id ? '<button class="btn danger" id="rDel">🗑 ' + esc(T("Delete forever")) + "</button>" : "") +
     (p.is_active ? '<a class="btn line" href="attendance.html?' + (BAS.allStages() ? "s=" + p.section_id + "&" : "") + "p=" + p.id + '#people">' + esc(T("Open in Attendance")) + "</a>" : "") +
     (ed && p.role !== "kada" ? '<button class="btn line" id="rJoin">👥 ' + esc(T("Join with…")) + "</button>" : "") +
     (p.role === "kada" ? "" : p.is_active ? '<button class="btn danger" id="rArch">' + esc(T("Archive")) + "</button>" : '<button class="btn ok" id="rBack">' + esc(T("Bring back")) + "</button>") +
@@ -369,6 +370,13 @@ async function personSheet(p) {
   o.hidden = false;
   $("rClose").onclick = () => { o.hidden = true; };
   if ($("rReg")) $("rReg").onclick = () => regSheet(p);
+  if ($("rDel")) $("rDel").onclick = async () => {
+    const code = await BAS.askCode(T("Delete") + " " + arN(p) + " " + T("forever?") + " " + T("Their attendance goes with them to Team › Deleted."));
+    if (!code) return;
+    const { data, error } = await supabaseClient.rpc("delete_scout", { p_id: p.id, p_code: code });
+    if (error) return BAS.toast(BAS.errText(error), "err");
+    BAS.codeWorked(); o.hidden = true; BAS.toast(T(data)); await load();
+  };
   o.onclick = e => { if (e.target === o) o.hidden = true; };
   // papers: birth certificate / ID card (only Group records can open them)
   const papers = [["birth_cert_path", "Birth certificate"], ["id_front_path", "ID card: front"], ["id_back_path", "ID card: back"]].filter(x => p[x[0]]);

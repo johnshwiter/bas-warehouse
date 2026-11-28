@@ -13,6 +13,11 @@
 
   // ---------- exact texts: "English": ["العربي", "Français"] ----------
   const D = {
+    // v27
+    "Their attendance goes with them to Team › Deleted.": ["الحضور بتاعه هيروح معاه في الفريق › المحذوفات.", "Leurs présences partent avec eux dans Équipe › Supprimés."],
+    "Deleted. They are in Team › Deleted if you need them back.": ["اتمسح. موجود في الفريق › المحذوفات لو احتجته تاني.", "Supprimé. Dans Équipe › Supprimés si besoin."],
+    "They have subscription payments. Archive them instead, so the money records stay right.": ["عليه مدفوعات اشتراك. اعمله أرشيف بدل كده عشان حسابات الفلوس تفضل مظبوطة.", "Il a des paiements d'abonnement. Archivez-le plutôt, pour garder les comptes justes."],
+    "They are already back.": ["هو رجع خلاص.", "Il est déjà de retour."],
     // v26
     "Face photo": ["صورة الوش", "Photo du visage"], "Finding the face…": ["بيدور على الوش…", "Recherche du visage…"], "Zoom": ["تكبير", "Zoom"],
     "Drag the photo to move it.": ["اسحب الصورة عشان تحركها.", "Glissez la photo pour la déplacer."], "White background": ["خلفية بيضا", "Fond blanc"], "Original background": ["الخلفية الأصلية", "Fond d'origine"],
