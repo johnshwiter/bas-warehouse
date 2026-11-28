@@ -89,7 +89,7 @@ const BAS = {
     if (sec.error) sec = await supabaseClient.from("sections").select("id, name_en, name_ar").order("id");
     if (!sec.error) { this.allSections = sec.data || []; this.sections = this.allSections.filter(x => x.is_active !== false); }
     if (this.user) {
-      let p = await supabaseClient.from("profiles").select("id, full_name, role, approval_status, section_id, lang, stage_role, group_role, access").eq("id", this.user.id).single();
+      let p = await supabaseClient.from("profiles").select("id, full_name, role, approval_status, section_id, lang, stage_role, group_role, access, notif_off").eq("id", this.user.id).single();
       if (p.error) p = await supabaseClient.from("profiles").select("id, full_name, role, approval_status, section_id, lang, stage_role").eq("id", this.user.id).single();
       this.profile = p.error ? null : p.data;
       if (this.isApproved()) {
@@ -1197,3 +1197,42 @@ if (typeof document !== "undefined") document.addEventListener("change", e => {
   const inp = document.getElementById(sel.dataset.father); if (!inp) return;
   if (sel.value === "__o") { inp.hidden = false; inp.value = ""; inp.focus(); } else { inp.hidden = true; inp.value = sel.value; }
 }, true);
+
+// ---------- notifications: each person chooses ----------
+BAS.NOTIF = [["requests", "📦 Their stage's requests (ready, return date, late)"], ["meetings", "📅 Kada meetings, تحضير and meeting plans"], ["scouts", "🧒 Scouts (birthdays, absences, 3arif)"],
+  ["news", "📣 Announcements"], ["messages", "💬 Messages"], ["team", "🧰 Warehouse work (new requests, accounts, stock)", true], ["activity", "📝 Everything people do on the site (it's all in Team › Log)", true]];
+// p: the profile; off: its notif_off; admin: show the warehouse kinds
+BAS.notifBoxes = (off, admin) => BAS.NOTIF.filter(n => !n[2] || admin).map(n => '<label class="pick" style="display:flex;gap:8px;align-items:center;margin:6px 0"><input type="checkbox" data-nf="' + n[0] + '"' + ((off || ["activity"]).indexOf(n[0]) < 0 ? " checked" : "") + "> " + BAS.esc(BAS.tr(n[1])) + "</label>").join("");
+BAS.notifRead = el => BAS.NOTIF.map(n => n[0]).filter(k => { const c = el.querySelector('[data-nf="' + k + '"]'); return c ? !c.checked : k === "activity"; });
+
+// ---------- delete forever: fingerprint / Face ID on this phone, or the code ----------
+// The code stops mistakes. After the code works once on a phone, it can be kept behind the phone's fingerprint.
+BAS.askCode = async function (msg) {
+  const saved = (() => { try { return JSON.parse(localStorage.getItem("bas-fp") || "null"); } catch (e) { return null; } })();
+  if (saved && window.PublicKeyCredential && navigator.credentials) {
+    try {
+      const ch = crypto.getRandomValues(new Uint8Array(32)), id = Uint8Array.from(atob(saved.cred), c => c.charCodeAt(0));
+      await navigator.credentials.get({ publicKey: { challenge: ch, allowCredentials: [{ type: "public-key", id }], userVerification: "required", timeout: 60000 } });
+      return saved.code;
+    } catch (e) { /* cancelled or not available: fall back to the code */ }
+  }
+  const code = prompt(msg + "\n\n" + BAS.tr("Type the code to confirm."));
+  if (code) BAS._lastCode = code.trim();
+  return code;
+};
+// call after the server accepted the code: offer the fingerprint for next time
+BAS.codeWorked = async function () {
+  const code = BAS._lastCode; BAS._lastCode = null;
+  if (!code || !window.PublicKeyCredential || !navigator.credentials) return;
+  try { if (localStorage.getItem("bas-fp")) return; } catch (e) { return; }
+  try { if (!(await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable())) return; } catch (e) { return; }
+  if (!confirm(BAS.tr("Use your fingerprint / Face ID on this phone next time instead of typing the code?"))) return;
+  try {
+    const c = await navigator.credentials.create({ publicKey: { challenge: crypto.getRandomValues(new Uint8Array(32)), rp: { name: "BAS" },
+      user: { id: crypto.getRandomValues(new Uint8Array(16)), name: (this.profile && this.profile.full_name) || "BAS", displayName: (this.profile && this.profile.full_name) || "BAS" },
+      pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
+      authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required" }, timeout: 60000 } });
+    localStorage.setItem("bas-fp", JSON.stringify({ cred: btoa(String.fromCharCode(...new Uint8Array(c.rawId))), code }));
+    this.toast("👆 " + this.tr("Done. Next time it asks for your fingerprint."));
+  } catch (e) {}
+};

@@ -66,7 +66,7 @@ async function loadAll() {
     RES = await BAS.loadReservations(BY);
     LOSSES = await BAS.q(supabaseClient.from("loss_status").select("*").order("created_at", { ascending: false })); await BAS.loadLossWho(LOSSES);
     PAYMENTS = await BAS.q(supabaseClient.from("payments").select("*").order("paid_on", { ascending: false }));
-    let pq = await supabaseClient.from("profiles").select("id, full_name, email, role, approval_status, section_id, created_at, stage_role, group_role, access").order("created_at");
+    let pq = await supabaseClient.from("profiles").select("id, full_name, email, role, approval_status, section_id, created_at, stage_role, group_role, access, notif_off").order("created_at");
     if (pq.error) pq = await supabaseClient.from("profiles").select("id, full_name, email, role, approval_status, section_id, created_at, stage_role").order("created_at");
     if (pq.error) throw pq.error; PEOPLE = pq.data || [];
     TRANSFERS = await BAS.q(supabaseClient.from("transfer_requests").select("*").order("created_at", { ascending: false }));
@@ -715,6 +715,7 @@ function peopleView() {
     (p.section_id && p.approval_status === "approved" ? '<select data-f="stage_role" aria-label="Role in the stage">' + [["leader", "Leader"], ["head", "قائد المرحلة"], ["deputy", "نائب قائد المرحلة"], ["assistant", "مساعد قائد المرحلة"]]
       .map(o => '<option value="' + o[0] + '"' + ((p.stage_role || "leader") === o[0] ? " selected" : "") + ">" + o[1] + "</option>").join("") + "</select>" : "") +
     (p.role !== "admin" && p.approval_status !== "rejected" && "access" in p ? '<button class="btn line sm" data-acc>🔑 Access' + (ACC(p).length ? " (" + ACC(p).length + ")" : "") + "</button>" : "") +
+    (p.approval_status === "approved" && "notif_off" in p ? '<button class="btn line sm" data-nfp>🔔</button>' : "") +
     (p.approval_status !== "approved" ? '<button class="btn ok sm" data-ap="approved">Approve</button>' : "") + (p.approval_status !== "rejected" && p.id !== BAS.user.id ? '<button class="btn danger sm" data-ap="rejected">Reject</button>' : "") + (p.id !== BAS.user.id && p.approval_status !== "pending" ? '<button class="btn danger sm" data-rm="1">Remove account</button>' : "") + "</div></div>";
   $("view").innerHTML = (pend.length ? '<div class="group-title">New accounts waiting</div>' + pend.map(row).join("") : "") +
     (tr.length ? '<div class="group-title">Stage transfer requests</div>' + tr.map(t => '<div class="person"><div><h4>' + esc(person(t.profile_id)) + '</h4><div class="meta">' + BAS.secHTML(t.from_section) + " → <b>" + BAS.secHTML(t.to_section) + "</b> · " + esc(BAS.fmtDate(t.created_at)) + (t.note ? " · " + esc(t.note) : "") + "</div></div>" +
@@ -742,9 +743,10 @@ function peopleView() {
   };
   $("view").querySelectorAll("[data-kdel]").forEach(b => b.onclick = async () => {
     const k = KADA_ALL.find(x => x.id === Number(b.dataset.kdel));
-    const code = prompt(T("Delete") + " " + k.name + " " + T("forever? Type the code to confirm.")); if (!code) return;
+    const code = await BAS.askCode(T("Delete") + " " + k.name + " " + T("forever?")); if (!code) return;
     const { data, error } = await supabaseClient.rpc("remove_kada", { p_id: k.id, p_forever: true, p_code: code });
     if (error) return BAS.toast(BAS.errText(error), "err");
+    BAS.codeWorked();
     BAS.toast(T(data)); load();
   });
   $("view").querySelectorAll("[data-back]").forEach(b => b.onclick = () => {
@@ -760,6 +762,14 @@ function peopleView() {
     });
     el.querySelectorAll("[data-ap]").forEach(b => b.onclick = () => updatePerson(id, { approval_status: b.dataset.ap }));
     el.querySelectorAll("[data-acc]").forEach(b => b.onclick = () => accessSheet(PEOPLE.find(x => x.id === id)));
+    el.querySelectorAll("[data-nfp]").forEach(b => b.onclick = () => {
+      const p = PEOPLE.find(x => x.id === id), o = $("sheet");
+      o.innerHTML = '<div class="sheet" style="max-width:520px"><h2>🔔 ' + esc(p.full_name) + '</h2><p class="meta">' + esc(T("What comes to this person's phone.")) + '</p><div id="nfL">' + BAS.notifBoxes(p.notif_off, p.role === "admin") +
+        '</div><div class="actions"><button class="btn gold" id="nfGo">' + esc(T("Save")) + '</button><button class="btn line" id="nfBk">' + esc(T("Back")) + "</button></div></div>";
+      o.hidden = false; $("nfBk").onclick = () => { o.hidden = true; };
+      $("nfGo").onclick = async () => { const off = BAS.notifRead($("nfL")), { error } = await supabaseClient.rpc("set_notif", { p_id: p.id, p_off: off });
+        if (error) return BAS.toast(BAS.errText(error), "err"); p.notif_off = off; o.hidden = true; BAS.toast(T("Saved ✓")); };
+    });
     el.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => { const p = PEOPLE.find(x => x.id === id); if (confirm("Remove " + p.full_name + "'s account? They can't log in any more. You can restore it from Deleted.")) rpc("trash_item", { p_kind: "account", p_id: id }, "Account removed"); });
   });
   $("view").querySelectorAll("[data-tr]").forEach(b => b.onclick = () => rpc("decide_transfer", { p_id: Number(b.dataset.tr), p_approve: b.dataset.ok === "1" }, b.dataset.ok === "1" ? "Transfer approved" : "Transfer rejected"));

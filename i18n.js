@@ -13,6 +13,22 @@
 
   // ---------- exact texts: "English": ["العربي", "Français"] ----------
   const D = {
+    // v23
+    "My tali3a": ["طليعتي", "Ma patrouille"], "All the stage": ["المرحلة كلها", "Toute l'étape"], "Tali3a leader": ["قائد الطليعة", "Chef de patrouille"],
+    "No uniform today is OK (trip, outing…)": ["مفيش زي النهاردة عادي (رحلة، خروجة…)", "Pas d'uniforme aujourd'hui, c'est OK (sortie…)"],
+    "Place (optional)": ["المكان (اختياري)", "Lieu (facultatif)"], "If it's not at the church": ["لو مش في الكنيسة", "Si ce n'est pas à l'église"],
+    "📦 Their stage's requests (ready, return date, late)": ["📦 طلبات المرحلة (جاهز، ميعاد الرجوع، متأخر)", "📦 Demandes de l'étape (prête, retour, retard)"],
+    "📅 Kada meetings, تحضير and meeting plans": ["📅 اجتماعات القادة والتحضير", "📅 Réunions des chefs, préparations et plans"],
+    "🧒 Scouts (birthdays, absences, 3arif)": ["🧒 الكشافة (أعياد الميلاد، الغياب، العريف)", "🧒 Scouts (anniversaires, absences, chef de patrouille)"],
+    "📣 Announcements": ["📣 الإعلانات", "📣 Annonces"], "💬 Messages": ["💬 الرسايل", "💬 Messages"],
+    "🧰 Warehouse work (new requests, accounts, stock)": ["🧰 شغل المخزن (طلبات جديدة، حسابات، مخزون)", "🧰 Travail du dépôt (demandes, comptes, stock)"],
+    "📝 Everything people do on the site (it's all in Team › Log)": ["📝 كل حاجة الناس بتعملها في الموقع (كلها في الفريق › السجل)", "📝 Tout ce que les gens font (c'est dans Équipe › Journal)"],
+    "What comes to this person's phone.": ["إيه اللي بيوصل لموبايل الشخص ده.", "Ce qui arrive sur le téléphone de cette personne."],
+    "🔔 Notifications": ["🔔 الإشعارات", "🔔 Notifications"], "Choose what comes to your phone. The warehouse team can change this too.": ["اختار إيه اللي يوصل لموبايلك. فريق المخزن يقدر يغيره كمان.", "Choisissez ce qui arrive sur votre téléphone. L'équipe du dépôt peut aussi le changer."],
+    "forever?": ["نهائي؟", "définitivement ?"],
+    "forever? Everything about them, including their attendance, is deleted and can't be brought back.": ["نهائي؟ كل حاجة عنه، حتى الحضور، هتتمسح ومش هترجع.", "définitivement ? Tout, y compris ses présences, sera supprimé sans retour."],
+    "Use your fingerprint / Face ID on this phone next time instead of typing the code?": ["تستخدم البصمة / Face ID على الموبايل ده المرة الجاية بدل ما تكتب الكود؟", "Utiliser l'empreinte / Face ID sur ce téléphone la prochaine fois au lieu du code ?"],
+    "Done. Next time it asks for your fingerprint.": ["تمام. المرة الجاية هيطلب البصمة.", "C'est fait. La prochaine fois, il demandera votre empreinte."],
     // v22b
     "Someone else (write it)": ["حد تاني (اكتبه)", "Quelqu'un d'autre (l'écrire)"], "Write the name": ["اكتب الاسم", "Écrivez le nom"],
     "The list everyone picks from in Group records and in My details. One name per line. Anyone else can still be written by hand.": ["القايمة اللي الكل بيختار منها في سجلات الكشافة وبياناتي. اسم في كل سطر. أي حد تاني ينكتب بالإيد.", "La liste proposée dans les registres et Mes informations. Un nom par ligne. Un autre nom peut toujours être écrit."],

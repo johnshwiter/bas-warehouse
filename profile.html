@@ -30,6 +30,7 @@
             <div class="field"><label>Address</label><input id="mdAd" dir="auto"></div>
             <div class="grid2"><div class="field"><label>أب الاعتراف</label><div id="mdCfBox"></div></div><div class="field"><label>National ID</label><input id="mdId" inputmode="numeric" maxlength="14" dir="ltr" placeholder="14 numbers"></div></div>
             <div id="mdErr" class="msg err" hidden></div><button class="btn gold" id="mdSave">Save</button></div>
+        <div class="panel" id="notifBox"><h3>🔔 Notifications</h3><p class="meta">Choose what comes to your phone. The warehouse team can change this too.</p><div id="nfList"></div><button class="btn ok" id="nfSave">Save</button></div>
         <div id="view"><div class="empty">Loading…</div></div>
     </main>
 
@@ -52,6 +53,12 @@
             $("remBox").hidden = false; $("remMin").value = String(r.error || r.data.meet_remind_min == null ? 10 : r.data.meet_remind_min);
             $("remSave").onclick = async () => { const { error } = await supabaseClient.rpc("set_meet_reminder", { p_min: Number($("remMin").value) }); BAS.toast(error ? BAS.errText(error) : (BAS.tr ? BAS.tr("Saved") : "Saved"), error ? "err" : ""); };
         }
+        $("nfList").innerHTML = BAS.notifBoxes(BAS.profile.notif_off, BAS.isAdmin());
+        $("nfSave").onclick = async () => {
+            const off = BAS.notifRead($("nfList")), { error } = await supabaseClient.rpc("set_notif", { p_id: BAS.profile.id, p_off: off });
+            if (error) return BAS.toast(BAS.errText(error), "err");
+            BAS.profile.notif_off = off; BAS.toast(BAS.tr ? BAS.tr("Saved ✓") : "Saved ✓");
+        };
         await myDetails();
         await load();
     })();

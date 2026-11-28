@@ -298,10 +298,11 @@ async function personSheet(p) {
   if ($("rJoin")) $("rJoin").onclick = () => joinPick(p);
   if ($("rBack")) $("rBack").onclick = () => active(true);
   if ($("rPurge")) $("rPurge").onclick = async () => {
-    const code = prompt(T("Delete") + " " + p.name + " " + T("forever? Everything about them, including their attendance, is deleted and can't be brought back. Type the reset code:"));
-    if (code === null) return;
+    const code = await BAS.askCode(T("Delete") + " " + p.name + " " + T("forever? Everything about them, including their attendance, is deleted and can't be brought back."));
+    if (!code) return;
     const { data, error } = await supabaseClient.rpc("purge_person", { p_id: p.id, p_code: code });
     if (error) return err(BAS.errText(error));
+    BAS.codeWorked();
     if (data) supabaseClient.storage.from("people").remove([data]).then(() => {});
     o.hidden = true; BAS.toast(T("Deleted forever")); load();
   };

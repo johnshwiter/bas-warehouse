@@ -833,3 +833,15 @@ input[type=tel].bad { border-color: #D33 !important; background: #FFF1F1; }
 .brand > div { text-align: center; }
 .auth-card .mlogo > div { text-align: center; }
 .auth-card .mlogo span { display: block; }
+/* v23: kada attendance buttons light up like the scouts' ones; افتقاد buttons; tali3a leader under the group title */
+.att-ctl .seg button.on[data-ks="present"] { background: var(--ok); color: #fff; }
+.att-ctl .seg button.on[data-ks="absent"] { background: var(--bad); color: #fff; }
+.att-ctl .seg button.on[data-ks="excused"] { background: var(--info); color: #fff; }
+.att-ctl .seg button.on[data-ks="late"] { background: var(--warn); color: #fff; }
+.eft-row .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.eft-row .seg button { border: 0; background: var(--card); color: var(--ink); padding: 7px 10px; font-size: 13px; font-weight: 700; cursor: pointer; }
+.eft-row .seg button + button { border-inline-start: 1px solid var(--line); }
+.eft-row .seg button.on[data-ek="done"] { background: var(--ok); color: #fff; }
+.eft-row .seg button.on[data-ek="call"] { background: var(--info); color: #fff; }
+.tal-lead { display: block; font-size: 12px; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--mut, #6B6E8E); margin-top: 2px; }
+.uni.ex { color: var(--info); }

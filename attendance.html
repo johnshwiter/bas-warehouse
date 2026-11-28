@@ -100,7 +100,7 @@ function pickMeeting(id) {
   if (!CUR) return;
   const R = RECS.filter(r => r.meeting_id === CUR.id);
   // nobody is marked at the start: tap ✓ for the people in front of you
-  ROSTER.forEach(p => { const r = R.find(x => x.roster_id === p.id); STATE[p.id] = r ? { status: r.status, arrived: (r.arrived || "").slice(0, 5), uniform: r.uniform, foulard: r.foulard !== false } : { status: "", arrived: "", uniform: true, foulard: p.owns_foulard !== false }; });
+  ROSTER.forEach(p => { const r = R.find(x => x.roster_id === p.id); STATE[p.id] = r ? { status: r.status, arrived: (r.arrived || "").slice(0, 5), uniform: r.uniform, foulard: r.foulard !== false, uniEx: !!r.uni_excused } : { status: "", arrived: "", uniform: true, foulard: p.owns_foulard !== false }; });
   // marks tapped on this phone and not saved yet (a reload, a closed page, no internet) come back
   RESTORED = false;
   const d = BAS.draft.get("att-" + CUR.id);
@@ -143,11 +143,21 @@ function sortList(L) {
   } else x.sort(byName);
   return x;
 }
+// a tali3a leader can show only their own tali3a(s)
+const myTals = () => TL.filter(l => l.profile_id === BAS.profile.id).map(l => l.tali3a_id);
+let MYTAL = (() => { try { return localStorage.getItem("basMyTal") !== "0"; } catch (e) { return true; } })();
+const myOnly = () => MYTAL && myTals().length > 0;
+const talLeaders = tid => { const K = ROSTER.filter(p => p.role === "kada"); return TL.filter(x => x.tali3a_id === tid).map(x => (K.find(k => k.profile_id === x.profile_id) || PROF.find(f => f.id === x.profile_id) || {}).name || (PROF.find(f => f.id === x.profile_id) || {}).full_name).filter(Boolean); };
+const gTitle = g => '<div class="group-title">' + esc(T(g.title)) + " (" + g.list.length + ")" + (g.tid && talLeaders(g.tid).length ? ' <small class="tal-lead">👤 ' + esc(T("Tali3a leader")) + ": " + esc(talLeaders(g.tid).join("، ")) + "</small>" : "") + "</div>";
+const myTalBtn = () => myTals().length ? '<button class="btn ' + (myOnly() ? "gold" : "line") + ' sm" data-mytal>👥 ' + esc(T(myOnly() ? "My tali3a" : "All the stage")) + "</button>" : "";
+function bindMyTal(redraw) { document.querySelectorAll("[data-mytal]").forEach(b => b.onclick = () => { MYTAL = !myOnly(); try { localStorage.setItem("basMyTal", MYTAL ? "1" : "0"); } catch (e) {} redraw(); }); }
 function ordered() {
-  const k = kadaSorted(), a = ROSTER.filter(p => p.role !== "kada");
-  const groups = [{ title: "Kada", list: k }];
+  const k = kadaSorted(), a0 = ROSTER.filter(p => p.role !== "kada"), mt = myTals();
+  const a = myOnly() ? a0.filter(p => mt.indexOf(p.tali3a_id) >= 0) : a0;
+  const groups = myOnly() ? [] : [{ title: "Kada", list: k }];
+  if (myOnly()) { talSorted().filter(t => mt.indexOf(t.id) >= 0).forEach(t => groups.push({ title: t.name, tid: t.id, list: sortList(a.filter(p => p.tali3a_id === t.id)) })); return groups.filter(g => g.list.length); }
   if (SORT !== "tali3a") { groups.push({ title: "Scouts", list: sortList(a) }); return groups.filter(g => g.list.length); }
-  talSorted().forEach(t => groups.push({ title: t.name, list: sortList(a.filter(p => p.tali3a_id === t.id)) }));
+  talSorted().forEach(t => groups.push({ title: t.name, tid: t.id, list: sortList(a.filter(p => p.tali3a_id === t.id)) }));
   const none = a.filter(p => !p.tali3a_id || !TAL.some(t => t.id === p.tali3a_id));
   if (none.length) groups.push({ title: TAL.length ? "No tali3a" : "Scouts", list: sortList(none) });
   return groups.filter(g => g.list.length);
@@ -166,15 +176,16 @@ function takeView() {
   const fut = CUR.meet_date > today;
   h += '<div class="panel"><div class="req-top"><h3>' + esc(BAS.fmtDate(CUR.meet_date, true)) + "<small>" + esc(CUR.start_time ? T("Starts") + " " + fmtT(CUR.start_time) : T("No start time")) + (CUR.title ? " · " + esc(CUR.title) : "") +
     (CUR.reservation_id ? " · #" + CUR.reservation_id : "") + '</small></h3><div><button class="linkbtn" id="mEdit">✏️ Time / title</button></div></div>' +
+    '<label class="uni" style="margin:6px 0"><input type="checkbox" id="mNoUni"' + (CUR.no_uniform ? " checked" : "") + "> 👕 " + esc(T("No uniform today is OK (trip, outing…)")) + "</label>" +
     '<div class="meta">' + (CUR.status === "done" ? "✅ Taken by " + esc(CUR.taken_by_name || "") + " · " + esc(BAS.fmtDateTime(CUR.taken_at)) : CUR.status === "draft" ? "📝 Draft saved by " + esc(CUR.taken_by_name || "") + " · " + esc(BAS.fmtDateTime(CUR.taken_at)) : "Not taken yet") +
     "</div></div>";
   if (fut) { $("view").innerHTML = h + '<div class="empty">This meeting hasn\'t happened yet.</div>'; bindTake(); return; }
   if (!ROSTER.length) { $("view").innerHTML = h + '<div class="empty">Nobody in the stage\'s list yet. <a class="lnk" href="#people" data-go="people">Add names</a></div>'; bindTake(); return; }
   if (RESTORED) h += '<div class="msg info restored">♻️ ' + esc(T("Your marks that weren't saved were brought back from this phone. Press Save draft or Finish.")) + ' <button class="linkbtn" id="aDropD">' + esc(T("Drop them")) + "</button></div>";
   h += '<input type="search" class="psearch" id="aq" placeholder="Search a name…" value="' + esc(Q) + '" autocomplete="off">' +
-    '<div class="actions" style="margin:0 0 8px">' + sortSel() + (locked() ? "" : '<button class="btn line sm" id="allP">✓ Everyone present</button><button class="btn line sm" id="allU">👕🧣 Everyone in uniform + foulard</button>') + "</div>";
+    '<div class="actions" style="margin:0 0 8px">' + myTalBtn() + sortSel() + (locked() ? "" : '<button class="btn line sm" id="allP">✓ Everyone present</button><button class="btn line sm" id="allU">👕🧣 Everyone in uniform + foulard</button>') + "</div>";
   ordered().forEach(g => {
-    h += '<div class="group-title">' + esc(T(g.title)) + " (" + g.list.length + ')</div><div class="att-list">' + g.list.map(rowHTML).join("") + "</div>";
+    h += gTitle(g) + '<div class="att-list">' + g.list.map(rowHTML).join("") + "</div>";
   });
   h += '<div class="att-sticky"><div class="meta" id="aCount"></div><div class="actions" style="margin:6px 0 0">' +
     (locked() ? '<span class="meta lockmsg">🔒 ' + esc(T("Finished. Press Edit to change it.")) + '</span><button class="btn line" id="aEdit">✏️ ' + esc(T("Edit")) + "</button>"
@@ -194,6 +205,8 @@ function rowHTML(p) {
     (half ? ' <span class="pill warn">½ ' + esc(T("HALF ABSENT")) + "</span>" : late ? ' <span class="pill warn">' + esc(T("LATE")) + "</span>" : "") + "</div>" +
     '<div class="att-ctl"><span class="seg">' + [["present", "✓"], ["late", "Late"], ["half", "½"], ["absent", "Absent"], ["excused", "Excused"]].map(x => '<button type="button" data-st="' + x[0] + '"' + (x[0] === "half" ? ' title="' + esc(T("Half absent")) + '"' : "") + ' class="' + (s.status === x[0] ? "on" : "") + '"' + lk + ">" + esc(T(x[1])) + "</button>").join("") + "</span>" +
     '<label class="uni' + (here ? "" : " off") + '"><input type="checkbox" data-uni="' + p.id + '"' + (here && s.uniform ? " checked" : "") + (off || lk) + "> 👕 " + esc(T("Uniform")) + "</label>" +
+    // no uniform but for a good reason: doesn't count against them
+    (here && !s.uniform && !CUR.no_uniform ? '<label class="uni ex"><input type="checkbox" data-uex="' + p.id + '"' + (s.uniEx ? " checked" : "") + lk + "> 📝 " + esc(T("Excused")) + "</label>" : "") +
       (noF ? '<span class="uni off nof" title="' + esc(T("Doesn't have a foulard yet")) + '">🧣 ' + esc(T("no foulard yet")) + "</span>"
         : '<label class="uni' + (here ? "" : " off") + '"><input type="checkbox" data-foul="' + p.id + '"' + (here && s.foulard ? " checked" : "") + (off || lk) + "> 🧣 " + esc(T("Foulard")) + "</label>") + "</div></div>";
 }
@@ -214,8 +227,9 @@ function bindRows() {
       // tapping it again clears it; marking someone here ticks uniform and foulard
       if (s.status === b.dataset.st) s.status = ""; else { if (!isHere(s)) { s.uniform = true; s.foulard = p.owns_foulard !== false; } s.status = b.dataset.st; }
       if (!isHere(s)) s.arrived = ""; DIRTY = true; keepDraft(); redrawRow(id); });
-    const u = r.querySelector("[data-uni]"); if (u) u.onchange = () => { STATE[id].uniform = u.checked; DIRTY = true; keepDraft(); counts(); };
+    const u = r.querySelector("[data-uni]"); if (u) u.onchange = () => { STATE[id].uniform = u.checked; if (u.checked) STATE[id].uniEx = false; DIRTY = true; keepDraft(); redrawRow(id); return; counts(); };
     const f = r.querySelector("[data-foul]"); if (f) f.onchange = () => { STATE[id].foulard = f.checked; DIRTY = true; keepDraft(); counts(); };
+    const ux = r.querySelector("[data-uex]"); if (ux) ux.onchange = () => { STATE[id].uniEx = ux.checked; DIRTY = true; keepDraft(); };
   });
 }
 function bindTake() {
@@ -228,6 +242,11 @@ function bindTake() {
   document.querySelectorAll("[data-go]").forEach(a => a.onclick = e => { e.preventDefault(); TAB = a.dataset.go; render(); });
   if ($("mAdd")) $("mAdd").onclick = () => meetingSheet(null);
   if ($("mEdit")) $("mEdit").onclick = () => meetingSheet(CUR);
+  if ($("mNoUni")) $("mNoUni").onchange = async () => {
+    const on = $("mNoUni").checked, { error } = await supabaseClient.rpc("set_no_uniform", { p_meeting: CUR.id, p_on: on });
+    if (error) { $("mNoUni").checked = !on; return BAS.toast(BAS.errText(error), "err"); }
+    CUR.no_uniform = on; takeView();
+  };
   if ($("mDel")) $("mDel").onclick = async () => {
     if (!confirm("Delete this meeting" + (RECS.some(r => r.meeting_id === CUR.id) ? " and its attendance" : "") + "?")) return;
     const { error } = await supabaseClient.rpc("delete_meeting", { p_id: CUR.id });
@@ -246,7 +265,7 @@ function bindTake() {
   if ($("aDropD")) $("aDropD").onclick = () => { if (!confirm(T("Drop the marks saved on this phone?"))) return; dropDraft(); DIRTY = false; EDITING = null; pickMeeting(CUR.id); RESTORED = false; takeView(); };
   if ($("aSaveCh")) $("aSaveCh").onclick = () => save(true, true);
   if ($("aDraft")) $("aDraft").onclick = () => save(false);
-  bindSort(takeView);
+  bindSort(takeView); bindMyTal(takeView);
   bindRows();
 }
 async function save(finish, change) {
@@ -255,7 +274,7 @@ async function save(finish, change) {
   if (change && !confirm((un ? T("Not marked") + ": " + un + ". " + T("They will count as absent.") + "\n\n" : "") + T("Save the changes to") + " " + BAS.fmtDate(CUR.meet_date, true) + "?")) return;
   if (finish && !change && !confirm((un ? T("Not marked") + ": " + un + ". " + T("They will count as absent.") + "\n\n" : "") + "Finish attendance for " + BAS.fmtDate(CUR.meet_date, true) + "? Alerts are sent now (absences, uniform).")) return;
   // a draft keeps only the people you marked; Finish saves the rest as absent
-  const rows = ROSTER.filter(p => finish || STATE[p.id].status).map(p => ({ roster_id: p.id, status: STATE[p.id].status || "absent", uniform: STATE[p.id].uniform, foulard: STATE[p.id].foulard }));
+  const rows = ROSTER.filter(p => finish || STATE[p.id].status).map(p => ({ roster_id: p.id, status: STATE[p.id].status || "absent", uni_excused: !!STATE[p.id].uniEx, uniform: STATE[p.id].uniform, foulard: STATE[p.id].foulard }));
   const bs = [$("aFin"), $("aDraft"), $("aSaveCh"), $("aCancel")].filter(Boolean); bs.forEach(b => { b.disabled = true; });
   const args = { p_meeting: CUR.id, p_rows: rows, p_finish: finish };
   const { error } = await supabaseClient.rpc("save_attendance", args);
@@ -298,7 +317,7 @@ function stats(p) {
   const R = HIST ? HIST.filter(r => r.roster_id === p.id && r.meet_status === "done") : RECS.filter(r => r.roster_id === p.id && done.indexOf(r.meeting_id) >= 0);
   const c = x => R.filter(r => r.status === x).length;
   const here = r => r.status === "present" || r.status === "late" || r.status === "half";
-  const o = { total: R.length, present: c("present"), absent: c("absent"), excused: c("excused"), late: c("late"), half: c("half"), noUni: R.filter(r => here(r) && !r.uniform).length, noFoul: p.owns_foulard === false ? 0 : R.filter(r => here(r) && r.foulard === false).length };
+  const o = { total: R.length, present: c("present"), absent: c("absent"), excused: c("excused"), late: c("late"), half: c("half"), noUni: R.filter(r => here(r) && !r.uniform && !r.uni_excused).length, noFoul: p.owns_foulard === false ? 0 : R.filter(r => here(r) && r.foulard === false).length };
   // Final %: each status is worth what the stage decided; Attended %: came at all (✓, late, ½, and excused if the stage says so)
   const W = { present: num(SEC.att_w_present, 1), late: num(SEC.att_w_late, 0), half: num(SEC.att_w_half, 0.5), excused: num(SEC.att_w_excused, 0.25), absent: num(SEC.att_w_absent, 0) };
   const worth = R.reduce((t, r) => t + (W[r.status] == null ? 0 : W[r.status]), 0);
@@ -328,7 +347,7 @@ function sumView() {
   const arow = p => { const s = stats(p); return "<tr>" + nm(p, s.band === "rr", p.tali3a_id && GROUP === "colour" ? ' <small class="mut">' + esc(tName(p.tali3a_id)) + "</small>" : "") +
     pctCell(s) + c(s.total) + c(s.present) + c(s.late) + c(s.half) + c(s.absent) + c(s.excused) + c(s.noUni) + c(s.noFoul, s.noFoul >= 2) + "</tr>"; };
   const head = "<tr>" + th("Name") + th("Attended %") + th("Final %") + th("Meetings") + th("Present") + th("Late") + th("½ Half") + th("Absent") + th("Excused") + "<th>👕</th><th>🧣</th></tr>";
-  h += '<div class="group-title">Scouts</div><div class="actions" style="margin:0 0 8px"><div class="tabs" style="margin:0"><button class="tab' + (GROUP === "tali3a" ? " on" : "") + '" data-g="tali3a">' + esc(T("By list")) + '</button><button class="tab' + (GROUP === "colour" ? " on" : "") + '" data-g="colour">By colour</button></div>' + (GROUP === "colour" ? "" : sortSel()) + "</div>";
+  h += '<div class="group-title">Scouts</div><div class="actions" style="margin:0 0 8px">' + myTalBtn() + '<div class="tabs" style="margin:0"><button class="tab' + (GROUP === "tali3a" ? " on" : "") + '" data-g="tali3a">' + esc(T("By list")) + '</button><button class="tab' + (GROUP === "colour" ? " on" : "") + '" data-g="colour">By colour</button></div>' + (GROUP === "colour" ? "" : sortSel()) + "</div>";
   if (!A.length) h += '<div class="empty">No scouts in the list yet.</div>';
   else if (GROUP === "colour") {
     const al = SEC.att_alert_pct == null ? 25 : SEC.att_alert_pct;
@@ -342,7 +361,7 @@ function sumView() {
   $("view").innerHTML = h;
   document.querySelectorAll("[data-g]").forEach(b => b.onclick = () => { GROUP = b.dataset.g; sumView(); });
   $("xlsGo").onclick = downloadXlsx;
-  bindSort(sumView);
+  bindSort(sumView); bindMyTal(sumView);
 }
 
 // ---------- Excel: a summary sheet and a meeting-by-meeting sheet ----------
@@ -368,7 +387,7 @@ async function downloadXlsx() {
     const grid = [[T("Kada or scout"), T("Name"), T("Tali3a")].concat(M.map(m => m.meet_date + (m.title ? " · " + m.title : "")))];
     people.forEach(([p]) => grid.push([role(p), p.name, p.role === "kada" ? "" : tName(p.tali3a_id) || ""].concat(M.map(m => {
       const r = RECS.find(x => x.meeting_id === m.id && x.roster_id === p.id);
-      return r ? W[r.status] + (r.status !== "absent" && r.status !== "excused" ? (r.uniform === false ? " 👕✗" : "") + (r.foulard === false && p.owns_foulard !== false ? " 🧣✗" : "") : "") : "";
+      return r ? W[r.status] + (r.status !== "absent" && r.status !== "excused" ? (r.uniform === false ? (r.uni_excused ? " 👕📝" : " 👕✗") : "") + (r.foulard === false && p.owns_foulard !== false ? " 🧣✗" : "") : "") : "";
     }))));
     const wb = XLSX.utils.book_new(), rtl = BAS.lang === "ar";
     const ws1 = XLSX.utils.aoa_to_sheet(sum), ws2 = XLSX.utils.aoa_to_sheet(grid);
@@ -407,14 +426,15 @@ function peopleView() {
       return '<div class="person prow" data-tal-open="' + t.id + '"><div><b>' + esc(t.name) + '</b><div class="meta">' + A.filter(p => p.tali3a_id === t.id).length + " " + esc(T("scouts")) + " · " + (ls.length ? esc(ls.join("، ")) : esc(T("no leaders yet"))) + (ar ? " · ⭐ " + esc(ar.name) : "") + '</div></div><button class="btn line sm" data-tal-open-b="' + t.id + '">' + esc(T("Open")) + "</button></div>"; }).join("") : '<div class="empty">No tali3as yet.</div>') +
     (A.some(p => !p.tali3a_id) ? '<div class="person prow" id="tNone"><div><b>' + esc(T("No tali3a")) + '</b><div class="meta">' + A.filter(p => !p.tali3a_id).length + " " + esc(T("scouts without a tali3a")) + '</div></div><button class="btn line sm">' + esc(T("Open")) + "</button></div>" : "") +
     '<button class="btn line" id="tNew">+ New tali3a</button></div></div>' +
-    '<div><div class="actions" style="margin:0 0 8px"><input type="search" class="psearch" id="pq" placeholder="Search a name…" autocomplete="off" style="flex:1;margin:0">' + sortSel() + "</div>" +
-    (ROSTER.length ? ordered().map(g => '<div class="group-title">' + esc(T(g.title)) + " (" + g.list.length + ")</div>" + g.list.map(row).join("")).join("") : '<div class="empty">No scouts yet. Add them on the left.</div>') + "</div></div>";
+    '<div><div class="actions" style="margin:0 0 8px"><input type="search" class="psearch" id="pq" placeholder="Search a name…" autocomplete="off" style="flex:1;margin:0">' + myTalBtn() + sortSel() + "</div>" +
+    (ROSTER.length ? ordered().map(g => gTitle(g) + g.list.map(row).join("")).join("") : '<div class="empty">No scouts yet. Add them on the left.</div>') + "</div></div>";
   $("view").innerHTML = h;
   if ($("pEmpty")) $("pEmpty").onclick = async () => {
-    const code = prompt(T("Delete the kada with no account, no details and no attendance in this stage") + " (" + empty.length + ")? " + T("Type the code to confirm."));
+    const code = await BAS.askCode(T("Delete the kada with no account, no details and no attendance in this stage") + " (" + empty.length + ")?");
     if (!code) return;
     const { data, error } = await supabaseClient.rpc("purge_empty_kada", { p_section: SECID, p_code: code });
     if (error) return BAS.toast(BAS.errText(error), "err");
+    BAS.codeWorked();
     BAS.toast("🗑 " + data + " " + T("deleted")); load(CUR && CUR.id);
   };
   document.querySelectorAll("[data-panel]").forEach(b => b.onclick = () => { PANEL = PANEL === b.dataset.panel ? "" : b.dataset.panel; peopleView(); });
@@ -423,7 +443,7 @@ function peopleView() {
   $("pRole").onchange = () => { $("pTal").disabled = $("pRole").value === "kada"; };
   document.querySelectorAll("[data-tal-open]").forEach(el => el.onclick = () => tali3aSheet(TAL.find(t => t.id === Number(el.dataset.talOpen))));
   if ($("tNone")) $("tNone").onclick = () => noTali3aSheet();
-  bindSort(peopleView);
+  bindSort(peopleView); bindMyTal(peopleView);
   $("pAdd").onclick = async () => {
     const names = $("pNames").value.trim(); if (!names) return BAS.toast("Write the names", "err");
     const { data, error } = await supabaseClient.rpc("add_names", { p_section: SECID, p_names: names, p_gender: $("pGen").value, p_role: $("pRole").value, p_tali3a: $("pTal").value ? Number($("pTal").value) : null });
@@ -555,7 +575,7 @@ async function personSheet(p) {
     '<label class="btn line sm" style="margin-top:6px">📷 ' + esc(T(p.photo_path ? "Change photo" : "Add a photo")) + '<input type="file" id="dPf" accept="image/*" hidden></label>' + (p.photo_path ? ' <button class="btn line sm" id="dPx">' + esc(T("Remove photo")) + "</button>" : "") + "</div></div>" +
     (p.check_note ? '<div class="msg warn chkbox"><b>✱ ' + esc(T("Needs checking")) + '</b><br><span dir="auto">' + esc(p.check_note) + "</span>" +
       (BAS.can("records_edit") ? '<br><button class="btn ok sm" id="dChk" style="margin-top:8px">✓ ' + esc(T("Checked, remove the ✱")) + "</button>" : '<br><small>' + esc(T("Tell the people who edit Group records when it's checked.")) + "</small>") + "</div>" : "") +
-    '<div class="panel"><div class="grid2"><div class="field"><label>Name</label><input id="dN" value="' + esc(p.name) + '"' + (p.profile_id ? " readonly" : "") + "></div>" +
+    '<div class="panel"><div class="grid2"><div class="field"><label>Name</label><input id="dN" value="' + esc(p.name) + '"' + (p.profile_id && !(p.role === "kada" && (BAS.isAdmin() || ["head", "deputy", "assistant"].indexOf(ROLES[BAS.profile.id] || BAS.profile.stage_role) >= 0)) ? " readonly" : "") + "></div>" +
     '<div class="field"><label>Boy / girl</label><select id="dG">' + (p.gender ? "" : '<option value="" selected disabled>' + esc(T("Choose boy / girl")) + "</option>") + '<option value="M"' + (p.gender === "M" ? " selected" : "") + '>♂ Boy</option><option value="F"' + (p.gender === "F" ? " selected" : "") + ">♀ Girl</option></select></div></div>" +
     '<div class="grid2"><div class="field"><label>Birthday</label><input type="date" id="dB" value="' + esc(p.birthday || "") + '"></div>' +
     '<div class="field"><label>' + (kada ? "What they do now" : "School year") + '</label><select id="dY">' + yOpts(p.school_year) + "</select></div></div>" +
@@ -622,9 +642,10 @@ async function personSheet(p) {
   if ($("dKill")) $("dKill").onclick = async () => {
     let code = null;
     if (p.profile_id) { if (!confirm(T("Remove") + " " + p.name + "? " + T("Their account goes to Deleted and they leave the kada list. Bring back undoes both."))) return; }
-    else { code = prompt(T("Delete") + " " + p.name + " " + T("forever? Type the code to confirm.")); if (!code) return; }
+    else { code = await BAS.askCode(T("Delete") + " " + p.name + " " + T("forever?")); if (!code) return; }
     const { data, error } = await supabaseClient.rpc("remove_kada", { p_id: p.id, p_forever: !p.profile_id, p_code: code });
     if (error) return BAS.toast(BAS.errText(error), "err");
+    if (code) BAS.codeWorked();
     o.hidden = true; BAS.toast(T(data)); load(CUR && CUR.id);
   };
   if ($("dRm")) $("dRm").onclick = async () => {
