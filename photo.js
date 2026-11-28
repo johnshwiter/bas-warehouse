@@ -1,5 +1,5 @@
 // BAS · face photo tool: finds the face, crops it to 4×6 (portrait), optional white background.
-// Everything runs on this device (Google MediaPipe, Apache-2.0, files in /vendor). The photo goes nowhere until it's saved.
+// Everything runs on this device (Google MediaPipe, Apache-2.0, files next to this one). The photo goes nowhere until it's saved.
 // BASPhoto.open(file) → Promise<Blob | null>   (null = cancelled)
 (function () {
   const OUT_W = 600, OUT_H = 900, RATIO = OUT_W / OUT_H;
@@ -14,9 +14,9 @@
     c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); return c;
   }
   async function findFace(cv) {
-    await script("/vendor/fd/face_detection.js");
+    await script("/face_detection.js");
     const run = model => new Promise(async (ok) => {
-      const fd = new window.FaceDetection({ locateFile: f => "/vendor/fd/" + f });
+      const fd = new window.FaceDetection({ locateFile: f => "/" + f });
       fd.setOptions({ model, minDetectionConfidence: 0.5 });
       fd.onResults(r => ok((r.detections || []).map(d => d.boundingBox)));
       try { await fd.send({ image: cv }); } catch (e) { ok([]); }
@@ -28,9 +28,9 @@
     return b[0];
   }
   async function whiteBg(cv) {
-    await script("/vendor/ss/selfie_segmentation.js");
+    await script("/selfie_segmentation.js");
     const mask = await new Promise(async (ok, bad) => {
-      const ss = new window.SelfieSegmentation({ locateFile: f => "/vendor/ss/" + f });
+      const ss = new window.SelfieSegmentation({ locateFile: f => "/" + f });
       ss.setOptions({ modelSelection: 0 });
       ss.onResults(r => ok(r.segmentationMask));
       try { await ss.send({ image: cv }); } catch (e) { bad(e); }
