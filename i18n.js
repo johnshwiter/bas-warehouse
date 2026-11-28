@@ -13,6 +13,12 @@
 
   // ---------- exact texts: "English": ["العربي", "Français"] ----------
   const D = {
+    // v26
+    "Paste the parents' message": ["الصق رسالة الأهل", "Collez le message des parents"], "Fill the boxes from it": ["املى الخانات منها", "Remplir les cases"],
+    "boxes filled. Check them, add the photos, then press Save.": ["خانة اتملت. راجعها، ضيف الصور، وبعدين دوس حفظ.", "cases remplies. Vérifiez, ajoutez les photos, puis Enregistrer."],
+    "I couldn't read anything from it. Paste the whole message as it came.": ["ما عرفتش أقرا حاجة منها. الصق الرسالة كلها زي ما جت.", "Je n'ai rien pu lire. Collez tout le message tel quel."],
+    "Scout's phone (if they have one)": ["رقم الكشاف (لو عنده)", "Téléphone du scout (s'il en a un)"], "Scout's phone": ["رقم الكشاف", "Téléphone du scout"],
+    "Confession father": ["أب الاعتراف", "Père de confession"], "The parents asked not to call the father.": ["الأهل طالبين ما نتصلش بالأب.", "Les parents ont demandé de ne pas appeler le père."],
     // v25
     "Says he is": ["بيقول إنه", "Dit être"], "approving gives him that person's old details": ["الموافقة بتديله بيانات الشخص ده القديمة", "approuver lui donne les anciennes informations de cette personne"], "Not him": ["مش هو", "Pas lui"],
     // v24
