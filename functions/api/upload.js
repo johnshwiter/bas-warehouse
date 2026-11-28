@@ -1,4 +1,4 @@
-// BAS · meeting plan files → Google Drive (Cloudflare Pages Function, served at /api/upload)
+// BAS · meeting plan files and (private) scout papers → Google Drive (Cloudflare Pages Function, served at /api/upload)
 // The file goes to the Google script in bas.warehouse193@gmail.com, which saves it in
 // "BAS Backups (don't move or rename)/Meeting plans/<stage>/<date>" and gives back a view link.
 //
@@ -21,15 +21,21 @@ export async function onRequestPost({ request, env }) {
   const sec = Number(p.section_id);
   if (!sec) return json({ error: "Bad request." }, 400);
 
-  // only this stage's kada (or the warehouse team) can add files; answers the stage's name
-  const ok = await fetch(SUPABASE_URL + "/rest/v1/rpc/plan_upload_ok", {
+  // meeting plans: this stage's kada (or the warehouse team); scout papers: the warehouse team only. Answers the stage's name
+  const paper = p.action === "paper";
+  const ok = await fetch(SUPABASE_URL + "/rest/v1/rpc/" + (paper ? "paper_backup_ok" : "plan_upload_ok"), {
     method: "POST", headers: { apikey: SUPABASE_KEY, authorization: auth, "content-type": "application/json" }, body: JSON.stringify({ p_section: sec })
   });
   if (!ok.ok) { let m = "You can only add files for your own stage."; try { m = (await ok.json()).message || m; } catch (e) {} return json({ error: m }, 403); }
   const stage = await ok.json();
 
   let body;
-  if (p.action === "trash") {
+  if (paper) {
+    const b64 = String(p.b64 || "");
+    if (!b64) return json({ error: "No file." }, 400);
+    if (b64.length * 0.75 > MAX_BYTES) return json({ error: "The file is bigger than 20 MB." }, 400);
+    body = { token: env.DRIVE_TOKEN, kind: "paper", stage, scout: String(p.scout || "Scout").slice(0, 120), name: String(p.name || "paper.jpg").slice(0, 120), mime: "image/jpeg", b64 };
+  } else if (p.action === "trash") {
     if (!/^[\w-]{10,}$/.test(String(p.id || ""))) return json({ error: "Bad request." }, 400);
     body = { token: env.DRIVE_TOKEN, kind: "trash_file", id: String(p.id) };
   } else {
