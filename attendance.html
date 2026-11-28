@@ -176,7 +176,6 @@ function takeView() {
   const fut = CUR.meet_date > today;
   h += '<div class="panel"><div class="req-top"><h3>' + esc(BAS.fmtDate(CUR.meet_date, true)) + "<small>" + esc(CUR.start_time ? T("Starts") + " " + fmtT(CUR.start_time) : T("No start time")) + (CUR.title ? " · " + esc(CUR.title) : "") +
     (CUR.reservation_id ? " · #" + CUR.reservation_id : "") + '</small></h3><div><button class="linkbtn" id="mEdit">✏️ Time / title</button></div></div>' +
-    '<label class="uni" style="margin:6px 0"><input type="checkbox" id="mNoUni"' + (CUR.no_uniform ? " checked" : "") + "> 👕 " + esc(T("No uniform today is OK (trip, outing…)")) + "</label>" +
     '<div class="meta">' + (CUR.status === "done" ? "✅ Taken by " + esc(CUR.taken_by_name || "") + " · " + esc(BAS.fmtDateTime(CUR.taken_at)) : CUR.status === "draft" ? "📝 Draft saved by " + esc(CUR.taken_by_name || "") + " · " + esc(BAS.fmtDateTime(CUR.taken_at)) : "Not taken yet") +
     "</div></div>";
   if (fut) { $("view").innerHTML = h + '<div class="empty">This meeting hasn\'t happened yet.</div>'; bindTake(); return; }
@@ -206,7 +205,7 @@ function rowHTML(p) {
     '<div class="att-ctl"><span class="seg">' + [["present", "✓"], ["late", "Late"], ["half", "½"], ["absent", "Absent"], ["excused", "Excused"]].map(x => '<button type="button" data-st="' + x[0] + '"' + (x[0] === "half" ? ' title="' + esc(T("Half absent")) + '"' : "") + ' class="' + (s.status === x[0] ? "on" : "") + '"' + lk + ">" + esc(T(x[1])) + "</button>").join("") + "</span>" +
     '<label class="uni' + (here ? "" : " off") + '"><input type="checkbox" data-uni="' + p.id + '"' + (here && s.uniform ? " checked" : "") + (off || lk) + "> 👕 " + esc(T("Uniform")) + "</label>" +
     // no uniform but for a good reason: doesn't count against them
-    (here && !s.uniform && !CUR.no_uniform ? '<label class="uni ex"><input type="checkbox" data-uex="' + p.id + '"' + (s.uniEx ? " checked" : "") + lk + "> 📝 " + esc(T("Excused")) + "</label>" : "") +
+    (here && !s.uniform ? '<label class="uni ex"><input type="checkbox" data-uex="' + p.id + '"' + (s.uniEx ? " checked" : "") + lk + "> 📝 " + esc(T("Excused")) + "</label>" : "") +
       (noF ? '<span class="uni off nof" title="' + esc(T("Doesn't have a foulard yet")) + '">🧣 ' + esc(T("no foulard yet")) + "</span>"
         : '<label class="uni' + (here ? "" : " off") + '"><input type="checkbox" data-foul="' + p.id + '"' + (here && s.foulard ? " checked" : "") + (off || lk) + "> 🧣 " + esc(T("Foulard")) + "</label>") + "</div></div>";
 }
@@ -408,7 +407,7 @@ function peopleView() {
   const tOpts = sel => '<option value="">No tali3a</option>' + TAL.map(t => '<option value="' + t.id + '"' + (t.id === sel ? " selected" : "") + ">" + esc(t.name) + "</option>").join("");
   const role = p => { const r = p.profile_id && ROLES[p.profile_id]; return r ? ' <span class="pill info">' + esc({ head: "قائد المرحلة", deputy: "نائب قائد المرحلة", assistant: "مساعد قائد المرحلة" }[r]) + "</span>" : ""; };
   // just the name; tap it (or Details) for everything else
-  const row = p => '<div class="person prow" data-p="' + p.id + '"><div><b>' + gTag(p.gender) + " " + esc(p.name) + "</b>" + chk(p) + star(p) + cake(p) + (p.profile_id ? ' <span class="pill mut">ACCOUNT</span>' : "") + role(p) +
+  const row = p => '<div class="person prow" data-p="' + p.id + '"><div><b>' + gTag(p.gender) + " " + esc(p.name) + "</b>" + chk(p) + star(p) + cake(p) + (p.role !== "kada" && regMissing(p) ? ' <span class="pill mut" title="' + esc(T("Registration details missing")) + '">📝 ' + regMissing(p) + "</span>" : "") + (p.profile_id ? ' <span class="pill mut">ACCOUNT</span>' : "") + role(p) +
     (p.role !== "kada" && p.tali3a_id ? ' <small class="mut">' + esc(tName(p.tali3a_id)) + "</small>" : "") + (p.gender ? "" : ' <span class="pill warn">' + esc(T("boy / girl?")) + "</span>") + "</div>" +
     '<button class="btn line sm" data-det>' + esc(T("Details")) + "</button></div>";
   const K = kadaSorted(), A = ROSTER.filter(p => p.role !== "kada");
@@ -479,7 +478,9 @@ async function tali3aSheet(t) {
   const K = ROSTER.filter(p => p.role === "kada"), ls = TL.filter(x => x.tali3a_id === t.id).map(x => (K.find(k => k.profile_id === x.profile_id) || {}).name).filter(Boolean);
   const tr = await supabaseClient.from("arif_turns").select("*").eq("tali3a_id", t.id).eq("cycle", t.arif_cycle || 1);
   const turns = tr.data || [], wasA = new Set(turns.filter(x => x.role === "arif").map(x => x.roster_id)), wasM = new Set(turns.filter(x => x.role === "mosa3ed").map(x => x.roster_id));
-  const ar = ROSTER.find(p => p.id === t.arif_id), mo = ROSTER.find(p => p.id === t.mosa3ed_id), auto = t.arif_auto !== false;
+  const ar = ROSTER.find(p => p.id === t.arif_id), mo = ROSTER.find(p => p.id === t.mosa3ed_id), ordMode = t.arif_auto !== false && (t.arif_order || []).length > 0, auto = t.arif_auto !== false && !ordMode;
+  // the leader's own order: who they chose first, then anyone new at the end
+  let ORD = (t.arif_order || []).filter(id => mem.some(p => p.id === id)).concat(mem.filter(p => (t.arif_order || []).indexOf(p.id) < 0).map(p => p.id));
   const opt = (sel, ex) => '<option value="">—</option>' + mem.filter(p => p.id !== ex).map(p => '<option value="' + p.id + '"' + (p.id === sel ? " selected" : "") + ">" + esc(p.name) + (wasA.has(p.id) && wasM.has(p.id) ? " ✓✓" : "") + "</option>").join("");
   const every = (SEC.arif_every || 4) + " " + T(SEC.arif_unit === "meetings" ? "meetings" : SEC.arif_unit === "months" ? "months" : "weeks");
   o.innerHTML = '<div class="sheet" style="max-width:560px"><div class="req-top"><h2 style="margin:0">' + esc(t.name) + '</h2><button class="btn line sm" id="tEd">✏️ ' + esc(T("Name & leaders")) + "</button></div>" +
@@ -487,8 +488,9 @@ async function tali3aSheet(t) {
     '<div class="panel"><h3>⭐ ' + esc(T("3arif & mosa3ed")) + "</h3>" +
     '<div class="arif-now"><div><small>' + esc(T("3arif")) + '</small><b>' + (ar ? esc(ar.name) : "—") + '</b></div><div><small>' + esc(T("Mosa3ed 3arif")) + '</small><b>' + (mo ? esc(mo.name) : "—") + "</b></div></div>" +
     (t.arif_since ? '<p class="meta">' + esc(T("Since")) + " " + esc(BAS.fmtDate(t.arif_since, true)) + " · " + esc(T(auto ? "changes every" : "reminder every")) + " " + esc(every) + " · " + esc(T("this round")) + ": " + wasA.size + "/" + mem.length + " " + esc(T("were 3arif")) + ", " + wasM.size + "/" + mem.length + " " + esc(T("were mosa3ed")) + "</p>" : "") +
-    '<div class="seg arif-mode"><button type="button" data-mode="1" class="' + (auto ? "on" : "") + '">🎲 ' + esc(T("Automatic")) + '</button><button type="button" data-mode="0" class="' + (auto ? "" : "on") + '">✋ ' + esc(T("Chosen by hand")) + "</button></div>" +
-    (auto ? '<p class="meta">' + esc(T("Picked at random. Everyone is 3arif once and mosa3ed once before anyone repeats.")) + '</p><button class="btn line sm" id="aNow">🎲 ' + esc(T("Pick now")) + "</button>"
+    '<div class="seg arif-mode"><button type="button" data-mode="1" class="' + (auto ? "on" : "") + '">🎲 ' + esc(T("Automatic")) + '</button><button type="button" data-mode="2" class="' + (ordMode ? "on" : "") + '">📋 ' + esc(T("In my order")) + '</button><button type="button" data-mode="0" class="' + (auto || ordMode ? "" : "on") + '">✋ ' + esc(T("Chosen by hand")) + "</button></div>" +
+    (ordMode ? '<p class="meta">' + esc(T("It changes by itself in this order: after the 3arif comes the next one, and the one after him is mosa3ed. After the last it starts again.")) + '</p><div id="aOrd"></div><div class="actions"><button class="btn gold sm" id="aOrdGo">' + esc(T("Save the order")) + "</button></div>"
+    : auto ? '<p class="meta">' + esc(T("Picked at random. Everyone is 3arif once and mosa3ed once before anyone repeats.")) + '</p><button class="btn line sm" id="aNow">🎲 ' + esc(T("Pick now")) + "</button>"
       : '<div class="grid2"><div class="field"><label>' + esc(T("3arif")) + '</label><select id="aA">' + opt(t.arif_id) + '</select></div><div class="field"><label>' + esc(T("Mosa3ed 3arif")) + '</label><select id="aM">' + opt(t.mosa3ed_id) + "</select></div></div>" +
         '<p class="meta">' + esc(T("✓✓ = already was both this round.")) + " " + esc(T("When the time is up, the leaders of this tali3a get a reminder every week until you pick someone new.")) + '</p><button class="btn gold sm" id="aSet">' + esc(T("Save")) + "</button>") +
     "</div>" +
@@ -502,7 +504,19 @@ async function tali3aSheet(t) {
   $("tEd").onclick = () => { if (TALEDIT) TALEDIT(t); };
   const again = async () => { await load(CUR && CUR.id); const nt = TAL.find(x => x.id === t.id); if (nt) tali3aSheet(nt); else o.hidden = true; };
   const call = async (fn, args, ok) => { const { error } = await supabaseClient.rpc(fn, args); if (error) return BAS.toast(BAS.errText(error), "err"); if (ok) BAS.toast(ok); again(); };
-  o.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => call("set_arif_mode", { p_tali3a: t.id, p_auto: b.dataset.mode === "1" }, "Saved"));
+  o.querySelectorAll("[data-mode]").forEach(b => b.onclick = async () => {
+    const m = b.dataset.mode;
+    if (m === "2") { await supabaseClient.rpc("set_arif_order", { p_tali3a: t.id, p_order: ORD }); return call("set_arif_mode", { p_tali3a: t.id, p_auto: true }, "Saved"); }
+    if (m === "1") await supabaseClient.rpc("set_arif_order", { p_tali3a: t.id, p_order: [] });
+    call("set_arif_mode", { p_tali3a: t.id, p_auto: m === "1" }, "Saved");
+  });
+  const drawOrd = () => { if (!$("aOrd")) return;
+    $("aOrd").innerHTML = ORD.map((id, i) => { const p = mem.find(x => x.id === id); return '<div class="person" style="padding:6px 0"><div><b>' + (i + 1) + ". " + esc(p ? p.name : "?") + "</b>" + (id === t.arif_id ? " ⭐" : "") + (id === t.mosa3ed_id ? " ☆" : "") +
+      '</div><div class="actions" style="margin:0"><button class="btn line sm" data-up="' + i + '"' + (i ? "" : " disabled") + '>▲</button><button class="btn line sm" data-dn="' + i + '"' + (i < ORD.length - 1 ? "" : " disabled") + ">▼</button></div></div>"; }).join("");
+    $("aOrd").querySelectorAll("[data-up]").forEach(b => b.onclick = () => { const i = Number(b.dataset.up); [ORD[i - 1], ORD[i]] = [ORD[i], ORD[i - 1]]; drawOrd(); });
+    $("aOrd").querySelectorAll("[data-dn]").forEach(b => b.onclick = () => { const i = Number(b.dataset.dn); [ORD[i + 1], ORD[i]] = [ORD[i], ORD[i + 1]]; drawOrd(); }); };
+  drawOrd();
+  if ($("aOrdGo")) $("aOrdGo").onclick = () => call("set_arif_order", { p_tali3a: t.id, p_order: ORD }, "Saved");
   if ($("aNow")) $("aNow").onclick = () => { if (confirm(T("Pick a new 3arif and mosa3ed now?"))) call("rotate_arif", { p_tali3a: t.id }, "Saved"); };
   if ($("aSet")) $("aSet").onclick = () => { const a = $("aA").value, m = $("aM").value; if (!a) return BAS.toast("Choose the 3arif.", "err"); call("set_arif", { p_tali3a: t.id, p_arif: Number(a), p_mosa3ed: m ? Number(m) : null }, "Saved"); };
   o.querySelectorAll("[data-tp]").forEach(el => el.onclick = e => { if (e.target.closest("[data-trm]")) return; personSheet(ROSTER.find(x => x.id === Number(el.dataset.tp))); });
@@ -591,6 +605,7 @@ async function personSheet(p) {
     (amt > 0 ? '<div class="panel"><b>💳 ' + esc(T("Yearly subscription")) + "</b> · " + (paid >= amt ? '<span class="pill ok">' + esc(T("PAID")) + "</span>" : paid > 0 ? BAS.money(paid) + " / " + BAS.money(amt) : '<span class="pill warn">' + esc(T("NOT PAID")) + "</span>") +
       ' <a class="lnk" href="#subs" data-gosubs>' + esc(T("Open")) + "</a></div>" : "") +
     '<div id="dErr" class="msg err" hidden></div><div class="actions"><button class="btn gold" id="dGo">Save</button>' + (p.profile_id ? "" : '<button class="btn danger" id="dRm">' + esc(T("Archive")) + "</button>") +
+    (p.role !== "kada" ? '<button class="btn gold" id="dReg">📝 ' + esc(T("Registration details")) + (regMissing(p) ? " (" + regMissing(p) + " " + esc(T("missing")) + ")" : " ✓") + "</button>" : "") +
     (p.role === "kada" && BAS.isAdmin() ? '<button class="btn danger" id="dKill">🗑 ' + esc(T(p.profile_id ? "Remove the account" : "Delete forever")) + "</button>" : "") + '<button class="btn line" id="dBack">Back</button></div></div>';
   o.hidden = false;
   // a scout's details are changed only by the people chosen for Group records
@@ -639,6 +654,7 @@ async function personSheet(p) {
     supabaseClient.storage.from("people").remove([p.photo_path]).then(() => {});
     if (await save({ photo_path: "" })) { BAS.toast("Saved"); load(CUR && CUR.id).then(() => personSheet(ROSTER.find(x => x.id === p.id) || p)); }
   };
+  if ($("dReg")) $("dReg").onclick = () => regSheet(p);
   if ($("dKill")) $("dKill").onclick = async () => {
     let code = null;
     if (p.profile_id) { if (!confirm(T("Remove") + " " + p.name + "? " + T("Their account goes to Deleted and they leave the kada list. Bring back undoes both."))) return; }
@@ -657,6 +673,81 @@ async function personSheet(p) {
 }
 // Egyptian numbers for WhatsApp: 01xxxxxxxxx → 201xxxxxxxxx
 const waNum = n => { let d = String(n).replace(/\D/g, ""); if (d.startsWith("00")) d = d.slice(2); if (d.startsWith("0")) d = "2" + d; return d; };
+// ---------- registration details: the form sent to parents, filled by the stage's kada ----------
+// Only what's still empty can be filled here. Once saved, the kada see "✓ saved" (not the value); Group records changes it.
+const REG = [
+  ["h", "The scout"], ["name_ar", "Arabic name"], ["school_year", "School year", "year"], ["birthday", "Birthday", "date"], ["national_id", "National ID", "nid"], ["job", "Their work (if they work)"],
+  ["h", "Father"], ["father_name", "Father's full name"], ["father_job", "Father's job"], ["father_phone", "Father's phone", "tel"], ["father_call_ok", "OK to call the father? (busy most of the time → No)", "yn"], ["father_national_id", "Father's national ID", "nid"],
+  ["h", "Mother"], ["mother_name", "Mother's full name"], ["mother_job", "Mother's job (if she works)"], ["mother_phone", "Mother's phone", "tel"], ["mother_national_id", "Mother's national ID", "nid"],
+  ["h", "Other"], ["joined_on", "Joined the scouts on (if known)", "date"], ["notes", "Notes on dealing with the scout", "area"],
+  ["h", "Papers"], ["photo_path", "A recent face photo (4×6, white background is fine)", "file"], ["birth_cert_path", "Birth certificate", "file"], ["id_front_path", "ID card: front", "file"], ["id_back_path", "ID card: back", "file"]];
+const regFilled = (p, k) => p[k] !== null && p[k] !== undefined && p[k] !== "";
+// how many are still missing (their work, the mother's job, notes and the join date are optional; papers: birth certificate, or both sides of the ID)
+const REG_OPT = ["job", "mother_job", "notes", "joined_on"];
+const regMissing = p => REG.filter(f => f[0] !== "h" && f[2] !== "file" && REG_OPT.indexOf(f[0]) < 0 && !regFilled(p, f[0])).length +
+  (regFilled(p, "photo_path") ? 0 : 1) + (regFilled(p, "birth_cert_path") || (regFilled(p, "id_front_path") && regFilled(p, "id_back_path")) ? 0 : 1);
+function shrinkTo(file, max) {
+  return new Promise((ok, bad) => {
+    const rd = new FileReader(), img = new Image();
+    rd.onload = () => { img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement("canvas");
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      c.toBlob(b => b ? ok(b) : bad(new Error("That file is not a photo.")), "image/jpeg", 0.85);
+    }; img.onerror = () => bad(new Error("That file is not a photo.")); img.src = rd.result; };
+    rd.readAsDataURL(file);
+  });
+}
+function regSheet(p) {
+  const o = $("sheet"), saved = '<span class="pill ok">✓ ' + esc(T("saved")) + "</span>";
+  const inp = f => {
+    const id = "rg_" + f[0];
+    if (regFilled(p, f[0])) return saved;
+    if (f[2] === "date") return '<input type="date" id="' + id + '">';
+    if (f[2] === "tel") return '<input type="tel" inputmode="numeric" maxlength="11" placeholder="01xxxxxxxxx" id="' + id + '">';
+    if (f[2] === "nid") return '<input id="' + id + '" inputmode="numeric" maxlength="14" dir="ltr" placeholder="' + esc(T("14 numbers")) + '">';
+    if (f[2] === "yn") return '<select id="' + id + '"><option value="">—</option><option value="true">' + esc(T("Yes")) + '</option><option value="false">' + esc(T("No")) + "</option></select>";
+    if (f[2] === "year") return '<select id="' + id + '"><option value="">—</option>' + YEARS.map(y => "<option>" + esc(y) + "</option>").join("") + "</select>";
+    if (f[2] === "area") return '<textarea id="' + id + '" rows="2" dir="auto"></textarea>';
+    if (f[2] === "file") return '<input type="file" accept="image/*" id="' + id + '">';
+    return '<input id="' + id + '" dir="auto">';
+  };
+  o.innerHTML = '<div class="sheet" style="max-width:600px"><h2>📝 ' + esc(p.name) + '</h2><p class="meta">' + esc(T("Fill in what the parents sent. What's already saved shows ✓ and can only be changed from Group records.")) + "</p>" +
+    REG.map(f => f[0] === "h" ? '<div class="group-title" style="margin-top:14px">' + esc(T(f[1])) + "</div>" : '<div class="field"><label>' + esc(T(f[1])) + "</label>" + inp(f) + "</div>").join("") +
+    '<div id="rgErr" class="msg err" hidden></div><div class="actions"><button class="btn gold" id="rgGo">' + esc(T("Save")) + '</button><button class="btn line" id="rgBk">' + esc(T("Back")) + "</button></div></div>";
+  o.hidden = false; o.scrollTop = 0;
+  $("rgBk").onclick = () => personSheet(p);
+  $("rgGo").onclick = async () => {
+    $("rgErr").hidden = true; $("rgGo").disabled = true;
+    try {
+      const d = {}, AD = t => String(t).replace(/[٠-٩]/g, c => "٠١٢٣٤٥٦٧٨٩".indexOf(c)).replace(/[۰-۹]/g, c => "۰۱۲۳۴۵۶۷۸۹".indexOf(c)).replace(/\s/g, "");
+      for (const f of REG) {
+        const el = $("rg_" + f[0]); if (!el || f[0] === "h" || f[2] === "file") continue;
+        const v = String(el.value).trim(); if (!v) continue;
+        if (f[2] === "nid" && !/^[23][0-9]{13}$/.test(AD(v))) throw new Error("A national ID should be 14 numbers: " + v);
+        if (f[2] === "tel" && BAS.normPhone(v).length !== 11) throw new Error("A phone number has to be 11 numbers: " + v);
+      }
+      for (const f of REG) {
+        const el = $("rg_" + f[0]); if (!el || f[0] === "h") continue;
+        if (f[2] === "file") {
+          const file = el.files[0]; if (!file) continue;
+          const face = f[0] === "photo_path", blob = await shrinkTo(file, face ? 800 : 1800);
+          const path = SECID + "/" + p.id + (face ? "-" : "/" + f[0].replace("_path", "") + "-") + Date.now() + ".jpg";
+          const up = await supabaseClient.storage.from(face ? "people" : "docs").upload(path, blob, { contentType: "image/jpeg" });
+          if (up.error) throw up.error;
+          d[f[0]] = path;
+        } else if (String(el.value).trim()) d[f[0]] = el.value.trim();
+      }
+      if (!Object.keys(d).length) { $("rgGo").disabled = false; return BAS.toast(T("Nothing new to save.")); }
+      const { data, error } = await supabaseClient.rpc("fill_scout", { p_id: p.id, p: d });
+      if (error) throw error;
+      BAS.toast("✓ " + (data || []).length + " " + T("saved"));
+      o.hidden = true; await load(CUR && CUR.id);
+    } catch (e) { $("rgErr").textContent = BAS.errText(e); $("rgErr").hidden = false; }
+    $("rgGo").disabled = false;
+  };
+}
+
 function shrink(file) {
   return new Promise((ok, bad) => {
     const rd = new FileReader(), img = new Image();

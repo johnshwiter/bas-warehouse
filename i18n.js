@@ -13,6 +13,20 @@
 
   // ---------- exact texts: "English": ["العربي", "Français"] ----------
   const D = {
+    // v24
+    "Registration details": ["بيانات التسجيل", "Informations d'inscription"], "Registration details missing": ["بيانات التسجيل ناقصة", "Informations d'inscription manquantes"],
+    "Fill in what the parents sent. What's already saved shows ✓ and can only be changed from Group records.": ["املى اللي الأهل بعتوه. اللي اتحفظ قبل كده بيظهر ✓ وبيتغير من سجلات الكشافة بس.", "Remplissez ce que les parents ont envoyé. Ce qui est déjà enregistré montre ✓ et ne se change que depuis les registres."],
+    "The scout": ["الكشاف", "Le scout"], "Father": ["الأب", "Père"], "Mother": ["الأم", "Mère"], "Other": ["تاني", "Autre"], "Papers": ["الأوراق", "Papiers"],
+    "Their work (if they work)": ["شغله (لو بيشتغل)", "Son travail (s'il travaille)"], "Father's full name": ["اسم الأب كامل", "Nom complet du père"],
+    "OK to call the father? (busy most of the time → No)": ["يحبذ الاتصال بالأب؟ (لو مشغول معظم الوقت ← لأ)", "Peut-on appeler le père ? (souvent occupé → Non)"], "OK to call the father?": ["يحبذ الاتصال بالأب؟", "Peut-on appeler le père ?"],
+    "Father's national ID": ["الرقم القومي للأب", "N° d'identité du père"], "Mother's full name": ["اسم الأم كامل", "Nom complet de la mère"], "Mother's job (if she works)": ["شغل الأم (لو بتشتغل)", "Travail de la mère (si elle travaille)"],
+    "Mother's national ID": ["الرقم القومي للأم", "N° d'identité de la mère"], "Joined the scouts on (if known)": ["تاريخ الالتحاق بالكشافة (لو معروف)", "Entré chez les scouts le (si connu)"],
+    "Notes on dealing with the scout": ["ملاحظات للتعامل مع الكشاف", "Notes pour s'occuper du scout"], "A recent face photo (4×6, white background is fine)": ["صورة حديثة لوش الكشاف (٤×٦ خلفية بيضا تنفع)", "Une photo récente du visage (4×6, fond blanc OK)"],
+    "Birth certificate": ["شهادة الميلاد", "Acte de naissance"], "ID card: front": ["البطاقة: وش", "Carte d'identité : recto"], "ID card: back": ["البطاقة: ضهر", "Carte d'identité : verso"],
+    "saved": ["اتحفظ", "enregistré"], "Nothing new to save.": ["مفيش حاجة جديدة تتحفظ.", "Rien de nouveau à enregistrer."],
+    "In my order": ["بالترتيب بتاعي", "Dans mon ordre"], "Save the order": ["احفظ الترتيب", "Enregistrer l'ordre"],
+    "It changes by itself in this order: after the 3arif comes the next one, and the one after him is mosa3ed. After the last it starts again.": ["بيتغير لوحده بالترتيب ده: بعد العريف ييجي اللي بعده، واللي بعده يبقى المساعد. بعد الأخير يبدأ من الأول.", "Il change tout seul dans cet ordre : après le chef vient le suivant, et celui d'après est le second. Après le dernier, on recommence."],
+    "You can only fill in your own stage's scouts.": ["تقدر تملى بيانات كشافة مرحلتك بس.", "Vous ne pouvez remplir que les scouts de votre étape."],
     // v23
     "My tali3a": ["طليعتي", "Ma patrouille"], "All the stage": ["المرحلة كلها", "Toute l'étape"], "Tali3a leader": ["قائد الطليعة", "Chef de patrouille"],
     "No uniform today is OK (trip, outing…)": ["مفيش زي النهاردة عادي (رحلة، خروجة…)", "Pas d'uniforme aujourd'hui, c'est OK (sortie…)"],
@@ -736,7 +750,7 @@
     [/ to (?=[^·]+($| · ))/g, " لـ ", " à "], [/ · return by( |$)/g, " · يرجع قبل$1", " · retour avant$1"], [/ · back /g, " · رجع ", " · rendu "], [/^back /, "رجع ", "rendu "], [/^by /, "قبل ", "avant "],
     [/^Available (\d+) of (\d+)/, "متاح $1 من $2", "Disponible $1 sur $2"], [/ · out (\d+)/g, " · برّه $1", " · sorti $1"], [/ · missing (\d+)/g, " · ناقص $1", " · manquant $1"],
     [/ · damaged (\d+)/g, " · بايظ $1", " · abîmé $1"], [/ · (\d+) colours/g, " · $1 ألوان", " · $1 couleurs"], [/ · signed up /g, " · سجّل ", " · inscrit le "],
-    [/^A phone number has to be 11 numbers: /, "رقم الموبايل لازم يكون 11 رقم: ", "Un numéro doit avoir 11 chiffres : "], [/^Since /, "من ", "Depuis "], [/ · back by /g, " · يرجع قبل ", " · retour avant "], [/ · count /g, " · العدد ", " · nombre "], [/ · repaired\/found /g, " · اتصلّح/اتلاقى ", " · réparé/retrouvé "],
+    [/^A national ID should be 14 numbers: /, "الرقم القومي لازم يكون 14 رقم: ", "Un n° d'identité doit avoir 14 chiffres : "], [/^A phone number has to be 11 numbers: /, "رقم الموبايل لازم يكون 11 رقم: ", "Un numéro doit avoir 11 chiffres : "], [/^Since /, "من ", "Depuis "], [/ · back by /g, " · يرجع قبل ", " · retour avant "], [/ · count /g, " · العدد ", " · nombre "], [/ · repaired\/found /g, " · اتصلّح/اتلاقى ", " · réparé/retrouvé "],
     [/ · request #/g, " · طلب #", " · demande #"], [/^to /, "لـ ", "à "], [/ OK,/g, " سليم،", " OK,"], [/\(partly\)/g, "(جزء)", "(en partie)"], [/ · return by$/, " · يرجع قبل", " · retour avant"],
     [/ · cost /g, " · التكلفة ", " · coût "], [/^Was /, "كان ", "Était "], [/ was handed out/, " اتسلّم", " remis"], [/^(.*) \(warehouse\)$/, "$1 (المخزن)", "$1 (entrepôt)"]
   ];
